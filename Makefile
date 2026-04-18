@@ -1,0 +1,217 @@
+.DEFAULT_GOAL := help
+
+BACKEND_DIR  := backend
+FRONTEND_DIR := fronted
+PID_DIR      := .pids
+
+BACKEND_PID  := $(PID_DIR)/backend.pid
+FRONTEND_PID := $(PID_DIR)/frontend.pid
+BACKEND_LOG  := $(PID_DIR)/backend.log
+FRONTEND_LOG := $(PID_DIR)/frontend.log
+
+CYAN  := \033[36m
+GREEN := \033[32m
+RESET := \033[0m
+BOLD  := \033[1m
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+
+.PHONY: help
+help: ## Muestra esta ayuda
+	@printf "\n$(BOLD)MLOps Control Dashboard$(RESET)\n\n"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-24s$(RESET) %s\n", $$1, $$2}' \
+		| sort
+	@printf "\n"
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+.PHONY: install install-backend install-frontend env
+install: install-backend install-frontend ## Instala todas las dependencias
+
+install-backend: ## Instala dependencias Python (pip)
+	cd $(BACKEND_DIR) && pip install -r requirements.txt
+
+install-frontend: ## Instala dependencias Node (npm)
+	cd $(FRONTEND_DIR) && npm install
+
+env: ## Crea backend/.env desde .env.example (no sobreescribe)
+	@[ -f $(BACKEND_DIR)/.env ] \
+		&& echo "$(BACKEND_DIR)/.env ya existe — no se sobreescribe" \
+		|| (cp $(BACKEND_DIR)/.env.example $(BACKEND_DIR)/.env \
+			&& printf "$(GREEN)$(BACKEND_DIR)/.env creado$(RESET) — edítalo y añade GITHUB_TOKEN\n")
+
+# ── Dev (procesos locales) ────────────────────────────────────────────────────
+
+.PHONY: dev dev-backend dev-frontend
+dev: dev-backend dev-frontend ## Arranca backend + frontend en background
+	@printf "\n$(BOLD)Servicios arrancados$(RESET)\n"
+	@printf "  Backend:  $(CYAN)http://localhost:8000$(RESET)\n"
+	@printf "  Frontend: $(CYAN)http://localhost:5173$(RESET)\n"
+	@printf "  API docs: $(CYAN)http://localhost:8000/docs$(RESET)\n"
+	@printf "  Logs:     make logs\n\n"
+
+dev-backend: ## Arranca el backend (uvicorn --reload) en background
+	@mkdir -p $(PID_DIR); \
+	if [ -f $(BACKEND_PID) ] && kill -0 $$(cat $(BACKEND_PID)) 2>/dev/null; then \
+		echo "Backend ya corriendo (PID $$(cat $(BACKEND_PID)))"; \
+	else \
+		cd $(BACKEND_DIR) && uvicorn app.main:app --reload --port 8000 \
+			> ../$(BACKEND_LOG) 2>&1 & \
+		echo $$! > ../$(BACKEND_PID); \
+		printf "$(GREEN)Backend arrancado$(RESET) (PID $$(cat ../$(BACKEND_PID)))\n"; \
+	fi
+
+dev-frontend: ## Arranca el frontend (vite) en background
+	@mkdir -p $(PID_DIR); \
+	if [ -f $(FRONTEND_PID) ] && kill -0 $$(cat $(FRONTEND_PID)) 2>/dev/null; then \
+		echo "Frontend ya corriendo (PID $$(cat $(FRONTEND_PID)))"; \
+	else \
+		cd $(FRONTEND_DIR) && npm run dev \
+			> ../$(FRONTEND_LOG) 2>&1 & \
+		echo $$! > ../$(FRONTEND_PID); \
+		printf "$(GREEN)Frontend arrancado$(RESET) (PID $$(cat ../$(FRONTEND_PID)))\n"; \
+	fi
+
+# ── Stop ─────────────────────────────────────────────────────────────────────
+
+.PHONY: stop stop-backend stop-frontend restart restart-backend restart-frontend
+stop: stop-backend stop-frontend ## Para backend + frontend
+
+stop-backend: ## Para el backend
+	@if [ -f $(BACKEND_PID) ]; then \
+		PID=$$(cat $(BACKEND_PID)); \
+		kill $$PID 2>/dev/null && echo "Backend parado (PID $$PID)" || echo "Backend ya estaba parado"; \
+		rm -f $(BACKEND_PID); \
+	else \
+		echo "Backend no estaba corriendo"; \
+	fi
+
+stop-frontend: ## Para el frontend
+	@if [ -f $(FRONTEND_PID) ]; then \
+		PID=$$(cat $(FRONTEND_PID)); \
+		kill $$PID 2>/dev/null && echo "Frontend parado (PID $$PID)" || echo "Frontend ya estaba parado"; \
+		rm -f $(FRONTEND_PID); \
+	else \
+		echo "Frontend no estaba corriendo"; \
+	fi
+
+restart: stop dev ## Reinicia backend + frontend
+restart-backend: stop-backend dev-backend ## Reinicia solo el backend
+restart-frontend: stop-frontend dev-frontend ## Reinicia solo el frontend
+
+# ── Status & Logs ─────────────────────────────────────────────────────────────
+
+.PHONY: status logs logs-backend logs-frontend
+status: ## Estado de los procesos locales
+	@B_STATUS="STOPPED"; F_STATUS="STOPPED"; \
+	[ -f $(BACKEND_PID) ]  && kill -0 $$(cat $(BACKEND_PID))  2>/dev/null \
+		&& B_STATUS="$(GREEN)RUNNING$(RESET) (PID $$(cat $(BACKEND_PID)))"; \
+	[ -f $(FRONTEND_PID) ] && kill -0 $$(cat $(FRONTEND_PID)) 2>/dev/null \
+		&& F_STATUS="$(GREEN)RUNNING$(RESET) (PID $$(cat $(FRONTEND_PID)))"; \
+	printf "  Backend:  $$B_STATUS\n"; \
+	printf "  Frontend: $$F_STATUS\n"
+
+logs: ## Sigue los logs de ambos servicios (Ctrl-C para salir)
+	@[ -f $(BACKEND_LOG) ] || [ -f $(FRONTEND_LOG) ] \
+		|| (echo "No hay logs todavía. Arranca con: make dev" && exit 1)
+	@tail -f $(BACKEND_LOG) $(FRONTEND_LOG) 2>/dev/null
+
+logs-backend: ## Sigue los logs del backend
+	@tail -f $(BACKEND_LOG)
+
+logs-frontend: ## Sigue los logs del frontend
+	@tail -f $(FRONTEND_LOG)
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+
+.PHONY: docker-up docker-up-build docker-down docker-build \
+        docker-logs docker-restart docker-ps docker-shell-backend
+
+docker-up: ## Levanta todos los servicios con Docker Compose (detached)
+	docker compose up -d
+
+docker-up-build: ## Build + up (fuerza rebuild de imágenes)
+	docker compose up -d --build
+
+docker-down: ## Para y elimina los contenedores
+	docker compose down
+
+docker-build: ## Construye las imágenes sin levantar
+	docker compose build
+
+docker-logs: ## Sigue los logs de Docker Compose
+	docker compose logs -f
+
+docker-restart: docker-down docker-up ## Para y vuelve a levantar los contenedores
+
+docker-ps: ## Estado de los contenedores Docker
+	docker compose ps
+
+docker-shell-backend: ## Shell interactivo en el contenedor backend
+	docker compose exec backend bash
+
+# ── DB ────────────────────────────────────────────────────────────────────────
+
+.PHONY: db-reset db-shell db-dump
+db-reset: ## Elimina la base de datos SQLite (requiere restart del backend)
+	@rm -f $(BACKEND_DIR)/executions.db && printf "$(GREEN)Base de datos eliminada$(RESET)\n"
+
+db-shell: ## Abre shell SQLite interactivo
+	sqlite3 $(BACKEND_DIR)/executions.db
+
+db-dump: ## Vuelca toda la tabla executions a stdout
+	@sqlite3 $(BACKEND_DIR)/executions.db ".mode column" ".headers on" \
+		"SELECT id, fase, variant, status, created_at FROM executions ORDER BY created_at DESC;"
+
+# ── Lint & Format ─────────────────────────────────────────────────────────────
+
+.PHONY: lint lint-backend lint-frontend fmt fmt-backend fmt-frontend
+lint: lint-backend lint-frontend ## Lint de backend + frontend
+
+lint-backend: ## Lint Python con ruff (pip install ruff si no está)
+	cd $(BACKEND_DIR) && ruff check app/
+
+lint-frontend: ## Lint JS con eslint
+	cd $(FRONTEND_DIR) && npm run lint --if-present
+
+fmt: fmt-backend fmt-frontend ## Formatea backend + frontend
+
+fmt-backend: ## Formatea Python con ruff format
+	cd $(BACKEND_DIR) && ruff format app/
+
+fmt-frontend: ## Formatea JS/JSX con prettier
+	cd $(FRONTEND_DIR) && npx prettier --write "src/**/*.{js,jsx}"
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+
+.PHONY: build build-frontend
+build: build-frontend ## Build de producción
+
+build-frontend: ## Build Vite para producción (dist/)
+	cd $(FRONTEND_DIR) && npm run build
+
+# ── Open ──────────────────────────────────────────────────────────────────────
+
+.PHONY: open open-api open-gh
+open: ## Abre el frontend en el navegador
+	@xdg-open http://localhost:5173 2>/dev/null || open http://localhost:5173 2>/dev/null || true
+
+open-api: ## Abre la documentación OpenAPI
+	@xdg-open http://localhost:8000/docs 2>/dev/null || open http://localhost:8000/docs 2>/dev/null || true
+
+open-gh: ## Abre el repositorio de GitHub Actions
+	@xdg-open https://github.com/Tehedor/MLOps_actions_v2 2>/dev/null \
+		|| open https://github.com/Tehedor/MLOps_actions_v2 2>/dev/null || true
+
+# ── Clean ─────────────────────────────────────────────────────────────────────
+
+.PHONY: clean clean-pids clean-frontend
+clean: stop clean-pids clean-frontend ## Para servicios y limpia artefactos generados
+
+clean-pids: ## Elimina PIDs y logs de procesos locales
+	@rm -rf $(PID_DIR) && echo "PIDs y logs eliminados"
+
+clean-frontend: ## Elimina node_modules y dist del frontend
+	@rm -rf $(FRONTEND_DIR)/node_modules $(FRONTEND_DIR)/dist \
+		&& echo "node_modules y dist eliminados"

@@ -1,0 +1,177 @@
+@TOKEN_FINE_GRAINED_AQUI = github_pat_****
+
+### Fase setup
+f01_explore  
+f02_events   
+f03_windows  
+f04_targets  
+f05_modeling  
+f06_quant     
+f07_modval  
+f08_sysval
+
+### Fase 1
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "01_explore",
+    "variant_id": "v001",
+    "params": {
+      "RAW": "./data/raw.csv",
+      "CLEANING": "basic",
+      "NAN_VALUES": "[-999999]"
+    }
+  }
+}
+
+### Fase 2
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "02_prepareeventsds",
+    "variant_id": "v202",
+    "parent_variant": "v001",
+    "params": {
+      "STRATEGY": "transitions",
+      "BANDS": [10, 90],
+      "NAN_MODE": "discard"
+    }
+  }
+}
+
+### Fase 3
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "03_preparewindowsds",
+    "variant_id": "v302",
+    "parent_variant": "v202",
+    "params": {
+      "OW": 600,
+      "LT": 100,
+      "PW": 100,
+      "STRATEGY": "synchro",
+      "NAN_MODE": "discard"
+    }
+  }
+}
+
+### Fase 4
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "04_targetengineering",
+    "variant_id": "v401",
+    "parent_variant": "v302",
+    "catalog_variant": "v202",
+    "params": {
+      "NAME": "battery_overheat",
+      "OPERATOR": "OR",
+      "EVENTS": ["Battery_Active_Power_0_10-to-90_100,Battery_Active_Power_10_90-to-90_100"]
+    }
+  }
+}
+
+### Fase 5
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "05_modeling",
+    "variant_id": "v502",
+    "parent_variant": "v401",
+    "params": {
+      "MODEL_FAMILY": "cnn1d",
+      "IMBALANCE_STRATEGY": "rare_events"
+    }
+  }
+}
+
+### Fase 6
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "06_packaging",
+    "variant_id": "v601",
+    "parent_variant": "v502",
+    "params": {}
+  }
+}
+
+### Fase 7
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "07_deployrun",
+    "variant_id": "v701",
+    "parent_variant": "v601",
+    "params": {
+      "PLATFORM": "esp32",
+      "MTI_MS": 100,
+      "TIME_SCALE": 0.01
+    }
+  }
+}
+
+### Fase 8 - parents_variant como CSV
+POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
+Accept: application/vnd.github.v3+json
+Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+
+{
+  "event_type": "ejecutar-fase-api",
+  "client_payload": {
+    "fase": "08_multimodelsystem",
+    "variant_id": "v803",
+    "parents_variant": "v701,v703",
+    "params": {
+      "PLATFORM": "esp32",
+      "MTI_MS": 100,
+      "TIME_SCALE": 0.01
+    }
+  }
+}
+

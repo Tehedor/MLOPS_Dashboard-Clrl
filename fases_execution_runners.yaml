@@ -1,0 +1,31 @@
+runners:
+  - GithubActions:
+    max-parallel: 20
+    labels: [ubuntu-latest]
+  - CPU-self-hosted:
+    max-parallel: 3
+    labels: [self-hosted, CPU]
+  - GPU-self-hosted:
+    max-parallel: 3
+    labels: [self-hosted, GPU]
+  - ESP32-self-hosted:
+    labels: [self-hosted, ESP32]
+    max-parallel: 1
+
+fases:
+  - fase: f01_explore
+    runner: "GithubActions"
+  - fase: f02_events   
+    runner: "GithubActions"
+  - fase: f03_windows  
+    runner: "GithubActions"
+  - fase: f04_targets  
+    runner: "GithubActions"
+  - fase: f05_modeling  
+    runner: "GPU-self-hosted"
+  - fase: f06_quant     
+    runner: "GithubActions"
+  - fase: f07_modval  
+    runner: "ESP32-self-hosted"
+  - fase: f08_sysval
+    runner: "GithubActions"
