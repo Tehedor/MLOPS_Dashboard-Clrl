@@ -2,15 +2,29 @@ import json
 import asyncio
 from typing import AsyncGenerator
 
+import yaml
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.core.config import phases_runner_path
 from app.schemas.execution import Execution, ExecutionCreate
 from app.services.execution_service import ExecutionService
 
 router = APIRouter()
 _service = ExecutionService()
 _sse_queues: list[asyncio.Queue] = []
+
+
+def _load_phases() -> list[dict]:
+    config_path = phases_runner_path()
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+    return config.get("fases", [])
+
+
+@router.get("/phases")
+async def get_phases():
+    return _load_phases()
 
 
 @router.post("", response_model=Execution, status_code=201)

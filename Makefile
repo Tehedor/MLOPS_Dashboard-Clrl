@@ -55,11 +55,23 @@ dev-backend: ## Arranca el backend (uvicorn --reload) en background
 	@mkdir -p $(PID_DIR); \
 	if [ -f $(BACKEND_PID) ] && kill -0 $$(cat $(BACKEND_PID)) 2>/dev/null; then \
 		echo "Backend ya corriendo (PID $$(cat $(BACKEND_PID)))"; \
+	elif PID=$$(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | head -n1); [ -n "$$PID" ]; then \
+		echo $$PID > $(BACKEND_PID); \
+		echo "Backend ya corriendo (PID $$PID)"; \
 	else \
-		cd $(BACKEND_DIR) && uvicorn app.main:app --reload --port 8000 \
-			> ../$(BACKEND_LOG) 2>&1 & \
-		echo $$! > ../$(BACKEND_PID); \
-		printf "$(GREEN)Backend arrancado$(RESET) (PID $$(cat ../$(BACKEND_PID)))\n"; \
+		cd $(BACKEND_DIR) || exit 1; \
+		uvicorn app.main:app --reload --port 8000 > ../$(BACKEND_LOG) 2>&1 & \
+		PID=$$!; \
+		sleep 1; \
+		if kill -0 $$PID 2>/dev/null; then \
+			echo $$PID > ../$(BACKEND_PID); \
+			printf "$(GREEN)Backend arrancado$(RESET) (PID $$PID)\n"; \
+		else \
+			echo "Backend no pudo arrancar. Revisa: $(BACKEND_LOG)"; \
+			tail -n 20 ../$(BACKEND_LOG) 2>/dev/null || true; \
+			rm -f ../$(BACKEND_PID); \
+			exit 1; \
+		fi; \
 	fi
 
 dev-frontend: ## Arranca el frontend (vite) en background
@@ -67,8 +79,8 @@ dev-frontend: ## Arranca el frontend (vite) en background
 	if [ -f $(FRONTEND_PID) ] && kill -0 $$(cat $(FRONTEND_PID)) 2>/dev/null; then \
 		echo "Frontend ya corriendo (PID $$(cat $(FRONTEND_PID)))"; \
 	else \
-		cd $(FRONTEND_DIR) && npm run dev \
-			> ../$(FRONTEND_LOG) 2>&1 & \
+		cd $(FRONTEND_DIR) || exit 1; \
+		npm run dev > ../$(FRONTEND_LOG) 2>&1 & \
 		echo $$! > ../$(FRONTEND_PID); \
 		printf "$(GREEN)Frontend arrancado$(RESET) (PID $$(cat ../$(FRONTEND_PID)))\n"; \
 	fi
@@ -79,13 +91,42 @@ dev-frontend: ## Arranca el frontend (vite) en background
 stop: stop-backend stop-frontend ## Para backend + frontend
 
 stop-backend: ## Para el backend
-	@if [ -f $(BACKEND_PID) ]; then \
-		PID=$$(cat $(BACKEND_PID)); \
-		kill $$PID 2>/dev/null && echo "Backend parado (PID $$PID)" || echo "Backend ya estaba parado"; \
-		rm -f $(BACKEND_PID); \
+	@PIDS=""; \
+	if [ -f $(BACKEND_PID) ]; then \
+		PID_FILE=$$(cat $(BACKEND_PID) 2>/dev/null); \
+		[ -n "$$PID_FILE" ] && PIDS="$$PID_FILE"; \
+	fi; \
+	PORT_PID=$$(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | head -n1); \
+	if [ -n "$$PORT_PID" ]; then \
+		case " $$PIDS " in \
+			*" $$PORT_PID "*) ;; \
+			*) PIDS="$$PIDS $$PORT_PID" ;; \
+		esac; \
+	fi; \
+	for PID in $$(pgrep -f "uvicorn app.main:app --reload --port 8000" 2>/dev/null || true); do \
+		COMM=$$(ps -p $$PID -o comm= 2>/dev/null | tr -d '[:space:]'); \
+		ARGS=$$(ps -p $$PID -o args= 2>/dev/null); \
+		case "$$COMM" in sh|bash|dash|make) continue ;; esac; \
+		printf "%s" "$$ARGS" | grep -q "uvicorn app.main:app --reload --port 8000" || continue; \
+		case " $$PIDS " in \
+			*" $$PID "*) ;; \
+			*) PIDS="$$PIDS $$PID" ;; \
+		esac; \
+	done; \
+	if [ -n "$$(printf "%s" "$$PIDS" | tr -d '[:space:]')" ]; then \
+		for PID in $$PIDS; do kill $$PID 2>/dev/null || true; done; \
+		for _ in 1 2 3 4 5; do \
+			ALIVE=0; \
+			for PID in $$PIDS; do kill -0 $$PID 2>/dev/null && ALIVE=1; done; \
+			[ $$ALIVE -eq 0 ] && break; \
+			sleep 0.2; \
+		done; \
+		for PID in $$PIDS; do kill -0 $$PID 2>/dev/null && kill -9 $$PID 2>/dev/null || true; done; \
+		echo "Backend parado (PIDs:$${PIDS})"; \
 	else \
 		echo "Backend no estaba corriendo"; \
-	fi
+	fi; \
+	rm -f $(BACKEND_PID)
 
 stop-frontend: ## Para el frontend
 	@if [ -f $(FRONTEND_PID) ]; then \
@@ -107,6 +148,13 @@ status: ## Estado de los procesos locales
 	@B_STATUS="STOPPED"; F_STATUS="STOPPED"; \
 	[ -f $(BACKEND_PID) ]  && kill -0 $$(cat $(BACKEND_PID))  2>/dev/null \
 		&& B_STATUS="$(GREEN)RUNNING$(RESET) (PID $$(cat $(BACKEND_PID)))"; \
+	if [ "$$B_STATUS" = "STOPPED" ]; then \
+		PID=$$(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null | head -n1); \
+		if [ -n "$$PID" ]; then \
+			echo $$PID > $(BACKEND_PID); \
+			B_STATUS="$(GREEN)RUNNING$(RESET) (PID $$PID)"; \
+		fi; \
+	fi; \
 	[ -f $(FRONTEND_PID) ] && kill -0 $$(cat $(FRONTEND_PID)) 2>/dev/null \
 		&& F_STATUS="$(GREEN)RUNNING$(RESET) (PID $$(cat $(FRONTEND_PID)))"; \
 	printf "  Backend:  $$B_STATUS\n"; \

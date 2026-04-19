@@ -4,21 +4,33 @@ import asyncio
 from datetime import datetime, timezone
 
 import aiosqlite
+import yaml
 
+from app.core.config import phases_runner_path
 from app.core.db import DB_PATH
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
 
-FASE_RUNNER: dict[str, str] = {
-    "f01_explore": "GithubActions",
-    "f02_events": "GithubActions",
-    "f03_windows": "GithubActions",
-    "f04_targets": "GithubActions",
-    "f05_modeling": "GPU-self-hosted",
-    "f06_quant": "GithubActions",
-    "f07_modval": "ESP32-self-hosted",
-    "f08_sysval": "GithubActions",
-}
+
+_FASE_RUNNER_CACHE = None
+
+
+def _load_phases_config() -> dict[str, str]:
+    config_path = phases_runner_path()
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        return {fase["fase"]: fase["runner"] for fase in config.get("fases", [])}
+    except Exception as e:
+        print(f"Warning: Failed to load phases config: {e}")
+        return {}
+
+
+def _get_fase_runner() -> dict[str, str]:
+    global _FASE_RUNNER_CACHE
+    if _FASE_RUNNER_CACHE is None:
+        _FASE_RUNNER_CACHE = _load_phases_config()
+    return _FASE_RUNNER_CACHE
 
 
 def _row_to_execution(row) -> Execution:
@@ -45,7 +57,7 @@ class ExecutionService:
             fase=body.fase,
             variant=body.variant,
             parent=body.parent,
-            runner=FASE_RUNNER.get(body.fase, "GithubActions"),
+            runner=_get_fase_runner().get(body.fase, "GithubActions"),
             params=body.params,
             status=ExecutionStatus.queued,
             created_at=now,

@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MLOps Control Dashboard</title>
+    <script>
+      (function () {
+        var s = localStorage.getItem('theme')
+        var t = (s === 'light' || s === 'dark') ? s : 'light'
+        if (t === 'dark') document.documentElement.classList.add('dark')
+        document.documentElement.style.colorScheme = t
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

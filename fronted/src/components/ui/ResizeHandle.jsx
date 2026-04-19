@@ -33,7 +33,7 @@ export default function ResizeHandle({ onResize }) {
   return (
     <div
       onMouseDown={onMouseDown}
-      className="w-1 shrink-0 bg-gray-800 hover:bg-indigo-600 cursor-col-resize transition-colors active:bg-indigo-500"
+      className="w-1 shrink-0 bg-gray-300 hover:bg-indigo-600 cursor-col-resize transition-colors active:bg-indigo-500 dark:bg-gray-800"
       title="Arrastra para redimensionar"
     />
   )

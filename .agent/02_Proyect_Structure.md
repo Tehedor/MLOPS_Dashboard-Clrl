@@ -23,7 +23,7 @@ Estructura lógica mínima.
 - `traceability_schema.yaml`
 - `fases_execution_runners.yaml`
 - `60_deploy-api.http`
-- `confg.yaml`
+- `config.yaml`
 - `.env.example`
 
 ## Reglas

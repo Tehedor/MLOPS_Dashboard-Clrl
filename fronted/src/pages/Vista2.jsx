@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getExecutions } from '../api/executions'
-import PhaseCard, { PHASES } from '../features/vista2/PhaseCard'
+import { getExecutions, getPhases } from '../api/executions'
+import { transformPhases } from '../utils/phases'
+import PhaseCard from '../features/vista2/PhaseCard'
 import PipelinePanel from '../features/vista2/PipelinePanel'
 import HistoryPanel from '../features/vista2/HistoryPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
@@ -32,6 +33,27 @@ export default function Vista2() {
     refetchInterval: 10_000,
   })
 
+  const FALLBACK_PHASES = [
+    { fase: 'f01_explore', runner: 'GithubActions' },
+    { fase: 'f02_events', runner: 'GithubActions' },
+    { fase: 'f03_windows', runner: 'GithubActions' },
+    { fase: 'f04_targets', runner: 'GithubActions' },
+    { fase: 'f05_modeling', runner: 'GPU-self-hosted' },
+    { fase: 'f06_quant', runner: 'GithubActions' },
+    { fase: 'f07_modval', runner: 'ESP32-self-hosted' },
+    { fase: 'f08_sysval', runner: 'GithubActions' },
+  ]
+
+  const { data: rawPhases = FALLBACK_PHASES } = useQuery({
+    queryKey: ['phases'],
+    queryFn: getPhases,
+    staleTime: Infinity,
+    retry: 1,
+  })
+
+  const phases = transformPhases(rawPhases || FALLBACK_PHASES)
+  console.log('Vista2 phases:', phases)
+
   useSSE('/api/executions/stream', () => {
     qc.invalidateQueries({ queryKey: ['executions'] })
   })
@@ -52,7 +74,7 @@ export default function Vista2() {
         className="shrink-0 overflow-y-auto p-4 flex flex-col gap-5"
         style={{ width: leftWidth }}
       >
-        {PHASES.map(phase => (
+        {phases.map(phase => (
           <PhaseCard key={phase.id} phase={phase} executions={executions} />
         ))}
       </aside>
@@ -64,13 +86,13 @@ export default function Vista2() {
         className="flex flex-col overflow-hidden shrink-0"
         style={{ width: midWidth }}
       >
-        <div className="flex gap-2 p-3 border-b border-gray-800 shrink-0">
+        <div className="flex gap-2 p-3 border-b border-gray-300 dark:border-gray-800 shrink-0">
           <FilterInput placeholder="Variante" value={filterVariantL} onChange={setFilterVariantL} />
-          <FilterSelect value={filterFaseL} onChange={setFilterFaseL} />
+          <FilterSelect value={filterFaseL} onChange={setFilterFaseL} phases={phases} />
         </div>
         <div className="flex-1 overflow-y-auto p-3">
           {isLoading ? (
-            <p className="text-xs text-gray-500">Cargando...</p>
+            <p className="text-xs text-gray-600 dark:text-gray-500">Cargando...</p>
           ) : (
             <PipelinePanel
               executions={executions}
@@ -87,13 +109,13 @@ export default function Vista2() {
 
       {/* [8-10] Panel derecho — histórico */}
       <section className="flex flex-col overflow-hidden flex-1 min-w-0">
-        <div className="flex gap-2 p-3 border-b border-gray-800 shrink-0">
+        <div className="flex gap-2 p-3 border-b border-gray-300 dark:border-gray-800 shrink-0">
           <FilterInput placeholder="Variante" value={filterVariantR} onChange={setFilterVariantR} />
-          <FilterSelect value={filterFaseR} onChange={setFilterFaseR} />
+          <FilterSelect value={filterFaseR} onChange={setFilterFaseR} phases={phases} />
         </div>
         <div className="flex-1 overflow-y-auto p-3">
           {isLoading ? (
-            <p className="text-xs text-gray-500">Cargando...</p>
+            <p className="text-xs text-gray-600 dark:text-gray-500">Cargando...</p>
           ) : (
             <HistoryPanel
               executions={executions}
@@ -113,7 +135,7 @@ export default function Vista2() {
 function FilterInput({ placeholder, value, onChange }) {
   return (
     <input
-      className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500"
+      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       placeholder={placeholder}
       value={value}
       onChange={e => onChange(e.target.value)}
@@ -121,17 +143,16 @@ function FilterInput({ placeholder, value, onChange }) {
   )
 }
 
-function FilterSelect({ value, onChange }) {
+function FilterSelect({ value, onChange, phases = [] }) {
   return (
     <select
-      className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-indigo-500"
+      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       value={value}
       onChange={e => onChange(e.target.value)}
     >
       <option value="">Todas las fases</option>
-      {['f01_explore','f02_events','f03_windows','f04_targets',
-        'f05_modeling','f06_quant','f07_modval','f08_sysval'].map(f => (
-        <option key={f} value={f}>{f}</option>
+      {phases.map(p => (
+        <option key={p.id} value={p.id}>{p.id}</option>
       ))}
     </select>
   )

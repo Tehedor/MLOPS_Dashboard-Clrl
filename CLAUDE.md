@@ -22,7 +22,7 @@
 3. [10_Servicio_VistaConslta.md](.agent/10_Servicio_VistaConslta.md)
 4. [11_Servicio_VistaConslta_Componentes.md](.agent/11_Servicio_VistaConslta_Componentes.md)
 5. [03_Interfaz_General.md](.agent/03_Interfaz_General.md)
-6. YAML reales si hace falta: [traceability_schema.yaml](traceability_schema.yaml), [fases_execution_runners.yaml](fases_execution_runners.yaml), [60_deploy-api.http](60_deploy-api.http), [confg.yaml](confg.yaml), [.env.example](.env.example)
+6. YAML reales si hace falta: [traceability_schema.yaml](traceability_schema.yaml), [fases_execution_runners.yaml](fases_execution_runners.yaml), [60_deploy-api.http](60_deploy-api.http), [config.yaml](config.yaml), [.env.example](.env.example)
 
 ## Qué leer según la tarea
 - Stack, despliegue o decisiones técnicas: [01_Stack.md](.agent/01_Stack.md) + YAML reales.

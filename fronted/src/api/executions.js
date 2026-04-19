@@ -1,5 +1,22 @@
 const BASE = '/api/executions'
 
+export async function getPhases() {
+  try {
+    console.log('Fetching phases from:', `${BASE}/phases`)
+    const res = await fetch(`${BASE}/phases`)
+    if (!res.ok) {
+      console.error('Failed to fetch phases:', res.status, res.statusText)
+      return []
+    }
+    const data = await res.json()
+    console.log('Phases loaded:', data)
+    return data
+  } catch (err) {
+    console.error('Error fetching phases:', err)
+    return []
+  }
+}
+
 export async function getExecutions() {
   const res = await fetch(BASE)
   if (!res.ok) throw new Error('Failed to fetch executions')

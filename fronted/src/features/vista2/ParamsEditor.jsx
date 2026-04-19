@@ -59,30 +59,30 @@ export default function ParamsEditor({ faseId, onChange }) {
     <div className="flex flex-col gap-1 min-w-0">
       {/* Cabecera con toggle */}
       <div className="flex items-center justify-between">
-        <label className="text-xs text-gray-500">Parámetros</label>
+        <label className="text-xs text-gray-600 dark:text-gray-500">Parámetros</label>
         <button
           type="button"
           onClick={() => mode === 'form' ? switchToJson() : switchToForm()}
-          className="text-xs px-2 py-0.5 rounded border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors font-mono"
+          className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-700 hover:text-gray-900 hover:border-gray-500 transition-colors font-mono dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           title={mode === 'form' ? 'Cambiar a JSON libre' : 'Cambiar a formulario'}
         >
-          {mode === 'form' ? '{ }' : '⊞'}
+          {mode === 'form' ? '㊂' : '🝚'}
         </button>
       </div>
 
       {mode === 'json' ? (
         <>
           <textarea
-            className="w-full min-h-[80px] bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-100 font-mono resize-none focus:outline-none focus:border-indigo-500"
+            className="w-full min-h-[80px] bg-gray-100 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900 font-mono resize-none focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             value={raw}
             onChange={e => setRaw(e.target.value)}
           />
           {rawError && <span className="text-red-400 text-xs">{rawError}</span>}
         </>
       ) : (
-        <div className="flex flex-col gap-1.5 bg-gray-800 border border-gray-700 rounded p-2 max-h-48 overflow-y-auto">
+        <div className="flex flex-col gap-1.5 bg-gray-100 border border-gray-300 rounded p-2 max-h-48 overflow-y-auto dark:bg-gray-800 dark:border-gray-700">
           {defs.length === 0 ? (
-            <p className="text-xs text-gray-500 italic">Sin parámetros definidos</p>
+            <p className="text-xs text-gray-600 dark:text-gray-500 italic">Sin parámetros definidos</p>
           ) : (
             defs.map(def => (
               <ParamField
@@ -100,13 +100,23 @@ export default function ParamsEditor({ faseId, onChange }) {
 }
 
 function ParamField({ def, value, onChange }) {
-  const base = "w-full bg-gray-900 border rounded px-2 py-0.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500"
-  const borderColor = def.required ? 'border-gray-600' : 'border-gray-700'
+  const base = 'w-full bg-white border rounded px-2 py-0.5 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100'
+  const borderColor = def.required
+    ? 'border-gray-500 dark:border-gray-600'
+    : 'border-gray-300 dark:border-gray-700'
 
   return (
     <div className="flex items-center gap-2 min-w-0">
       <label className="w-32 shrink-0 text-xs truncate" title={def.label}>
-        <span className={def.inherited ? 'text-gray-500 italic' : def.required ? 'text-gray-300' : 'text-gray-500'}>
+        <span
+          className={
+            def.inherited
+              ? 'text-gray-500 dark:text-gray-500 italic'
+              : def.required
+                ? 'text-gray-700 dark:text-gray-300'
+                : 'text-gray-500 dark:text-gray-500'
+          }
+        >
           {def.label}
         </span>
         {def.required && <span className="text-indigo-400 ml-0.5">*</span>}
