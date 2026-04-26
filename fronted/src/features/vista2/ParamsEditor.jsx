@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { PHASE_PARAMS } from './phaseParams'
 
 /**
@@ -15,6 +15,14 @@ export default function ParamsEditor({ faseId, onChange }) {
   const [raw, setRaw]           = useState(() => generateTemplate(defs))
   const [rawError, setRawError] = useState(null)
   const [formValues, setFormValues] = useState(() => initForm(defs))
+  const textareaRef = useRef(null)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }, [raw, mode])
 
   // Sincroniza hacia arriba cuando cambia el modo o los valores
   useEffect(() => {
@@ -73,14 +81,19 @@ export default function ParamsEditor({ faseId, onChange }) {
       {mode === 'json' ? (
         <>
           <textarea
-            className="w-full min-h-[80px] bg-gray-100 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900 font-mono resize-none focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+            ref={textareaRef}
+            className="w-full bg-gray-100 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900 font-mono resize-none overflow-hidden focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+            style={{ minHeight: '80px' }}
             value={raw}
             onChange={e => setRaw(e.target.value)}
           />
           {rawError && <span className="text-red-400 text-xs">{rawError}</span>}
         </>
       ) : (
-        <div className="flex flex-col gap-1.5 bg-gray-100 border border-gray-300 rounded p-2 max-h-48 overflow-y-auto dark:bg-gray-800 dark:border-gray-700">
+        <div
+          className="bg-gray-100 border border-gray-300 rounded p-2 overflow-y-auto dark:bg-gray-800 dark:border-gray-700"
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '6px', maxHeight: '12rem' }}
+        >
           {defs.length === 0 ? (
             <p className="text-xs text-gray-600 dark:text-gray-500 italic">Sin parámetros definidos</p>
           ) : (

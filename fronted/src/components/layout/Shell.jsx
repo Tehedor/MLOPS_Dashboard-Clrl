@@ -7,6 +7,8 @@ const VIEWS = [
   { to: '/vista2', label: 'Ejecuciones' },
   { to: '/vista3', label: 'Logs' },
   { to: '/vista4', label: 'Runners' },
+  { to: '/linaje', label: 'Linaje' },
+  { to: '/variants', label: 'Variantes' },
 ]
 
 export default function Shell({ children }) {
@@ -64,6 +66,22 @@ export default function Shell({ children }) {
           )}
           <span className="sr-only">{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
         </button>
+        <a
+          href={`${appConfig.dagshub_repository}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
+        >
+          DagsHub →
+        </a>
+        <a
+          href={`${appConfig.mlflow_tracking_uri}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
+        >
+          MLFlow →
+        </a>
         <a
           href={`https://github.com/${appConfig.github_actions_repository}`}
           target="_blank"

@@ -22,7 +22,8 @@
 3. [10_Servicio_VistaConslta.md](.agent/10_Servicio_VistaConslta.md)
 4. [11_Servicio_VistaConslta_Componentes.md](.agent/11_Servicio_VistaConslta_Componentes.md)
 5. [03_Interfaz_General.md](.agent/03_Interfaz_General.md)
-6. YAML reales si hace falta: [traceability_schema.yaml](traceability_schema.yaml), [fases_execution_runners.yaml](fases_execution_runners.yaml), [60_deploy-api.http](60_deploy-api.http), [config.yaml](config.yaml), [.env.example](.env.example)
+6. [50_ServicioVariants.md](.agent/50_ServicioVariants.md)
+7. YAML reales si hace falta: [traceability_schema.yaml](traceability_schema.yaml), [fases_execution_runners.yaml](fases_execution_runners.yaml), [60_deploy-api.http](60_deploy-api.http), [config.yaml](config.yaml), [.env.example](.env.example)
 
 ## Qué leer según la tarea
 - Stack, despliegue o decisiones técnicas: [01_Stack.md](.agent/01_Stack.md) + YAML reales.
@@ -44,4 +45,8 @@
 - 03_Interfaz_General: shell.
 - 10_Servicio_VistaConslta: vista 2 — contratos, estados y lógica.
 - 11_Servicio_VistaConslta_Componentes: wireframes y anatomía de componentes de Vista 2.
-- 20, 30, 40: pendientes; no leer salvo necesidad explícita.
+- 20: jerarquía variante-fase, pendiente.
+- 30_Servicio3_logsRunners: Vista LogsRunners — spec UI, modelo de datos Supabase, política de retención.
+- 31_Infraestructura_Webhooks: decisión serverless broker (Supabase elegido), arquitectura, tablas SQL, step GHA, análisis free tier.
+- 40: pendiente; no leer salvo necesidad explícita.
+- 50_ServicioVariants.md: vista de tabla de variants

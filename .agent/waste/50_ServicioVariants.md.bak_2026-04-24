@@ -1,0 +1,161 @@
+# 20 — Vista: Visualización/control de variantes/fase
+
+Estado: Implementar
+
+## Objetivo
+
+Mostrar una tabla por fase, donde estarán todas las variantes, donde cada columan represeta campos de su params.yaml o output.yml, más un pequeño cuadro que muestra si esta en local, con un boton para descargar o eliminar de local. 
+
+---
+
+## Files de donde extraer los datos
+
+```yaml
+Ej:
+external/repo_actions/executions/f01_explore/v1_0021/outputs.yaml
+external/repo_actions/executions/f01_explore/v1_0021/params.yaml
+
+Generico:
+external/repo_actions/executions/<fYY_***>/vY_XXXX/outputs.yaml
+external/repo_actions/executions/<fYY_***>/vY_XXXX/params.yaml
+```
+
+## Estado de local o no local
+
+1.   Local
+Ver si el file acabado en .dvc esta su original.
+
+```bash 
+# Teneidno esto
+06_calibration_dataset.parquet.dvc
+06_model_float.h5.dvc
+06_model_tflite.tflite.dvc
+
+#Debería estar en el directorio
+06_calibration_dataset.parquet
+06_model_float.h5
+06_model_tflite.tflite
+```
+
+1. No local
+```bash 
+#Solo esta:
+06_calibration_dataset.parquet.dvc
+06_model_float.h5.dvc
+06_model_tflite.tflite.dvc
+```
+
+---
+
+## Comando de descarga para guardar en local
+
+
+```bash 
+source ./external/repo_actions/.venv
+dvc pull external/repo_actions/executions/<fYY_***>/vY_XXXX/*.dvc
+```
+
+## Configuración de variables para poder hacer pull de dagshub
+
+```bash 
+dvc remote modify storage --local auth basic
+dvc remote modify storage --local user "$DAGSHUB_USER"
+dvc remote modify storage --local password "$DAGSHUB_TOKEN"
+```
+> Variables estan en el .env del backend
+
+---
+
+## Configuración de las tablas.
+
+config.yaml -> table_config
+
+el table_config actual es "config/table_config.yaml"
+y viene defindo que columnas quiero por fase, de que tipo y de que file extraelo dentro de la variante.
+Ej: una fase de config/table_config.yaml
+```bash
+  - id: f02_events   
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent
+            source_path: parent
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: strategy
+            source_path: parameters.strategy
+            type: str
+          - id: bands
+            source_path: parameters.bands
+            type: list
+          - id: nan_mode
+            source_path: parameters.nan_mode
+            type: str
+ 
+
+      - file: output.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: n_events
+            source_path: exports.n_events
+            type: int
+          - id: n_types
+```
+
+Si no viene deifnido la fase, poner en pantalla config de la fase no establecido.
+
+
+
+## Backend - que implementar
+- Las ejecuciones están en config.yaml -> actions_repo_path_executions
+- Lógica de busqueda automatica para detectión de fases
+- Lógica de busqueda automatica para detección de variantes de la fase
+- Lógica de sacar de cada variante el params.
+
+## Frontend — qué implementar
+- Libería de cración de tablas
+- Cada fase quiero que tenga una tabilita de despegable que cuando la habrá venga todas las columnas con una checklist y elegir cuales quiero que se represeten, por defecto quiero que se muestren todas, y que tenga un boton de reset, para seleccionar todas de nuevo.
+
+
+## Estrucutra
+```
+┌─────────────────────────────────────────────────────┐
+│ f01_explore, f02_events ....                        │
+│                                                 [1] │       
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│   Tabla                                             │
+│                                                     │
+│                                                     │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+[1] -> Boton de desplegable selecotor de columna de fase
+
+Quiero que lso headers de la tabla tenga un filtro para poder navegade da manera rapida entre las diferentes filas y tambien ordenar...
+
+Table:
+┌───────┌─────────────────────────────────────────────────────┐
+│Variant│...                        │ Local
+├───────├─────────────────────────────────────────────────────┤
+│                                   │ yes  X(para eliminar files pesados)               │
+│   Tabla                           │ no ⬇️ (para descargar)│
+│                                                     │
+│                                                     │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+
+
+

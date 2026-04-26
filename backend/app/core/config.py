@@ -10,9 +10,14 @@ class Settings(BaseSettings):
     github_repo: str = "Tehedor/MLOps_actions_v2"
     database_url: str = "executions.db"
     queue_limit: int = 50
+    dagshub_user: str = ""
+    dagshub_token: str = ""
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()
