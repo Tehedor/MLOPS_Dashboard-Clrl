@@ -227,6 +227,7 @@ def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int]) -> dict:
         "files_expected": rd["local_files_expected"],
         "size_bytes": rd["local_size_bytes"],
     }
+    cells["_parent"] = params_data.get("parent")
     cells["_parse_error"] = rd["parse_error"]
     cells["_updated_at"] = rd["updated_at"]
     return cells

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getExecutions, getPhases } from '../api/executions'
+import { fetchRunsAsExecutions, subscribeRuns, isConfigured } from '../api/supabase'
 import { transformPhases } from '../utils/phases'
 import PhaseCard from '../features/vista2/PhaseCard'
 import PipelinePanel from '../features/vista2/PipelinePanel'
@@ -12,17 +13,6 @@ const MIN_W           = 180   // ancho mínimo de un panel abierto
 const COLLAPSE_AT     = 130   // si queda menos de esto, colapsar
 const TOGGLE_W        = 28    // ancho de cada muesca
 const HANDLE_W        = 4     // ancho del handle de resize
-
-const FALLBACK_PHASES = [
-  { fase: 'f01_explore',  runner: 'GithubActions' },
-  { fase: 'f02_events',   runner: 'GithubActions' },
-  { fase: 'f03_windows',  runner: 'GithubActions' },
-  { fase: 'f04_targets',  runner: 'GithubActions' },
-  { fase: 'f05_modeling', runner: 'GPU-self-hosted' },
-  { fase: 'f06_quant',    runner: 'GithubActions' },
-  { fase: 'f07_modval',   runner: 'ESP32-self-hosted' },
-  { fase: 'f08_sysval',   runner: 'GithubActions' },
-]
 
 // ── Helpers de persistencia ───────────────────────────────────────────────────
 
@@ -59,20 +49,85 @@ export default function Vista2() {
   const [filterVariantR, setFilterVariantR] = useState('')
   const [filterFaseR,    setFilterFaseR]    = useState('')
 
-  const { data: executions = [], isLoading } = useQuery({
+  const { data: localExecutions = [], isLoading } = useQuery({
     queryKey: ['executions'],
     queryFn: getExecutions,
     refetchInterval: 10_000,
   })
 
-  const { data: rawPhases = FALLBACK_PHASES } = useQuery({
+  const { data: supabaseRuns = [] } = useQuery({
+    queryKey: ['supabaseRuns'],
+    queryFn: () => fetchRunsAsExecutions(100),
+    enabled: isConfigured(),
+    refetchInterval: 30_000,
+  })
+
+  // Suscripción Realtime: invalida la query cuando cambia workflow_runs
+  useEffect(() => {
+    if (!isConfigured()) return
+    const channel = subscribeRuns(() => {
+      qc.invalidateQueries({ queryKey: ['supabaseRuns'] })
+    })
+    return () => { channel.unsubscribe() }
+  }, [qc])
+
+  // Fusión: ejecuciones locales + runs de Supabase no presentes en local
+  const executions = useMemo(() => {
+    const supabaseById         = new Map(supabaseRuns.map(r => [r.id, r]))
+    const supabaseByFaseVariant = new Map(
+      supabaseRuns.filter(r => r.fase && r.variant).map(r => [`${r.fase}::${r.variant}`, r])
+    )
+
+    // Local entries que cubren un run de Supabase (por gh_run_id o por fase+variant)
+    const localGhIds = new Set(
+      localExecutions.filter(e => e.gh_run_id).map(e => String(e.gh_run_id))
+    )
+    const localFaseVariants = new Set(
+      localExecutions.filter(e => !e.gh_run_id && e.variant).map(e => `${e.fase}::${e.variant}`)
+    )
+
+    // Supabase solo aporta runs que no están cubiertos por ningún local
+    // Además deduplicamos por fase::variant (quedamos con el más reciente)
+    const seenFaseVariant = new Set()
+    const externalRuns = supabaseRuns
+      .filter(r => !localGhIds.has(r.id) && !localFaseVariants.has(`${r.fase}::${r.variant}`))
+      .filter(r => {
+        const key = r.fase && r.variant ? `${r.fase}::${r.variant}` : r.id
+        if (seenFaseVariant.has(key)) return false
+        seenFaseVariant.add(key)
+        return true
+      })
+
+    // Los locales siempre son visibles (tienen params), pero su status se actualiza desde Supabase.
+    // Solo se sincroniza si la entrada de Supabase es de la misma ejecución (no de una anterior).
+    const mergedLocal = localExecutions.map(e => {
+      const sup = e.gh_run_id
+        ? supabaseById.get(String(e.gh_run_id))
+        : supabaseByFaseVariant.get(`${e.fase}::${e.variant}`)
+      if (!sup || sup.status === e.status) return e
+      // Si no hay gh_run_id (aún no tenemos el run de GHA), solo sincronizamos si
+      // la entrada de Supabase es más reciente que la local (misma ejecución, no una anterior).
+      if (!e.gh_run_id && new Date(sup.created_at) < new Date(e.created_at)) return e
+      return { ...e, status: sup.status, updated_at: sup.updated_at }
+    })
+
+    return [...mergedLocal, ...externalRuns]
+  }, [localExecutions, supabaseRuns])
+
+  const _activeStatuses = new Set(['queued', 'waiting_parent', 'dispatching', 'running'])
+  const _selectedEx = executions.find(e => e.id === selectedId)
+  const highlightFaseVariant = _selectedEx && _activeStatuses.has(_selectedEx.status) && _selectedEx.variant
+    ? `${_selectedEx.fase}::${_selectedEx.variant}`
+    : null
+
+  const { data: rawPhases = [] } = useQuery({
     queryKey: ['phases'],
     queryFn: getPhases,
     staleTime: Infinity,
     retry: 1,
   })
 
-  const phases = transformPhases(rawPhases || FALLBACK_PHASES)
+  const phases = transformPhases(rawPhases)
 
   useSSE('/api/executions/stream', () => {
     qc.invalidateQueries({ queryKey: ['executions'] })
@@ -116,17 +171,20 @@ export default function Vista2() {
   const bothCollapsed = midCollapsed && rightCollapsed
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 3rem)' }}>
 
       {/* ── Panel izquierdo — tarjetas de fase ── */}
       <aside
-        className={`min-h-0 overflow-y-auto p-4 flex flex-col gap-5
-          ${bothCollapsed ? 'flex-1' : 'shrink-0'}`}
-        style={bothCollapsed ? undefined : { width: leftWidth }}
+        className={`overflow-y-auto ${bothCollapsed ? 'flex-1' : 'shrink-0'}`}
+        style={bothCollapsed
+          ? { height: '100%' }
+          : { width: leftWidth, height: '100%' }}
       >
-        {phases.map(phase => (
-          <PhaseCard key={phase.id} phase={phase} executions={executions} />
-        ))}
+        <div className="flex flex-col gap-5 p-4">
+          {phases.map(phase => (
+            <PhaseCard key={phase.id} phase={phase} executions={executions} />
+          ))}
+        </div>
       </aside>
 
       {/* Handle izq/mid — visible siempre que el izq no llene todo */}
@@ -139,7 +197,7 @@ export default function Vista2() {
         onToggle={() => setMidCollapsed(c => !c)}
       />
       {!midCollapsed && (
-        <section className="flex flex-col min-h-0 overflow-hidden shrink-0" style={{ width: midWidth }}>
+        <section className="flex flex-col overflow-hidden shrink-0" style={{ width: midWidth, height: '100%' }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-300 dark:border-gray-800 shrink-0">
             <FilterInput placeholder="Variante" value={filterVariantL} onChange={setFilterVariantL} />
             <FilterSelect value={filterFaseL} onChange={setFilterFaseL} phases={phases} />
@@ -173,7 +231,7 @@ export default function Vista2() {
         onToggle={() => setRightCollapsed(c => !c)}
       />
       {!rightCollapsed && (
-        <section className="flex flex-col min-h-0 overflow-hidden flex-1">
+        <section className="flex flex-col overflow-hidden flex-1" style={{ height: '100%' }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-300 dark:border-gray-800 shrink-0">
             <FilterInput placeholder="Variante" value={filterVariantR} onChange={setFilterVariantR} />
             <FilterSelect value={filterFaseR} onChange={setFilterFaseR} phases={phases} />
@@ -188,6 +246,7 @@ export default function Vista2() {
                 filterFase={filterFaseR}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                highlightFaseVariant={highlightFaseVariant}
               />
             )}
           </div>

@@ -18,6 +18,7 @@ class ExecutionCreate(BaseModel):
     variant: str
     parent: str | None = None
     params: dict[str, Any] = {}
+    selected_runner: str | None = None
 
 
 class Execution(BaseModel):

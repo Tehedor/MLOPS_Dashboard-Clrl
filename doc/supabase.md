@@ -4,9 +4,11 @@
   - [2. Crear proyecto](#2-crear-proyecto)
     - [3. Credenciales y Claves de Acceso](#3-credenciales-y-claves-de-acceso)
   - [4. URL de supabase](#4-url-de-supabase)
-  - [5. Crear tabla y estrucutra de los datos](#5-crear-tabla-y-estrucutra-de-los-datos)
-  - [5. Políticas de RLS (Row Level Security).](#5-políticas-de-rls-row-level-security)
-    - [6. Configuración de Seguridad y Mantenimiento (Supabase)](#6-configuración-de-seguridad-y-mantenimiento-supabase)
+  - [4.5. Access Token (Docker / CI)](#45-access-token-docker--ci)
+  - [5. Crear tabla y estructura de los datos](#5-crear-tabla-y-estructura-de-los-datos)
+  - [6. Políticas de RLS (Row Level Security).](#6-políticas-de-rls-row-level-security)
+  - [7. Configurar el Webhook en GitHub](#7-configurar-el-webhook-en-github)
+    - [6.1. Configuración de Seguridad y Mantenimiento (Supabase)](#61-configuración-de-seguridad-y-mantenimiento-supabase)
       - [6.1. Políticas de Row Level Security (RLS)](#61-políticas-de-row-level-security-rls)
       - [6.2. Automatización de Limpieza de Logs (Trigger)](#62-automatización-de-limpieza-de-logs-trigger)
 
@@ -31,17 +33,30 @@ Destino: backend/.env o frontend/.env. - SUPABASE_PUBLISHABLE_KEY
     + Uso: Se utiliza en la aplicación de control (lado del cliente). Esta clave es pública por diseño. Solo permite realizar operaciones que estén autorizadas por las políticas de RLS (Row Level Security) que hayamos definido en las tablas. Es segura de incluir en el código del navegador o apps distribuidas.
 
 - Secret key (Service Role Key):
-Destino: GitHub Secrets (Settings > Secrets and variables > Actions). - SUPABASE_SECRET_KEY
+Destino: `backend/.env` → `SERVICE_ROLE_KEY` **y** GitHub Secrets → `SUPABASE_SECRET_KEY`.
 
-    + Uso: Es una clave de administrador. Se utiliza exclusivamente en entornos seguros y privados (como GitHub Actions). Tiene permisos para saltarse todas las políticas de RLS y realizar cualquier operación (lectura, escritura, borrado total) en la base de datos.
+    + Uso: Clave de administrador. La Edge Function de Supabase la necesita para poder escribir en las tablas (upsert de `workflow_runs` e insert de `workflow_logs`) saltándose RLS. También se usa en GitHub Actions para operaciones privilegiadas.
 
-    >⚠️ ADVERTENCIA: Nunca debe incluirse en el código de la aplicación cliente ni exponerse públicamente.
+    >⚠️ ADVERTENCIA: Nunca debe incluirse en el código del cliente ni exponerse públicamente. El fichero `backend/.env` está en `.gitignore` — nunca lo subas al repositorio.
+
+    **Cómo añadirla al proyecto:**
+    ```env
+    # backend/.env
+    SERVICE_ROLE_KEY=eyJ...tu_service_role_key_aqui...
+    ```
+    El script `make supabase-deploy` / `make supabase-redeploy` la lee automáticamente y la sube como secret de la Edge Function.
 
 ## 4. URL de supabase
-> Poryect settings -> Data api -> Api url
+> Project settings → API → **Project URL**
+
+⚠️ **No uses** la URL de "Data API" (`...supabase.co/rest/v1/`).
+Copia solo la URL base del proyecto: `https://<proyecto>.supabase.co`
+
+El SDK añade `/rest/v1` internamente. Si pegas la URL del Data API endpoint
+obtendrás rutas duplicadas (`/rest/v1/rest/v1/...`) y errores 404.
 
 - Ctrl App
-Proyect -> backend/.env - SUPABASE_URL
+Proyect → backend/.env → `SUPABASE_URL=https://<proyecto>.supabase.co`
 
 - Github
 Para que tus GitHub Actions sepan a dónde enviar los logs, debes guardarla como un secreto del repositorio:
@@ -55,6 +70,38 @@ c. En el menú lateral izquierdo, busca Secrets and variables > Actions.
 d. Haz clic en el botón verde New repository secret.
 
 e. Crea un secreto llamado SUPABASE_URL y pega la URL que copiaste.
+
+## 4.5. Access Token (Docker / CI)
+> supabase.com → Account → Access Tokens
+
+Necesario para autenticar el CLI de Supabase **sin login interactivo** (entornos Docker, CI/CD o cualquier servidor sin navegador).
+
+<img src="images/accessToken.png" alt="Access Tokens" height="500">
+
+- **Tipo:** Token de gestión de cuenta (no es la API key del proyecto).
+- **Permisos:** acceso a todos tus proyectos Supabase.
+
+> ⚠️ **ADVERTENCIA:** Trátalo como una contraseña. Nunca lo expongas públicamente ni lo subas al repositorio.
+
+**Pasos:**
+
+a. Inicia sesión en [supabase.com](https://supabase.com).
+
+b. Haz clic en tu avatar (esquina superior derecha) → **Account**.
+
+c. En el menú lateral: **Access Tokens** → **Generate new token**.
+
+d. Dale un nombre descriptivo (p.ej. `mlops-dashboard-docker`) y copia el token.
+
+e. Añádelo a `backend/.env`:
+
+```env
+SUPABASE_ACCESS_TOKEN=sbp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Con esta variable definida, `make dev` (o `make supabase-deploy`) desplegará la Edge Function automáticamente sin necesidad de `supabase login`.
+
+---
 
 ## 5. Crear tabla y estructura de los datos
 
@@ -132,6 +179,17 @@ ON workflow_logs FOR SELECT
 TO anon
 USING (true);
 
+-- GRANT de privilegios al rol anon (lectura desde el frontend)
+-- Sin esto, PostgreSQL bloquea el acceso aunque exista la policy RLS.
+GRANT SELECT ON workflow_runs TO anon;
+GRANT SELECT ON workflow_logs TO anon;
+
+-- GRANT de privilegios al rol service_role (escritura desde la Edge Function)
+-- La Edge Function usa la Secret key que mapea al rol service_role.
+-- Sin esto, el upsert desde la Edge Function falla con "permission denied".
+GRANT ALL ON workflow_runs TO service_role;
+GRANT ALL ON workflow_logs TO service_role;
+
 
 --------------------------------------------------------
 -- 3. ACTIVAR REALTIME (TIEMPO REAL)
@@ -167,3 +225,59 @@ CREATE TRIGGER trigger_clean_old_logs
 AFTER INSERT ON workflow_logs
 FOR EACH STATEMENT EXECUTE FUNCTION clean_old_logs();
 ```
+---
++ Para eliminar
+```sql
+  DROP TABLE IF EXISTS          
+  workflow_logs;                  
+  DROP TABLE IF EXISTS
+  workflow_runs;                  
+                  
+```
+
+---
+
+## 7. Configurar el Webhook en GitHub
+> Repositorio MLOps_actions_v2 → Settings → Webhooks → Add webhook
+
+Una vez desplegada la Edge Function (`make supabase-deploy`), hay que decirle a GitHub que envíe los eventos de workflow a esa URL.
+
+<img src="images/addWebhook.png" alt="Add webhook" height="350">
+
+**Pasos:**
+
+a. Ve al repositorio en GitHub: `github.com/<OWNER>/<REPO>`.
+
+b. Haz clic en **Settings** (pestaña superior del repo).
+
+c. En el menú lateral izquierdo: **Webhooks** → **Add webhook**.
+
+d. Rellena el formulario:
+
+| Campo | Valor |
+|-------|-------|
+| **Payload URL** | `https://<SUPABASE_PROJECT_REF>.supabase.co/functions/v1/github-webhook` |
+| **Content type** | `application/json` |
+| **Secret** | El valor de `WEBHOOK_SECRET` de tu `backend/.env` (déjalo vacío si no lo configuraste) |
+| **Which events?** | Selecciona **"Let me select individual events"** → marca solo **Workflow runs** |
+| **Active** | ✅ marcado |
+
+> `<SUPABASE_PROJECT_REF>` es la parte inicial de tu `SUPABASE_URL` (p.ej. si tu URL es `https://abcdef.supabase.co`, el ref es `abcdef`). El script `make supabase-deploy` imprime la URL completa al finalizar.
+
+e. Haz clic en **Add webhook**.
+
+GitHub enviará un evento `ping` de prueba. Si la Edge Function responde `200 OK`, el webhook está activo.
+
+**Verificar que funciona:**
+
+a. En la página del webhook recién creado, desplázate hasta **Recent Deliveries**.
+
+b. Deberías ver el evento `ping` con un tick verde ✓.
+
+c. Lanza cualquier workflow en el repositorio desde GitHub Actions.
+
+d. En **Recent Deliveries** aparecerán los eventos `workflow_run` con acción `requested` → `in_progress` → `completed`.
+
+e. En el dashboard (vista **GH Actions**) el run debería aparecer en segundos.
+
+> **Si aparece un error 401 en Recent Deliveries:** el `WEBHOOK_SECRET` del formulario no coincide con el configurado en la Edge Function. Ejecuta `make supabase-redeploy` tras corregir el valor en `backend/.env`.

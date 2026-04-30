@@ -14,18 +14,34 @@ runners:
 
 fases:
   - fase: f01_explore
-    runner: "GithubActions"
-  - fase: f02_events   
-    runner: "GithubActions"
-  - fase: f03_windows  
-    runner: "GithubActions"
-  - fase: f04_targets  
-    runner: "GithubActions"
-  - fase: f05_modeling  
-    runner: "GPU-self-hosted"
-  - fase: f06_quant     
-    runner: "GithubActions"
-  - fase: f07_modval  
-    runner: "ESP32-self-hosted"
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f01_explore"
+    parent_required: false
+  - fase: f02_events
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f02_events"
+    parent_required: true
+  - fase: f03_windows
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f03_windows"
+    parent_required: true
+  - fase: f04_targets
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f04_targets"
+    parent_required: true
+  - fase: f05_modeling
+    runner: "GPU-self-hosted, CPU-self-hosted"
+    gh_fase: "f05_modeling"
+    parent_required: true
+  - fase: f06_quant
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f06_quant"
+    parent_required: true
+  - fase: f07_modval
+    runner: '["self-hosted", "Linux", "X64", "self-hosted-tehelab"], ESP32-self-hosted, CPU-self-hosted'
+    gh_fase: "f07_modval"
+    parent_required: true
   - fase: f08_sysval
-    runner: "GithubActions"
+    runner: "GithubActions, CPU-self-hosted"
+    gh_fase: "f08_sysval"
+    parent_required: true

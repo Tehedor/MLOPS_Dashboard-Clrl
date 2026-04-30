@@ -5,10 +5,11 @@ import appConfig from '@appConfig'
 const VIEWS = [
   { to: '/vista1', label: 'Dashboard' },
   { to: '/vista2', label: 'Ejecuciones' },
-  { to: '/vista3', label: 'Logs' },
+  { to: '/vista3', label: 'GH Actions' },
   { to: '/vista4', label: 'Runners' },
   { to: '/linaje', label: 'Linaje' },
   { to: '/variants', label: 'Variantes' },
+  { to: '/services', label: 'Servicios' },
 ]
 
 export default function Shell({ children }) {
@@ -27,7 +28,7 @@ export default function Shell({ children }) {
   const isDark = theme === 'dark'
 
   return (
-    <div className="min-h-screen flex flex-col transition-colors bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+    <div className="h-screen flex flex-col transition-colors bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       <header className="h-12 border-b flex items-center px-4 gap-3 shrink-0 transition-colors border-gray-300 dark:border-gray-800">
         <span className="font-semibold text-sm tracking-wide text-gray-900 dark:text-white">MLOps</span>
         <nav className="flex gap-1 flex-1">

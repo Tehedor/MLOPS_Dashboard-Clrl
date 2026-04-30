@@ -41,10 +41,16 @@ env: ## Crea backend/.env desde .env.example (no sobreescribe)
 		|| (cp $(BACKEND_DIR)/.env.example $(BACKEND_DIR)/.env \
 			&& printf "$(GREEN)$(BACKEND_DIR)/.env creado$(RESET) — edítalo y añade GITHUB_TOKEN\n")
 
+supabase-deploy: ## Despliega la Edge Function de Supabase (auto si no está desplegada)
+	@bash scripts/setup_supabase.sh
+
+supabase-redeploy: ## Fuerza redeploy de la Edge Function eliminando el centinela
+	@rm -f .supabase/.deployed && bash scripts/setup_supabase.sh
+
 # ── Dev (procesos locales) ────────────────────────────────────────────────────
 
 .PHONY: dev dev-backend dev-frontend
-dev: dev-backend dev-frontend ## Arranca backend + frontend en background
+dev: supabase-deploy dev-backend dev-frontend ## Arranca backend + frontend en background (metal: despliega Edge Function si es necesario)
 	@printf "\n$(BOLD)Servicios arrancados$(RESET)\n"
 	@printf "  Backend:  $(CYAN)http://localhost:8000$(RESET)\n"
 	@printf "  Frontend: $(CYAN)http://localhost:5173$(RESET)\n"
@@ -177,6 +183,7 @@ logs-frontend: ## Sigue los logs del frontend
         docker-logs docker-restart docker-ps docker-shell-backend
 
 docker-up: ## Levanta todos los servicios con Docker Compose (detached)
+	@echo "Nota: ejecuta 'make supabase-deploy' en el host antes del primer docker-up."
 	docker compose up -d
 
 docker-up-build: ## Build + up (fuerza rebuild de imágenes)

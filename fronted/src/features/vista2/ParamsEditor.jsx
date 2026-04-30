@@ -8,14 +8,25 @@ import { PHASE_PARAMS } from './phaseParams'
  *
  * onChange(params: object | null) — null si el JSON es inválido
  */
-export default function ParamsEditor({ faseId, onChange }) {
+export default function ParamsEditor({ faseId, suggestions = {}, onChange }) {
   const defs = PHASE_PARAMS[faseId] ?? []
 
-  const [mode, setMode]         = useState('form')
-  const [raw, setRaw]           = useState(() => generateTemplate(defs))
+  const [mode, setMode]         = useState(() => localStorage.getItem(`pe_${faseId}_mode`) ?? 'form')
+  const [raw, setRaw]           = useState(() => localStorage.getItem(`pe_${faseId}_raw`)  ?? generateTemplate(defs))
   const [rawError, setRawError] = useState(null)
-  const [formValues, setFormValues] = useState(() => initForm(defs))
+  const [formValues, setFormValues] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`pe_${faseId}_form`)
+      return saved ? JSON.parse(saved) : initForm(defs)
+    } catch { return initForm(defs) }
+  })
   const textareaRef = useRef(null)
+
+  useEffect(() => { localStorage.setItem(`pe_${faseId}_mode`, mode) }, [mode, faseId])
+  useEffect(() => { localStorage.setItem(`pe_${faseId}_raw`,  raw)  }, [raw,  faseId])
+  useEffect(() => {
+    localStorage.setItem(`pe_${faseId}_form`, JSON.stringify(formValues))
+  }, [formValues, faseId])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -53,9 +64,14 @@ export default function ParamsEditor({ faseId, onChange }) {
 
   function switchToJson() {
     const params = formToParams(formValues, defs)
-    // Si el formulario está vacío, mostrar el template completo con claves vacías
     const hasValues = Object.keys(params).length > 0
-    setRaw(hasValues ? JSON.stringify(params, null, 2) : generateTemplate(defs))
+    if (hasValues) {
+      setRaw(JSON.stringify(params, null, 2))
+    } else if (suggestions && Object.keys(suggestions).length > 0) {
+      setRaw(JSON.stringify(suggestions, null, 2))
+    } else {
+      setRaw(generateTemplate(defs))
+    }
     setMode('json')
   }
 
@@ -102,6 +118,7 @@ export default function ParamsEditor({ faseId, onChange }) {
                 key={def.id}
                 def={def}
                 value={formValues[def.id] ?? ''}
+                suggestion={suggestions[def.id]}
                 onChange={v => setField(def.id, v)}
               />
             ))
@@ -112,11 +129,15 @@ export default function ParamsEditor({ faseId, onChange }) {
   )
 }
 
-function ParamField({ def, value, onChange }) {
+function ParamField({ def, value, suggestion, onChange }) {
   const base = 'w-full bg-white border rounded px-2 py-0.5 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100'
   const borderColor = def.required
     ? 'border-gray-500 dark:border-gray-600'
     : 'border-gray-300 dark:border-gray-700'
+
+  const ph = suggestion !== undefined && suggestion !== null && suggestion !== ''
+    ? String(typeof suggestion === 'object' ? JSON.stringify(suggestion) : suggestion)
+    : (def.hint ?? '')
 
   return (
     <div className="flex items-center gap-2 min-w-0">
@@ -154,17 +175,17 @@ function ParamField({ def, value, onChange }) {
       ) : def.type === 'json' ? (
         <input
           className={`${base} ${borderColor} flex-1 font-mono`}
-          placeholder={def.hint ?? ''}
+          placeholder={ph}
           value={typeof value === 'object' ? JSON.stringify(value) : value}
           onChange={e => onChange(e.target.value)}
-          title={def.hint}
+          title={ph}
         />
       ) : def.type === 'integer' ? (
         <input
           type="number"
           step="1"
           className={`${base} ${borderColor} flex-1`}
-          placeholder="0"
+          placeholder={ph || '0'}
           value={value}
           onChange={e => onChange(e.target.value)}
         />
@@ -173,7 +194,7 @@ function ParamField({ def, value, onChange }) {
           type="number"
           step="any"
           className={`${base} ${borderColor} flex-1`}
-          placeholder="0.0"
+          placeholder={ph || '0.0'}
           value={value}
           onChange={e => onChange(e.target.value)}
         />
@@ -181,6 +202,7 @@ function ParamField({ def, value, onChange }) {
         <input
           type="text"
           className={`${base} ${borderColor} flex-1`}
+          placeholder={ph}
           value={value}
           onChange={e => onChange(e.target.value)}
         />

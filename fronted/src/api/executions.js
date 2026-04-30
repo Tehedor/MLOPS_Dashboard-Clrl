@@ -29,7 +29,11 @@ export async function createExecution(data) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to create execution')
+  if (!res.ok) {
+    let detail = `Error ${res.status}`
+    try { detail = (await res.json()).detail ?? detail } catch {}
+    throw Object.assign(new Error(detail), { status: res.status })
+  }
   return res.json()
 }
 

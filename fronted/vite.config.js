@@ -21,7 +21,10 @@ export default defineConfig({
   },
   server: {
     fs: { allow: ['..'] },
-    proxy: { '/api': 'http://localhost:8000' },
+    proxy: {
+      '/api': 'http://localhost:8000',
+      '/ws': { target: 'ws://localhost:8000', ws: true },
+    },
   },
 })
 

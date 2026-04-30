@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { cancelExecution, retryExecution } from '../../api/executions'
 import StatusBadge from './StatusBadge'
+import ParamsChips from './ParamsChips'
 
 const ACTIVE_STATES = new Set(['queued', 'waiting_parent', 'dispatching', 'running'])
 
@@ -36,15 +37,22 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, s
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-900 dark:text-white">{ex.fase}</span>
+            <div className="flex items-center gap-8 min-w-0">
+              <span className="text-xs font-medium text-gray-900 dark:text-white truncate">{ex.fase}</span>
+              {ex.runner && (
+                <span className="shrink-0 bg-gray-200 border border-gray-300 text-gray-700 text-xs px-1.5 py-0.5 rounded dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400">
+                  {ex.runner}
+                </span>
+              )}
+            </div>
             <StatusBadge status={ex.status} />
           </div>
           <div className="flex gap-3 text-xs text-gray-600 dark:text-gray-400">
             <span>variant: <span className="text-gray-900 dark:text-gray-200 font-mono">{ex.variant}</span></span>
             {ex.parent && <span>parent: <span className="text-gray-900 dark:text-gray-200 font-mono">{ex.parent}</span></span>}
           </div>
+          <ParamsChips params={ex.params} />
           <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
-            <span>{ex.runner}</span>
             <span>{ex.created_at.slice(0, 19).replace('T', ' ')}</span>
           </div>
 

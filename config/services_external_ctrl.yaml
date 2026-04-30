@@ -1,0 +1,45 @@
+Services:
+  mds-dashboard:
+    url_repo: https://github.com/Tehedor/MDS-Dashboard
+    branch: main
+    path: services/temporal_app
+    port: 8050
+    fases:
+      - f01_explore
+      - f02_events
+    commands:
+      - name: "Run Windows App"
+        command: "run_temporal_app"
+        params:
+          - name: "Dataset Variant"
+            env_var: VARIANT
+            type: string
+            placeholder: "dataset_variant"
+          # - name: "Epoch Mode"
+          #   env_var: EPOCH_MODE
+          #   type: select
+          #   options:
+          #     - "true"
+          #     - "false"
+      - name: "Stop Windows App"
+        command: "stop_temporal_app"
+      - name: "Refresh Input Dataset"
+        command: "temporal_app_refress_inputDataset"
+      - name: "Check Control YAML"
+        command: "check_control_yaml"
+
+
+
+
+  windows-app:
+    url_repo: https://github.com/Tehedor/windows_event_analyzer
+    path: services/windows_app
+    branch: main
+    port: 8060
+    fases:
+      - f03_windows
+    commands:
+      - name: "Run Windows App"
+        command: "run_windows_app"
+      - name: "Stop Windows App"
+        command: "stop_windows_app"

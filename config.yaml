@@ -7,5 +7,21 @@ actions_branch: "test2"
 actions_repo_local_path: "external/repo_actions"
 actions_repo_path_executions: "external/repo_actions/executions"
 table_config: "config/table_config.yaml"
-params_file: "config/traceability_schema.yaml"
+# params_file: "config/traceability_schema.yaml"
+params_file: "external/repo_actions/scripts/traceability_schema.yaml"
 phases_runner: "config/fases_execution_runners.yaml"
+
+services_external_ctrl: "config/services_external_ctrl.yaml"
+
+analisis_files_path: "external/repo_actions/analisis_files"
+
+
+TERMINAL_RUNNERS:
+  runner1-ESP321:
+    url: RUNNER1_URL
+    username: RUNNER1_USERNAME
+    password: RUNNER1_PASSWORD
+  runner2:
+    url: RUNNER2_URL
+    username: RUNNER2_USERNAME
+    password: RUNNER2_PASSWORD

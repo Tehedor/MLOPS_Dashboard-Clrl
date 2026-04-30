@@ -108,6 +108,27 @@ async def check_and_pull() -> dict:
     return {"sha": sha, "pulled": pulled, "updated_at": _state["updated_at"]}
 
 
+async def force_pull() -> None:
+    """Pull inmediato sin comparar SHA. Disparado por Supabase Realtime al completarse un run."""
+    owner, name, branch, local_path, clone_url = _repo_config()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch)
+    try:
+        await loop.run_in_executor(None, _pull, local_path, branch)
+        sha = await _latest_sha(owner, name, branch)
+        _state.update(sha=sha, updated_at=datetime.now(timezone.utc).isoformat(), error=None)
+        log.info("force_pull done sha=%s", sha[:8])
+    except Exception as exc:
+        _state["error"] = str(exc)
+        log.warning("force_pull error: %s", exc)
+        return
+    for cb in _callbacks:
+        try:
+            await cb()
+        except Exception as exc:
+            log.warning("force_pull callback error: %s", exc)
+
+
 async def polling_loop() -> None:
     cfg = load_app_config()
     interval = int(cfg.get("repo_sync_interval_seconds", 60))
