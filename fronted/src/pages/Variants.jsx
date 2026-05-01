@@ -209,6 +209,52 @@ function ColVisibilityMenu({ cols, visible, onChange, onReset }) {
   )
 }
 
+// ── Bulk action bar ───────────────────────────────────────────────────────────
+
+function BulkActionBar({ selected, rows, onPull, onDelete, onClear, progress }) {
+  const pullable = rows.filter(r => selected.has(r.variant) && r._local?.status !== 'local').length
+  const deletable = rows.filter(r => selected.has(r.variant) && (r._local?.status === 'local' || r._local?.status === 'partial')).length
+  const busy = !!progress
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 border-b border-indigo-200 dark:border-indigo-800 text-xs shrink-0">
+      <span className="font-medium text-indigo-700 dark:text-indigo-300">
+        {selected.size} seleccionada{selected.size !== 1 ? 's' : ''}
+      </span>
+
+      {progress ? (
+        <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+          <Spinner />
+          {progress.type === 'pull' ? 'Descargando' : 'Eliminando'} {progress.done}/{progress.total}…
+        </span>
+      ) : (
+        <>
+          <button
+            onClick={onPull}
+            disabled={pullable === 0 || busy}
+            title={pullable === 0 ? 'Ninguna seleccionada está fuera de local' : undefined}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ↓ Descargar {pullable > 0 && `(${pullable})`}
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={deletable === 0 || busy}
+            title={deletable === 0 ? 'Ninguna seleccionada tiene datos locales' : undefined}
+            className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ✕ Eliminar {deletable > 0 && `(${deletable})`}
+          </button>
+        </>
+      )}
+
+      <button onClick={onClear} className="ml-auto text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300">
+        Limpiar selección ✕
+      </button>
+    </div>
+  )
+}
+
 // ── Phase table ───────────────────────────────────────────────────────────────
 
 const LS_KEY = (phase) => `variants_hidden_cols_${phase}`
@@ -222,6 +268,12 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const [colFilters, setColFilters] = useState({})
   const [debouncedFilters, setDebouncedFilters] = useState({})
   const [openFilters, setOpenFilters] = useState(new Set())
+
+  const [selected, setSelected]         = useState(new Set())
+  const [bulkConfirm, setBulkConfirm]   = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const bulkPollRef = useRef(null)
+  useEffect(() => () => clearInterval(bulkPollRef.current), [])
   const LIMIT = 50
 
   // Debounce column filters 300ms
@@ -298,6 +350,89 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
     else { setSortBy(key); setSortDir('asc') }
   }
 
+  // ── Selection helpers ───────────────────────────────────────────────────────
+
+  function toggleRow(variant) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(variant) ? next.delete(variant) : next.add(variant)
+      return next
+    })
+  }
+
+  function togglePageAll() {
+    const pageRows = data?.rows || []
+    const allChecked = pageRows.length > 0 && pageRows.every(r => selected.has(r.variant))
+    setSelected(prev => {
+      const next = new Set(prev)
+      pageRows.forEach(r => allChecked ? next.delete(r.variant) : next.add(r.variant))
+      return next
+    })
+  }
+
+  // ── Bulk operations ─────────────────────────────────────────────────────────
+
+  async function handleBulkPull() {
+    const targets = (data?.rows || []).filter(r => selected.has(r.variant) && r._local?.status !== 'local')
+    if (!targets.length) return
+    setBulkProgress({ done: 0, total: targets.length, type: 'pull' })
+    const jobMap = new Map()
+    await Promise.all(targets.map(async row => {
+      try {
+        const { job_id } = await pullVariant(phase, row.variant)
+        jobMap.set(row.variant, job_id)
+      } catch {
+        jobMap.delete(row.variant)
+        setBulkProgress(p => p && { ...p, done: p.done + 1 })
+      }
+    }))
+    clearInterval(bulkPollRef.current)
+    bulkPollRef.current = setInterval(async () => {
+      if (!jobMap.size) { _finishBulk(); return }
+      for (const [variant, jobId] of [...jobMap]) {
+        const job = await getJob(jobId)
+        if (job.status === 'done' || job.status === 'failed') jobMap.delete(variant)
+      }
+      setBulkProgress(p => p && { ...p, done: targets.length - jobMap.size })
+      if (!jobMap.size) _finishBulk()
+    }, 1500)
+  }
+
+  async function handleBulkDeleteConfirmed() {
+    setBulkConfirm(false)
+    const targets = (data?.rows || []).filter(r => selected.has(r.variant) && (r._local?.status === 'local' || r._local?.status === 'partial'))
+    if (!targets.length) return
+    setBulkProgress({ done: 0, total: targets.length, type: 'delete' })
+    const jobMap = new Map()
+    await Promise.all(targets.map(async row => {
+      try {
+        const { job_id } = await deleteVariant(phase, row.variant)
+        jobMap.set(row.variant, job_id)
+      } catch {
+        setBulkProgress(p => p && { ...p, done: p.done + 1 })
+      }
+    }))
+    clearInterval(bulkPollRef.current)
+    bulkPollRef.current = setInterval(async () => {
+      if (!jobMap.size) { _finishBulk(); return }
+      for (const [variant, jobId] of [...jobMap]) {
+        const job = await getJob(jobId)
+        if (job.status === 'done' || job.status === 'failed') jobMap.delete(variant)
+      }
+      setBulkProgress(p => p && { ...p, done: targets.length - jobMap.size })
+      if (!jobMap.size) _finishBulk()
+    }, 1500)
+  }
+
+  function _finishBulk() {
+    clearInterval(bulkPollRef.current)
+    refreshRows()
+    setBulkProgress(null)
+    setSelected(new Set())
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+
   if (cfgError) {
     return (
       <div className="p-4 text-sm text-yellow-600 dark:text-yellow-400">
@@ -313,8 +448,53 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const pages = Math.ceil(total / LIMIT)
   const page = Math.floor(offset / LIMIT)
 
+  const pageRows = rows
+  const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r.variant))
+  const somePageSelected = !allPageSelected && pageRows.some(r => selected.has(r.variant))
+
   return (
     <div className="flex flex-col h-full">
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <BulkActionBar
+          selected={selected}
+          rows={pageRows}
+          onPull={handleBulkPull}
+          onDelete={() => setBulkConfirm(true)}
+          onClear={() => setSelected(new Set())}
+          progress={bulkProgress}
+        />
+      )}
+
+      {/* Bulk delete confirm modal */}
+      {bulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-xl max-w-sm w-full mx-4">
+            <p className="text-sm mb-4 text-gray-900 dark:text-gray-100">
+              ¿Eliminar artefactos locales de{' '}
+              <strong>
+                {pageRows.filter(r => selected.has(r.variant) && (r._local?.status === 'local' || r._local?.status === 'partial')).length}
+              </strong>{' '}
+              variante(s)?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBulkConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBulkDeleteConfirmed}
+                className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0">
         <input
@@ -403,13 +583,26 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                 <th className="px-2 py-1.5 text-left font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600 whitespace-nowrap" style={{ backgroundColor: 'rgb(209 213 219)' }}>
                   Local
                 </th>
+                <th className="px-2 py-1.5 w-8 border-b-2 border-gray-300 dark:border-gray-600" style={{ backgroundColor: 'rgb(209 213 219)' }}>
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    ref={el => { if (el) el.indeterminate = somePageSelected }}
+                    onChange={togglePageAll}
+                    className="cursor-pointer"
+                    title="Seleccionar página"
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map(row => (
                 <tr
                   key={row.variant}
-                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${row._parse_error ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+                  className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+                    selected.has(row.variant) ? 'bg-indigo-50 dark:bg-indigo-950/20' :
+                    row._parse_error ? 'bg-red-50 dark:bg-red-950/20' : ''
+                  }`}
                 >
                   {cols.map(col => (
                     <td key={col.key} style={col.color ? { backgroundColor: col.color + '18' } : {}} className="px-2 py-1 text-gray-800 dark:text-gray-200 whitespace-nowrap max-w-[200px] truncate">
@@ -426,6 +619,14 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                   ))}
                   <td className="px-2 py-1">
                     <LocalCell row={row} phase={phase} onAction={refreshRows} />
+                  </td>
+                  <td className="px-2 py-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.variant)}
+                      onChange={() => toggleRow(row.variant)}
+                      className="cursor-pointer"
+                    />
                   </td>
                 </tr>
               ))}

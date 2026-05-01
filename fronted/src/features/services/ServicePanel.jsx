@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { pullVariant, getJob, getRows } from '../../api/variants'
 import { runCommand } from '../../api/services'
@@ -145,13 +145,31 @@ export default function ServicePanel({ service, isUp }) {
   const runCmd  = commands.find(c => c.command.startsWith('run_'))
   const stopCmd = commands.find(c => c.command.startsWith('stop_'))
 
-  const [runningVariant, setRunningVariant] = useState(null)
-  const [actionState, setActionState]       = useState('idle')
-  const [errorMsg, setErrorMsg]             = useState('')
+  const [runningVariant, setRunningVariant] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`svc_running_${id}`)
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
+  const [actionState, setActionState] = useState('idle')
+  const [errorMsg, setErrorMsg]       = useState('')
 
+  // Persist running variant across tab switches and page reloads
   useEffect(() => {
+    if (runningVariant) localStorage.setItem(`svc_running_${id}`, JSON.stringify(runningVariant))
+    else localStorage.removeItem(`svc_running_${id}`)
+  }, [runningVariant, id])
+
+  // Track previous isUp to avoid clearing runningVariant on initial mount (isUp starts false)
+  const prevIsUpRef = useRef(isUp)
+  useEffect(() => {
+    const wasUp = prevIsUpRef.current
+    prevIsUpRef.current = isUp
+
     if (isUp  && actionState === 'starting') setActionState('idle')
-    if (!isUp && actionState === 'stopping') { setActionState('idle'); setRunningVariant(null) }
+    if (!isUp && actionState === 'stopping') setActionState('idle')
+    // Only clear when service transitions up → down, not on first render
+    if (wasUp && !isUp && actionState === 'idle') setRunningVariant(null)
   }, [isUp, actionState])
 
   async function handleRun(variantInfo, extraEnv) {
