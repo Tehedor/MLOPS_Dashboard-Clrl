@@ -46,8 +46,7 @@ phases:
 
   f01_explore:
 
-    parent:
-      required: false
+    parent_required: false
 
     parameters:
 
@@ -148,10 +147,7 @@ phases:
 
   f02_events:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v1_[0-9]{4}$"
+    parent_required: true
 
     parameters:
 
@@ -241,12 +237,15 @@ phases:
 
   f03_windows:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v2_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        type: string
+        required: true
+        inherited: false
+        regex: "^v[0-9]_[0-9]{4}$"
 
       Tu:
         type: integer
@@ -369,12 +368,15 @@ phases:
 
   f04_targets:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v3_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        type: string
+        required: true
+        inherited: false
+        regex: "^v[0-9]_[0-9]{4}$"
 
       # Solo para trazabilidad estructural (heredados si no se redefinen)
       Tu:
@@ -506,12 +508,15 @@ phases:
 
   f05_modeling:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v4_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        type: string
+        required: true
+        inherited: false
+        regex: "^v[0-9]_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada
@@ -763,12 +768,15 @@ phases:
 
   f06_quant:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v5_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        type: string
+        required: true
+        inherited: false
+        regex: "^v[0-9]_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada
@@ -1005,12 +1013,15 @@ phases:
 
   f07_modval:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v6_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        type: string
+        required: true
+        inherited: false
+        regex: "^v[0-9]_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada desde F06
@@ -1340,10 +1351,8 @@ phases:
 
   f08_sysval:
 
-    parent:
-      required: true
-      mode: multi
-      regex: "^v7_[0-9]{4}$"
+    parent_required: false
+    parent_mode: multi
 
     parameters:
 

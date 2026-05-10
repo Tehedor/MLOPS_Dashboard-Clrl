@@ -1,0 +1,368 @@
+"""Local runner service — executes local_workflows.yaml steps in an isolated workspace.
+
+Uses asyncio.create_subprocess_shell so stdout/stderr stream line-by-line to
+local_log_store (live SSE) without blocking the event loop.
+"""
+
+import asyncio
+import os
+import re
+import shutil
+import time
+from pathlib import Path
+
+import yaml
+
+from app.core.config import load_app_config, settings, PROJECT_ROOT
+from app.services import local_log_store as log_store
+
+
+# ---------------------------------------------------------------------------
+# Config helpers
+# ---------------------------------------------------------------------------
+
+def _local_workflows_path() -> Path:
+    cfg = load_app_config()
+    p = Path(str(cfg.get("local_workflows", "config/local_workflows.yaml")))
+    return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def _workspace_path() -> Path:
+    cfg = load_app_config()
+    p = Path(str(cfg.get("local_runner_workspace", "external/repo_local_runner")))
+    return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def _checkout_branch() -> str:
+    return load_app_config().get("actions_branch", "main")
+
+
+def _load_phase_workflow(fase: str) -> dict | None:
+    path = _local_workflows_path()
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    for entry in data.get("fases", []):
+        if entry["fase"] == fase:
+            return entry
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Async subprocess — streams stdout+stderr line by line to log_store
+# ---------------------------------------------------------------------------
+
+async def _run(
+    cmd: str,
+    cwd: Path,
+    env: dict,
+    step: str,
+    execution_id: str,
+) -> int:
+    """Run a shell command, streaming each output line to the log store.
+    Returns the process return code."""
+    log_store.push(execution_id, step, f"$ {cmd}")
+
+    proc = await asyncio.create_subprocess_shell(
+        cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,  # merge stderr → single stream
+        cwd=cwd,
+        env=env,
+    )
+
+    async for raw in proc.stdout:
+        line = raw.decode(errors="replace").rstrip("\n")
+        log_store.push(execution_id, step, line)
+
+    await proc.wait()
+    rc = proc.returncode
+    marker = "✓ OK" if rc == 0 else f"✗ FAILED (rc={rc})"
+    log_store.push(execution_id, step, marker)
+    return rc
+
+
+# ---------------------------------------------------------------------------
+# Template interpolation
+# ---------------------------------------------------------------------------
+
+def _interpolate(template: str, ctx: dict) -> str:
+    for k, v in ctx.items():
+        template = template.replace(f"{{{k}}}", str(v) if v is not None else "")
+    return template.strip()
+
+
+def _make_params_str(params: dict) -> str:
+    from app.services.github import _PARAM_KEY_REMAP
+    parts = []
+    for k, v in params.items():
+        if v is None or str(v).strip() == "":
+            continue
+        mk = _PARAM_KEY_REMAP.get(k, k.upper())
+        parts.append(f'{mk}="{v}"')
+    return " ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Workspace setup
+# ---------------------------------------------------------------------------
+
+async def _setup_workspace(workspace: Path, branch: str, env: dict, execution_id: str) -> bool:
+    token = settings.github_token
+    repo  = settings.github_repo
+    repo_url = f"https://x-access-token:{token}@github.com/{repo}.git"
+    step = "workspace-setup"
+
+    if not (workspace / ".git").exists():
+        workspace.parent.mkdir(parents=True, exist_ok=True)
+        rc = await _run(
+            f"git clone --branch {branch} {repo_url} {workspace.name}",
+            workspace.parent, env, step, execution_id,
+        )
+        if rc != 0:
+            return False
+    else:
+        for cmd in [
+            "git fetch origin",
+            f"git checkout {branch}",
+            f"git reset --hard origin/{branch}",
+            "git clean -fdx --exclude=.dvc/cache",
+        ]:
+            rc = await _run(cmd, workspace, env, step, execution_id)
+            if rc != 0:
+                return False
+    return True
+
+
+async def _setup_git_dvc(workspace: Path, env: dict, execution_id: str) -> None:
+    step = "git-dvc-setup"
+    for cmd in [
+        'git config user.name "local-runner[bot]"',
+        'git config user.email "local-runner[bot]@local"',
+        'git config --global --add safe.directory "*"',
+    ]:
+        await _run(cmd, workspace, env, step, execution_id)
+
+    if settings.dagshub_user and settings.dagshub_token:
+        for cmd in [
+            "dvc remote modify storage --local auth basic",
+            f"dvc remote modify storage --local user {settings.dagshub_user}",
+            f"dvc remote modify storage --local password {settings.dagshub_token}",
+        ]:
+            await _run(cmd, workspace, env, step, execution_id)
+
+
+# ---------------------------------------------------------------------------
+# DVC pull
+# ---------------------------------------------------------------------------
+
+async def _dvc_pull(workspace: Path, paths: list[str], ctx: dict, env: dict, execution_id: str) -> None:
+    for raw in paths:
+        path = _interpolate(raw, ctx)
+        rc = await _run(f"dvc pull {path}", workspace, env, "dvc-pull", execution_id)
+        if rc != 0:
+            log_store.push(execution_id, "dvc-pull", f"[warn] dvc pull '{path}' failed — continuing")
+
+
+# ---------------------------------------------------------------------------
+# PR publish — replicates commit-and-pr GH action
+# ---------------------------------------------------------------------------
+
+async def _publish_pr(
+    workspace: Path,
+    step_id: str,
+    fase_id: str,
+    variant_id: str,
+    commit_paths: list[str],
+    ctx: dict,
+    env: dict,
+    execution_id: str,
+    exclude_exts: list[str] | None = None,
+) -> bool:
+    ts     = int(time.time())
+    branch = f"mlops/{fase_id}-{step_id}-{variant_id}-local-{ts}"
+    base   = ctx["checkout_branch"]
+    repo   = settings.github_repo
+    label  = f"pr-{step_id}"
+
+    # Stage paths
+    for raw in commit_paths:
+        path = _interpolate(raw, ctx)
+        await _run(f"git add -- {path} 2>/dev/null || true", workspace, env, label, execution_id)
+
+    # Unstage excluded extensions (mirrors REGISTER_EXCLUDE_EXTS in GH Actions)
+    if exclude_exts:
+        exts = "|".join(re.escape(e.lstrip(".")) for e in exclude_exts)
+        unstage_cmd = (
+            f"git diff --cached --name-only | grep -E '\\.({exts})$' | xargs -r git restore --staged --"
+        )
+        await _run(unstage_cmd, workspace, env, label, execution_id)
+
+    # Check staged
+    rc = await _run("git diff --cached --quiet", workspace, env, label, execution_id)
+    if rc == 0:
+        log_store.push(execution_id, label, f"[info] no staged changes for {step_id} — skipping PR")
+        return True
+
+    # Ephemeral branch
+    if await _run(f"git checkout -b {branch}", workspace, env, label, execution_id) != 0:
+        return False
+
+    # Commit
+    msg = f"🤖 AutoML ({fase_id}/{step_id}): {variant_id}"
+    if await _run(f'git commit -m "{msg}"', workspace, env, label, execution_id) != 0:
+        return False
+
+    # Push with retry
+    pushed = False
+    for attempt in range(1, 4):
+        if await _run(f"git push -u origin {branch}", workspace, env, label, execution_id) == 0:
+            pushed = True
+            break
+        await asyncio.sleep(attempt * 3)
+    if not pushed:
+        log_store.push(execution_id, label, "[error] push failed after 3 attempts")
+        return False
+
+    # Create PR — capture output via a temp file to avoid complex shell quoting
+    pr_title = f"🚀 AutoML {fase_id}/{step_id}: {variant_id}"
+    pr_body  = f"PR automática para **{variant_id}**, step **{step_id}**. Runner: Local."
+    create_cmd = (
+        f'gh api -X POST repos/{repo}/pulls '
+        f'-f title="{pr_title}" '
+        f'-f body="{pr_body}" '
+        f'-f base="{base}" '
+        f'-f head="{branch}" '
+        f"--jq '.number' > /tmp/_pr_num_{execution_id[:8]}.txt"
+    )
+    rc = await _run(create_cmd, workspace, env, label, execution_id)
+    pr_num_file = Path(f"/tmp/_pr_num_{execution_id[:8]}.txt")
+    pr_number = pr_num_file.read_text().strip() if pr_num_file.exists() else ""
+    pr_num_file.unlink(missing_ok=True)
+    if rc != 0 or not pr_number:
+        log_store.push(execution_id, label, "[error] PR creation failed")
+        return False
+
+    # Merge with retry
+    merged = False
+    for attempt in range(1, 6):
+        if await _run(f"gh pr merge {pr_number} --squash --delete-branch", workspace, env, label, execution_id) == 0:
+            merged = True
+            break
+        await asyncio.sleep(attempt * 3)
+    if not merged:
+        log_store.push(execution_id, label, f"[error] PR #{pr_number} merge failed after 5 attempts")
+        return False
+
+    # Return workspace to base branch
+    await _run(f"git checkout {base}", workspace, env, label, execution_id)
+    await _run(f"git reset --hard origin/{base}", workspace, env, label, execution_id)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+async def run_local_phase(ex) -> bool:
+    """Execute a local phase workflow. Returns True on full success."""
+    execution_id = ex.id
+    fase         = ex.fase
+    variant_id   = ex.variant
+    parent_id    = ex.parent
+    params       = ex.params or {}
+
+    workflow = _load_phase_workflow(fase)
+    if workflow is None:
+        log_store.push(execution_id, "init", f"[error] No workflow defined for fase '{fase}'")
+        log_store.close(execution_id)
+        return False
+
+    workspace   = _workspace_path()
+    branch      = _checkout_branch()
+    make_params = _make_params_str(params)
+
+    ctx = {
+        "variant_id":      variant_id,
+        "parent_id":       parent_id or "",
+        "checkout_branch": branch,
+        "make_params":     make_params,
+        "workspace":       str(workspace),
+    }
+
+    use_venv = str(load_app_config().get("local_runner_use_venv", "0"))
+    env = {
+        **os.environ,
+        "GH_TOKEN":            settings.github_token,
+        "GITHUB_TOKEN":        settings.github_token,
+        "GITHUB_REPOSITORY":   settings.github_repo,
+        "DAGSHUB_USER":        settings.dagshub_user,
+        "DAGSHUB_TOKEN":       settings.dagshub_token,
+        "USE_VENV":            use_venv,
+        "SKIP_GIT_PUBLISH":    "1",
+        "SKIP_LINEAGE":        "1",
+        "VARIANT_ROOT":        f"executions/{fase}/{variant_id}",
+    }
+
+    log_store.push(execution_id, "init", f"[local-runner] {fase}/{variant_id} — workspace: {workspace}")
+
+    if not await _setup_workspace(workspace, branch, env, execution_id):
+        log_store.push(execution_id, "init", "[error] workspace setup failed")
+        log_store.close(execution_id)
+        return False
+
+    # Eliminar la carpeta de la variante si ya existe en el repo (de un run anterior).
+    # GH Actions parte siempre de un runner limpio; aquí lo replicamos manualmente.
+    variant_dir = workspace / "executions" / fase / variant_id
+    if variant_dir.exists():
+        shutil.rmtree(variant_dir)
+        log_store.push(execution_id, "init", f"[info] carpeta preexistente eliminada: executions/{fase}/{variant_id}")
+
+    await _setup_git_dvc(workspace, env, execution_id)
+
+    # Si USE_VENV=1 y el venv no existe todavía, crearlo e instalar requirements.
+    # El venv persiste entre runs (no está en .gitignore del workspace es intencional).
+    if use_venv == "1":
+        venv_dir = workspace / ".venv"
+        if not (venv_dir / "bin" / "python3").exists():
+            log_store.push(execution_id, "python-setup", "[info] Creando venv e instalando dependencias (solo la primera vez)…")
+            await _run("python3 -m venv .venv", workspace, env, "python-setup", execution_id)
+            await _run(".venv/bin/pip install --quiet -r requirements.txt", workspace, env, "python-setup", execution_id)
+
+    dvc_paths = workflow.get("dvc_pull", [])
+    if dvc_paths:
+        await _dvc_pull(workspace, dvc_paths, ctx, env, execution_id)
+
+    all_ok = True
+    for step in workflow.get("steps", []):
+        always_run = step.get("always_run", False)
+        if not all_ok and not always_run:
+            log_store.push(execution_id, step["name"], f"[skip] prior failure")
+            continue
+
+        cmd = _interpolate(step["cmd"], ctx)
+        log_store.push(execution_id, step["name"], f"=== {step['name']} ===")
+        rc  = await _run(cmd, workspace, env, step["name"], execution_id)
+        if rc != 0:
+            all_ok = False
+
+        if step.get("publish_pr", False):
+            m       = re.search(r"f(\d{2})", fase)
+            fase_id = f"f{int(m.group(1))}" if m else fase
+            pr_ok   = await _publish_pr(
+                workspace,
+                step_id      = step.get("step_id", step["name"]),
+                fase_id      = fase_id,
+                variant_id   = variant_id,
+                commit_paths = step.get("commit_paths", []),
+                ctx          = ctx,
+                env          = env,
+                execution_id = execution_id,
+                exclude_exts = workflow.get("exclude_exts", []),
+            )
+            if not pr_ok and all_ok:
+                all_ok = False
+
+    result = "SUCCESS" if all_ok else "FAILED"
+    log_store.push(execution_id, "done", f"[local-runner] {fase}/{variant_id} — {result}")
+    log_store.close(execution_id)
+    return all_ok

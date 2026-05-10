@@ -23,6 +23,7 @@ export default defineConfig({
     fs: { allow: ['..'] },
     proxy: {
       '/api': 'http://localhost:8000',
+      '/executions': 'http://localhost:8000',
       '/ws': { target: 'ws://localhost:8000', ws: true },
     },
   },

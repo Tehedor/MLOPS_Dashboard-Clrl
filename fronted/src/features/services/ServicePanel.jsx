@@ -21,8 +21,9 @@ const DVC_COLOR = {
 }
 
 function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
-  const runCmd     = service.commands.find(c => c.command.startsWith('run_'))
-  const extraParams = runCmd?.params?.filter(p => p.env_var !== 'VARIANT') ?? []
+  const runCmd      = service.commands.find(c => c.command.startsWith('run_'))
+  const variantEnvVar = service.variant_env_var ?? 'VARIANT'
+  const extraParams = runCmd?.params?.filter(p => p.env_var !== variantEnvVar) ?? []
 
   const { data, isLoading } = useQuery({
     queryKey: ['service-variants', phase],
@@ -140,7 +141,7 @@ function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
 
 
 export default function ServicePanel({ service, isUp }) {
-  const { id, port, fases, commands } = service
+  const { id, port, fases, commands, variant_env_var, variant_format } = service
 
   const runCmd  = commands.find(c => c.command.startsWith('run_'))
   const stopCmd = commands.find(c => c.command.startsWith('stop_'))
@@ -188,9 +189,10 @@ export default function ServicePanel({ service, isUp }) {
     setActionState('starting')
     setRunningVariant(variantInfo)
     try {
-      // variantKey is the composite key (e.g. "Tv1_0023_Ev2_0201") or plain variant name
-      const variantKey = variantInfo.variantKey ?? variantInfo.variant
-      await runCommand(id, runCmd.command, { VARIANT: variantKey, ...extraEnv })
+      const envVar = variant_env_var ?? 'VARIANT'
+      const useDirect = variant_format === 'direct'
+      const key = useDirect ? variantInfo.variant : (variantInfo.variantKey ?? variantInfo.variant)
+      await runCommand(id, runCmd.command, { [envVar]: key, ...extraEnv })
     } catch (e) { setActionState('error'); setErrorMsg(e.message) }
   }
 

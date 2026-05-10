@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { fetchRuns, getSupabase, isConfigured, subscribeRuns } from '../api/supabase'
 import RunList from '../features/logs/RunList'
 import LogViewer from '../features/logs/LogViewer'
@@ -9,12 +10,33 @@ const ALL_STATUSES = ['all', 'queued', 'in_progress', 'success', 'failure', 'can
 const _ghLogsCache  = {}
 const _ghLoadingSet = new Set()
 
+function _mapLocalStatus(s) {
+  return { running: 'in_progress', failed: 'failure', canceled: 'cancelled' }[s] ?? s
+}
+
+function _toRunShape(ex) {
+  const status = _mapLocalStatus(ex.status)
+  return {
+    run_id:        ex.id,
+    workflow_name: `Local: ${ex.fase}/${ex.variant}`,
+    branch:        null,
+    status,
+    conclusion:    ['success', 'failure', 'cancelled'].includes(status) ? status : null,
+    fase:          ex.fase,
+    variant:       ex.variant,
+    created_at:    ex.created_at,
+    _source:       'local',
+  }
+}
+
 export default function LogsRunners() {
+  const [searchParams] = useSearchParams()
   const [runs, setRuns] = useState([])
+  const [localRuns, setLocalRuns] = useState([])
   const [selectedRun, setSelectedRun] = useState(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('run_id') ?? '')
   const [, forceUpdate] = useState(0)   // solo para forzar re-render cuando cambia la caché
 
   async function fetchGhLogs(runId) {
@@ -53,7 +75,7 @@ export default function LogsRunners() {
     fetchRuns()
       .then((data) => {
         setRuns(data)
-        if (data.length) setSelectedRun(data[0])
+        if (data.length) setSelectedRun(prev => prev ?? data[0])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -73,11 +95,34 @@ export default function LogsRunners() {
     return () => { getSupabase()?.removeChannel(channel) }
   }, [])
 
-  const filtered = runs.filter((r) => {
+  // Local runs — poll every 5 s so status updates appear
+  useEffect(() => {
+    function load() {
+      fetch('/api/executions')
+        .then(r => r.json())
+        .then(data => {
+          const shaped = data.map(_toRunShape)
+          setLocalRuns(shaped)
+          // Select first run on initial load if nothing is selected yet
+          setSelectedRun(prev => prev ?? shaped[0] ?? null)
+        })
+        .catch(console.error)
+    }
+    load()
+    const iv = setInterval(load, 5000)
+    return () => clearInterval(iv)
+  }, [])
+
+  const allRuns = [...runs, ...localRuns].sort(
+    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  )
+
+  const filtered = allRuns.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
+        String(r.run_id ?? '').includes(q) ||
         r.workflow_name?.toLowerCase().includes(q) ||
         r.branch?.toLowerCase().includes(q) ||
         r.fase?.toLowerCase().includes(q) ||

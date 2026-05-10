@@ -1,79 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
 import { PHASE_PARAMS } from './phaseParams'
 
-/**
- * Editor de parámetros con dos modos:
- *  - 'json': textarea libre
- *  - 'form': inputs generados desde phaseParams.js
- *
- * onChange(params: object | null) — null si el JSON es inválido
- */
-export default function ParamsEditor({ faseId, suggestions = {}, onChange }) {
+export default function ParamsEditor({ faseId, suggestions = {}, onChange, externalKey = 0, externalParams = null }) {
   const defs = PHASE_PARAMS[faseId] ?? []
 
-  const [mode, setMode]         = useState(() => localStorage.getItem(`pe_${faseId}_mode`) ?? 'form')
-  const [raw, setRaw]           = useState(() => localStorage.getItem(`pe_${faseId}_raw`)  ?? generateTemplate(defs))
-  const [rawError, setRawError] = useState(null)
   const [formValues, setFormValues] = useState(() => {
     try {
       const saved = localStorage.getItem(`pe_${faseId}_form`)
       return saved ? JSON.parse(saved) : initForm(defs)
     } catch { return initForm(defs) }
   })
-  const textareaRef = useRef(null)
+  const mounted = useRef(false)
 
-  useEffect(() => { localStorage.setItem(`pe_${faseId}_mode`, mode) }, [mode, faseId])
-  useEffect(() => { localStorage.setItem(`pe_${faseId}_raw`,  raw)  }, [raw,  faseId])
   useEffect(() => {
     localStorage.setItem(`pe_${faseId}_form`, JSON.stringify(formValues))
   }, [formValues, faseId])
 
+  // Aplicar preload externo cuando externalKey cambia (ignorar montaje inicial)
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = el.scrollHeight + 'px'
-  }, [raw, mode])
+    if (!mounted.current) { mounted.current = true; return }
+    if (!externalParams) return
+    setFormValues(paramsToForm(externalParams, defs))
+  }, [externalKey])
 
-  // Sincroniza hacia arriba cuando cambia el modo o los valores
+  // Sincroniza hacia arriba
   useEffect(() => {
-    if (mode === 'json') {
-      try {
-        const parsed = JSON.parse(raw)
-        setRawError(null)
-        onChange(parsed)
-      } catch {
-        setRawError('JSON inválido')
-        onChange(null)
-      }
-    } else {
-      onChange(formToParams(formValues, defs))
-    }
-  }, [mode, raw, formValues])
-
-  function switchToForm() {
-    try {
-      const parsed = JSON.parse(raw)
-      setFormValues(paramsToForm(parsed, defs))
-      setRawError(null)
-    } catch {
-      // Si el JSON era inválido, dejamos el formulario con los valores actuales
-    }
-    setMode('form')
-  }
-
-  function switchToJson() {
-    const params = formToParams(formValues, defs)
-    const hasValues = Object.keys(params).length > 0
-    if (hasValues) {
-      setRaw(JSON.stringify(params, null, 2))
-    } else if (suggestions && Object.keys(suggestions).length > 0) {
-      setRaw(JSON.stringify(suggestions, null, 2))
-    } else {
-      setRaw(generateTemplate(defs))
-    }
-    setMode('json')
-  }
+    onChange(formToParams(formValues, defs))
+  }, [formValues])
 
   function setField(id, value) {
     setFormValues(prev => ({ ...prev, [id]: value }))
@@ -81,50 +34,25 @@ export default function ParamsEditor({ faseId, suggestions = {}, onChange }) {
 
   return (
     <div className="flex flex-col gap-1 min-w-0">
-      {/* Cabecera con toggle */}
-      <div className="flex items-center justify-between">
-        <label className="text-xs text-gray-600 dark:text-gray-500">Parámetros</label>
-        <button
-          type="button"
-          onClick={() => mode === 'form' ? switchToJson() : switchToForm()}
-          className="text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-700 hover:text-gray-900 hover:border-gray-500 transition-colors font-mono dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          title={mode === 'form' ? 'Cambiar a JSON libre' : 'Cambiar a formulario'}
-        >
-          {mode === 'form' ? '㊂' : '🝚'}
-        </button>
+      <label className="text-xs text-gray-600 dark:text-gray-500">Parámetros</label>
+      <div
+        className="bg-gray-100 border border-gray-300 rounded p-2 overflow-y-auto dark:bg-gray-800 dark:border-gray-700"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '6px', maxHeight: '12rem' }}
+      >
+        {defs.length === 0 ? (
+          <p className="text-xs text-gray-600 dark:text-gray-500 italic">Sin parámetros definidos</p>
+        ) : (
+          defs.map(def => (
+            <ParamField
+              key={def.id}
+              def={def}
+              value={formValues[def.id] ?? ''}
+              suggestion={suggestions[def.id]}
+              onChange={v => setField(def.id, v)}
+            />
+          ))
+        )}
       </div>
-
-      {mode === 'json' ? (
-        <>
-          <textarea
-            ref={textareaRef}
-            className="w-full bg-gray-100 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900 font-mono resize-none overflow-hidden focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-            style={{ minHeight: '80px' }}
-            value={raw}
-            onChange={e => setRaw(e.target.value)}
-          />
-          {rawError && <span className="text-red-400 text-xs">{rawError}</span>}
-        </>
-      ) : (
-        <div
-          className="bg-gray-100 border border-gray-300 rounded p-2 overflow-y-auto dark:bg-gray-800 dark:border-gray-700"
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '6px', maxHeight: '12rem' }}
-        >
-          {defs.length === 0 ? (
-            <p className="text-xs text-gray-600 dark:text-gray-500 italic">Sin parámetros definidos</p>
-          ) : (
-            defs.map(def => (
-              <ParamField
-                key={def.id}
-                def={def}
-                value={formValues[def.id] ?? ''}
-                suggestion={suggestions[def.id]}
-                onChange={v => setField(def.id, v)}
-              />
-            ))
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -211,23 +139,7 @@ function ParamField({ def, value, suggestion, onChange }) {
   )
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateTemplate(defs) {
-  const template = {}
-  for (const def of defs) {
-    if (def.type === 'integer' || def.type === 'float') template[def.id] = null
-    else if (def.type === 'boolean')                    template[def.id] = false
-    else if (def.type === 'select')                     template[def.id] = def.options?.[0] ?? ''
-    else if (def.type === 'json') {
-      try { template[def.id] = def.hint ? JSON.parse(def.hint) : null }
-      catch { template[def.id] = null }
-    } else {
-      template[def.id] = ''
-    }
-  }
-  return JSON.stringify(template, null, 2)
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function initForm(defs) {
   return Object.fromEntries(defs.map(d => [d.id, '']))

@@ -30,13 +30,18 @@ def get_services() -> list[dict]:
     for service_id, cfg in data.get("Services", {}).items():
         if not cfg.get("enabled", True):
             continue
-        result.append({
+        entry = {
             "id": service_id,
             "port": cfg.get("port"),
             "fases": cfg.get("fases", []),
             "commands": cfg.get("commands", []),
             "url_repo": cfg.get("url_repo", ""),
-        })
+        }
+        if "variant_env_var" in cfg:
+            entry["variant_env_var"] = cfg["variant_env_var"]
+        if "variant_format" in cfg:
+            entry["variant_format"] = cfg["variant_format"]
+        result.append(entry)
     return result
 
 
@@ -45,13 +50,18 @@ def get_service(service_id: str) -> dict | None:
     cfg = data.get("Services", {}).get(service_id)
     if not cfg:
         return None
-    return {
+    entry = {
         "id": service_id,
         "port": cfg.get("port"),
         "fases": cfg.get("fases", []),
         "commands": cfg.get("commands", []),
         "url_repo": cfg.get("url_repo", ""),
     }
+    if "variant_env_var" in cfg:
+        entry["variant_env_var"] = cfg["variant_env_var"]
+    if "variant_format" in cfg:
+        entry["variant_format"] = cfg["variant_format"]
+    return entry
 
 
 async def run_make_command(command: str, env_vars: dict[str, str]) -> dict:

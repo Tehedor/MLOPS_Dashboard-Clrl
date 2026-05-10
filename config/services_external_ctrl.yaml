@@ -36,6 +36,8 @@ Services:
     path: services/windows_app
     branch: main
     port: 8060
+    variant_env_var: WINDOW_VERSION   # env var que recibe la variante en el Makefile
+    variant_format: direct            # 'direct' = usar variant tal cual (vY_XXXX), sin componer T/E
     fases:
       - f03_windows
     commands:

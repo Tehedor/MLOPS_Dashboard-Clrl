@@ -86,6 +86,23 @@ async def get_phases():
     return _load_phases()
 
 
+@router.get("/queue/status")
+async def get_queue_status():
+    return {"paused": _service._paused}
+
+
+@router.post("/queue/pause")
+async def pause_queue():
+    _service._paused = True
+    return {"paused": True}
+
+
+@router.post("/queue/resume")
+async def resume_queue():
+    _service._paused = False
+    return {"paused": False}
+
+
 @router.post("", response_model=Execution, status_code=201)
 async def create_execution(body: ExecutionCreate):
     ex = await _service.create(body)
@@ -143,6 +160,48 @@ async def get_gh_logs(gh_run_id: str):
     if not logs:
         raise HTTPException(404, "No logs found or GitHub token not configured")
     return logs
+
+
+@router.get("/{execution_id}/local-logs")
+async def get_local_logs(execution_id: str):
+    from app.services.local_log_store import get as get_logs
+    return get_logs(execution_id)
+
+
+@router.get("/{execution_id}/local-logs/stream")
+async def stream_local_logs(execution_id: str):
+    from app.services.local_log_store import subscribe, unsubscribe, get as get_logs
+
+    _TERMINAL = {"success", "failed", "canceled"}
+    ex = await _service.get(execution_id)
+    already_done = ex is None or ex.status.value in _TERMINAL
+
+    q = subscribe(execution_id)
+    past = get_logs(execution_id)
+
+    async def generator() -> AsyncGenerator[str, None]:
+        # Replay buffered lines
+        for entry in past:
+            yield f"data: {json.dumps(entry)}\n\n"
+        # If execution already finished, close immediately
+        if already_done:
+            unsubscribe(execution_id, q)
+            if not past:
+                yield f"data: {json.dumps({'step': 'info', 'line': '[sin logs — el backend fue reiniciado o la ejecución falló antes de arrancar]'})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+            return
+        # Live stream until sentinel
+        try:
+            while True:
+                item = await q.get()
+                if item is None:
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                    break
+                yield f"data: {json.dumps(item)}\n\n"
+        except asyncio.CancelledError:
+            unsubscribe(execution_id, q)
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
 
 
 async def _broadcast(execution: Execution) -> None:

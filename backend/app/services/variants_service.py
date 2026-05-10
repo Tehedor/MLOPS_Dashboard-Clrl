@@ -227,6 +227,12 @@ def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int]) -> dict:
         "files_expected": rd["local_files_expected"],
         "size_bytes": rd["local_size_bytes"],
     }
+    variant_path = _executions_root() / rd["phase"] / rd["variant"]
+    cells["_html_reports"] = [
+        {"name": f.name, "url": f"/executions/{rd['phase']}/{rd['variant']}/{f.name}"}
+        for f in sorted(variant_path.glob("*.html"))
+        if f.is_file()
+    ]
     cells["_parent"] = params_data.get("parent")
     cells["_parse_error"] = rd["parse_error"]
     cells["_updated_at"] = rd["updated_at"]

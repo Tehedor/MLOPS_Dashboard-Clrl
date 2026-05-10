@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getExecutions, getPhases } from '../api/executions'
 import { fetchRunsAsExecutions, subscribeRuns, isConfigured } from '../api/supabase'
 import { transformPhases } from '../utils/phases'
+import { PHASE_PARAMS } from '../features/vista2/phaseParams'
 import PhaseCard from '../features/vista2/PhaseCard'
+import BatchPanel from '../features/vista2/BatchPanel'
 import PipelinePanel from '../features/vista2/PipelinePanel'
 import HistoryPanel from '../features/vista2/HistoryPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
@@ -48,6 +50,20 @@ export default function Vista2() {
   const [filterFaseL,    setFilterFaseL]    = useState('')
   const [filterVariantR, setFilterVariantR] = useState('')
   const [filterFaseR,    setFilterFaseR]    = useState('')
+  const [syncFilters,    setSyncFilters]    = useState(false)
+
+  const [leftTab,      setLeftTab]      = useState('cards')
+  const [leftWarnings, setLeftWarnings] = useState([])
+  const [preloadMap,   setPreloadMap]   = useState({})
+
+  const handleLoadInCard = (ex) =>
+    setPreloadMap(prev => ({ ...prev, [ex.fase]: ex }))
+
+  const handlePreloadConsumed = (phaseId) =>
+    setPreloadMap(prev => { const next = { ...prev }; delete next[phaseId]; return next })
+
+  const effectiveFilterVariantR = syncFilters ? filterVariantL : filterVariantR
+  const effectiveFilterFaseR    = syncFilters ? filterFaseL    : filterFaseR
 
   const { data: localExecutions = [], isLoading } = useQuery({
     queryKey: ['executions'],
@@ -175,16 +191,80 @@ export default function Vista2() {
 
       {/* ── Panel izquierdo — tarjetas de fase ── */}
       <aside
-        className={`overflow-y-auto ${bothCollapsed ? 'flex-1' : 'shrink-0'}`}
-        style={bothCollapsed
-          ? { height: '100%' }
-          : { width: leftWidth, height: '100%' }}
+        className={`flex overflow-hidden ${bothCollapsed ? 'flex-1 flex-row' : 'flex-col shrink-0'}`}
+        style={bothCollapsed ? { height: '100%' } : { width: leftWidth, height: '100%' }}
       >
-        <div className="flex flex-col gap-5 p-4">
-          {phases.map(phase => (
-            <PhaseCard key={phase.id} phase={phase} executions={executions} />
-          ))}
+        {/* Sub-panel de formularios */}
+        <div
+          className="flex flex-col overflow-hidden"
+          style={bothCollapsed ? { width: '55%' } : { flex: 1 }}
+        >
+          <div className="flex px-2 pt-1 border-b border-gray-200 dark:border-gray-800 shrink-0">
+            <LeftTabBtn label="Por fase" active={leftTab === 'cards'} onClick={() => setLeftTab('cards')} />
+            <LeftTabBtn label="Batch"    active={leftTab === 'batch'} onClick={() => setLeftTab('batch')} />
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {leftTab === 'cards' ? (
+              <div className="flex flex-col gap-5 p-4">
+                {phases.map(phase => (
+                  <PhaseCard
+                    key={phase.id}
+                    phase={phase}
+                    executions={executions}
+                    preload={preloadMap[phase.id] ?? null}
+                    onPreloadConsumed={() => handlePreloadConsumed(phase.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <BatchPanel phases={phases} executions={executions} onWarnings={setLeftWarnings} />
+            )}
+          </div>
         </div>
+
+        {/* Sub-panel de avisos — solo cuando ambos paneles derechos están colapsados */}
+        {bothCollapsed && (
+          <div className="flex-1 overflow-y-auto border-l border-gray-200 dark:border-gray-800">
+            {leftTab === 'batch' ? (
+              leftWarnings.length > 0 ? (
+                <div className="p-3 flex flex-col gap-1">
+                  <p className="text-[10px] font-semibold text-yellow-600 dark:text-yellow-400 uppercase tracking-wider mb-2">
+                    Obligatorios vacíos
+                  </p>
+                  {leftWarnings.map((w, i) => (
+                    <div key={i} className="text-xs text-yellow-500 dark:text-yellow-400 font-mono">{w}</div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3">
+                  <p className="text-xs text-green-500 dark:text-green-400">✓ Sin avisos</p>
+                </div>
+              )
+            ) : (
+              <div className="p-3 flex flex-col gap-4">
+                <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Params obligatorios
+                </p>
+                {phases.map(phase => {
+                  const required = (PHASE_PARAMS[phase.id] ?? []).filter(d => d.required)
+                  if (!required.length) return null
+                  return (
+                    <div key={phase.id}>
+                      <p className="text-xs font-mono text-indigo-500 dark:text-indigo-400 mb-1">#{phase.id}</p>
+                      <div className="flex flex-col gap-0.5">
+                        {required.map(d => (
+                          <span key={d.id} className="text-xs text-gray-500 dark:text-gray-400 font-mono pl-2">
+                            {d.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Handle izq/mid — visible siempre que el izq no llene todo */}
@@ -197,10 +277,22 @@ export default function Vista2() {
         onToggle={() => setMidCollapsed(c => !c)}
       />
       {!midCollapsed && (
-        <section className="flex flex-col overflow-hidden shrink-0" style={{ width: midWidth, height: '100%' }}>
+        <section
+          className={`flex flex-col overflow-hidden ${rightCollapsed ? 'flex-1 min-w-0' : 'shrink-0'}`}
+          style={rightCollapsed ? { height: '100%' } : { width: midWidth, height: '100%' }}
+        >
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-300 dark:border-gray-800 shrink-0">
             <FilterInput placeholder="Variante" value={filterVariantL} onChange={setFilterVariantL} />
             <FilterSelect value={filterFaseL} onChange={setFilterFaseL} phases={phases} />
+            <label className="flex items-center gap-1 shrink-0 cursor-pointer select-none" title="Sincronizar filtros con Histórico">
+              <input
+                type="checkbox"
+                checked={syncFilters}
+                onChange={e => setSyncFilters(e.target.checked)}
+                className="accent-indigo-500"
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-500">Sync</span>
+            </label>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-3">
             {isLoading ? (
@@ -221,8 +313,6 @@ export default function Vista2() {
       {/* Handle mid/right — solo cuando ambos abiertos */}
       {!midCollapsed && !rightCollapsed && <ResizeHandle onResize={resizeMid} />}
 
-      {/* Spacer: empuja la muesca derecha al borde cuando está colapsada */}
-      {rightCollapsed && !bothCollapsed && <div className="flex-1" />}
 
       {/* ── Muesca right (siempre visible) + contenido ── */}
       <PanelToggle
@@ -231,10 +321,23 @@ export default function Vista2() {
         onToggle={() => setRightCollapsed(c => !c)}
       />
       {!rightCollapsed && (
-        <section className="flex flex-col overflow-hidden flex-1" style={{ height: '100%' }}>
+        <section className="flex flex-col overflow-hidden flex-1 min-w-0" style={{ height: '100%' }}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-300 dark:border-gray-800 shrink-0">
-            <FilterInput placeholder="Variante" value={filterVariantR} onChange={setFilterVariantR} />
-            <FilterSelect value={filterFaseR} onChange={setFilterFaseR} phases={phases} />
+            <FilterInput
+              placeholder="Variante"
+              value={syncFilters ? filterVariantL : filterVariantR}
+              onChange={v => { if (!syncFilters) setFilterVariantR(v) }}
+              disabled={syncFilters}
+            />
+            <FilterSelect
+              value={syncFilters ? filterFaseL : filterFaseR}
+              onChange={v => { if (!syncFilters) setFilterFaseR(v) }}
+              phases={phases}
+              disabled={syncFilters}
+            />
+            {syncFilters && (
+              <span className="text-xs text-indigo-500 dark:text-indigo-400 shrink-0">↔ sync</span>
+            )}
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto p-3">
             {isLoading ? (
@@ -242,11 +345,12 @@ export default function Vista2() {
             ) : (
               <HistoryPanel
                 executions={executions}
-                filterVariant={filterVariantR}
-                filterFase={filterFaseR}
+                filterVariant={effectiveFilterVariantR}
+                filterFase={effectiveFilterFaseR}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 highlightFaseVariant={highlightFaseVariant}
+                onLoadInCard={handleLoadInCard}
               />
             )}
           </div>
@@ -289,25 +393,45 @@ function PanelToggle({ collapsed, label, onToggle }) {
   )
 }
 
+// ── Tab izquierdo ─────────────────────────────────────────────────────────────
+
+function LeftTabBtn({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+        active
+          ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+          : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
 // ── Filtros ───────────────────────────────────────────────────────────────────
 
-function FilterInput({ placeholder, value, onChange }) {
+function FilterInput({ placeholder, value, onChange, disabled = false }) {
   return (
     <input
-      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       placeholder={placeholder}
       value={value}
       onChange={e => onChange(e.target.value)}
+      disabled={disabled}
     />
   )
 }
 
-function FilterSelect({ value, onChange, phases = [] }) {
+function FilterSelect({ value, onChange, phases = [], disabled = false }) {
   return (
     <select
-      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+      className="flex-1 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
       value={value}
       onChange={e => onChange(e.target.value)}
+      disabled={disabled}
     >
       <option value="">Todas las fases</option>
       {phases.map(p => (

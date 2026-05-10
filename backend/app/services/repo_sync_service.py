@@ -87,7 +87,12 @@ async def _latest_sha(owner: str, repo: str, branch: str) -> str:
 
 def _pull(local_path: Path, branch: str) -> None:
     subprocess.run(
-        ["git", "-C", str(local_path), "pull", "origin", branch],
+        ["git", "-C", str(local_path), "fetch", "origin", branch],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(local_path), "reset", "--hard", f"origin/{branch}"],
         check=True,
         capture_output=True,
     )

@@ -149,7 +149,7 @@ restart-frontend: stop-frontend dev-frontend ## Reinicia solo el frontend
 
 # ── Status & Logs ─────────────────────────────────────────────────────────────
 
-.PHONY: status logs logs-backend logs-frontend
+.PHONY: status logs logs-backend logs-frontend logs-localRunner
 status: ## Estado de los procesos locales
 	@B_STATUS="STOPPED"; F_STATUS="STOPPED"; \
 	[ -f $(BACKEND_PID) ]  && kill -0 $$(cat $(BACKEND_PID))  2>/dev/null \
@@ -176,6 +176,9 @@ logs-backend: ## Sigue los logs del backend
 
 logs-frontend: ## Sigue los logs del frontend
 	@tail -f $(FRONTEND_LOG)
+
+logs-localRunner: ## Logs del runner local en tiempo real (EXEC=<id_prefix> para uno específico)
+	@python3 scripts/local_runner_logs.py $(EXEC)
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 

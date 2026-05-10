@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ExecutionStatus(str, Enum):
     queued = "queued"
     waiting_parent = "waiting_parent"
+    waiting_runner = "waiting_runner"
     dispatching = "dispatching"
     running = "running"
     success = "success"

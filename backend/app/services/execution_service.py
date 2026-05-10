@@ -1,19 +1,24 @@
+import glob
 import json
 import re
 import uuid
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 
 import aiosqlite
 import yaml
 
-from app.core.config import phases_runner_path
+from app.core.config import phases_runner_path, load_app_config, PROJECT_ROOT
 from app.core.db import DB_PATH
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
 
 
 _FASE_CONFIG_CACHE: dict | None = None
+
+POLL_PARENT_SECS = 30
+POLL_RUNNER_SECS = 15
 
 
 def _normalize_variant(fase: str, variant: str) -> str:
@@ -36,8 +41,9 @@ def _load_phases_config() -> dict:
             config = yaml.safe_load(f)
         return {
             f["fase"]: {
-                "runner":  f["runner"],
-                "gh_fase": f.get("gh_fase", f["fase"]),
+                "runner":          f["runner"],
+                "gh_fase":         f.get("gh_fase", f["fase"]),
+                "parent_required": f.get("parent_required", False),
             }
             for f in config.get("fases", [])
         }
@@ -56,7 +62,7 @@ def _get_fase_config() -> dict:
 def _get_runner_json(runner_name: str) -> str | None:
     """Devuelve el runner_json para fromJSON(inputs.runner) de GHA."""
     if runner_name.strip().startswith('['):
-        return runner_name.strip()  # ya es un JSON array válido
+        return runner_name.strip()
     config_path = phases_runner_path()
     try:
         with open(config_path) as f:
@@ -69,6 +75,54 @@ def _get_runner_json(runner_name: str) -> str | None:
     except Exception:
         pass
     return None
+
+
+def _runner_max_parallel(runner_name: str) -> int:
+    config_path = phases_runner_path()
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        for item in config.get("runners", []):
+            name = next((k for k in item if k not in ('max-parallel', 'labels')), None)
+            if name == runner_name:
+                return item.get("max-parallel", 1)
+    except Exception:
+        pass
+    return 1
+
+
+def _executions_base_path() -> Path:
+    cfg = load_app_config()
+    p = Path(cfg.get("actions_repo_path_executions", "external/repo_actions/executions"))
+    return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def _parent_fase_dir(parent_variant: str) -> Path | None:
+    """'v1_5001' → Path(.../executions/f01_explore)"""
+    m = re.match(r'^v(\d+)_', parent_variant)
+    if not m:
+        return None
+    digit = int(m.group(1))
+    base = _executions_base_path()
+    matches = glob.glob(str(base / f"f{digit:02d}_*"))
+    return Path(matches[0]) if matches else None
+
+
+def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
+    if not phase_requires_parent or not ex.parent:
+        return True
+    fase_dir = _parent_fase_dir(ex.parent)
+    if not fase_dir:
+        return False
+    metadata_path = fase_dir / ex.parent / "metadata.yaml"
+    if not metadata_path.exists():
+        return False
+    try:
+        with open(metadata_path) as f:
+            data = yaml.safe_load(f) or {}
+        return data.get("lifecycle_state") == "EXECUTION_COMPLETED"
+    except Exception:
+        return False
 
 
 def _row_to_execution(row) -> Execution:
@@ -88,13 +142,13 @@ def _row_to_execution(row) -> Execution:
 
 
 class ExecutionService:
+    def __init__(self):
+        self._paused: bool = False
+
     async def create(self, body: ExecutionCreate) -> Execution:
         from fastapi import HTTPException
         normalized = _normalize_variant(body.fase, body.variant)
-        # Solo bloqueamos estados pre-despacho fiables en SQLite local.
-        # 'running' no se bloquea: el local se queda en running permanentemente
-        # (los updates de success/failed van a Supabase, nunca al local).
-        blocked_statuses = ('queued', 'waiting_parent', 'dispatching')
+        blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
                 f"SELECT status FROM executions WHERE fase=? AND variant=? AND status IN ({','.join('?'*len(blocked_statuses))})",
@@ -129,17 +183,81 @@ class ExecutionService:
         asyncio.create_task(self._dispatch(ex))
         return ex
 
+    async def _runner_has_slot(self, runner_name: str) -> bool:
+        max_parallel = _runner_max_parallel(runner_name)
+        active = ('running', 'dispatching', 'waiting_runner')
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                f"SELECT COUNT(*) FROM executions WHERE runner=? AND status IN ({','.join('?'*len(active))})",
+                (runner_name, *active),
+            ) as cursor:
+                row = await cursor.fetchone()
+        return (row[0] if row else 0) < max_parallel
+
     async def _dispatch(self, ex: Execution) -> None:
+        fase_cfg = _get_fase_config().get(ex.fase, {})
+        parent_required = fase_cfg.get("parent_required", False)
+
+        # 1. Esperar parent
+        if not _parent_exists(ex, parent_required):
+            await self._update_status(ex.id, ExecutionStatus.waiting_parent)
+            while True:
+                await asyncio.sleep(POLL_PARENT_SECS)
+                current = await self.get(ex.id)
+                if current is None or current.status == ExecutionStatus.canceled:
+                    return
+                if _parent_exists(ex, parent_required):
+                    break
+
+        # 2. Esperar slot de runner
+        if not await self._runner_has_slot(ex.runner):
+            await self._update_status(ex.id, ExecutionStatus.waiting_runner)
+            while True:
+                await asyncio.sleep(POLL_RUNNER_SECS)
+                current = await self.get(ex.id)
+                if current is None or current.status == ExecutionStatus.canceled:
+                    return
+                if await self._runner_has_slot(ex.runner):
+                    break
+
+        # 3. Gate de pausa — esperar si la cola está pausada
+        while self._paused:
+            await asyncio.sleep(5)
+            current = await self.get(ex.id)
+            if current is None or current.status == ExecutionStatus.canceled:
+                return
+
+        # 4. Despachar
+        if ex.runner == "Local":
+            await self._dispatch_local(ex)
+            return
         try:
             await self._update_status(ex.id, ExecutionStatus.dispatching)
-            gh_fase    = _get_fase_config().get(ex.fase, {}).get("gh_fase", ex.fase)
+            gh_fase     = fase_cfg.get("gh_fase", ex.fase)
             runner_json = _get_runner_json(ex.runner)
-            gh_run_id  = await dispatch_phase(gh_fase, ex.variant, ex.parent, ex.params, runner_json)
+            gh_run_id   = await dispatch_phase(gh_fase, ex.variant, ex.parent, ex.params, runner_json)
             if gh_run_id:
                 await self._set_gh_run_id(ex.id, gh_run_id)
             await self._update_status(ex.id, ExecutionStatus.running)
         except Exception:
             await self._update_status(ex.id, ExecutionStatus.failed, "DISPATCH_ERROR")
+
+    async def _dispatch_local(self, ex: Execution) -> None:
+        from app.services.local_runner_service import run_local_phase
+        from app.services import local_log_store as log_store
+        try:
+            await self._update_status(ex.id, ExecutionStatus.dispatching)
+            await self._update_status(ex.id, ExecutionStatus.running)
+            success = await run_local_phase(ex)
+            status = ExecutionStatus.success if success else ExecutionStatus.failed
+            error = None if success else "LOCAL_STEP_FAILED"
+            await self._update_status(ex.id, status, error)
+        except Exception as e:
+            print(f"[local-runner] unhandled exception: {e}")
+            log_store.push(ex.id, "error", f"[fatal] {e}")
+            await self._update_status(ex.id, ExecutionStatus.failed, "LOCAL_ERROR")
+        finally:
+            log_store.close(ex.id)
 
     async def _set_gh_run_id(self, execution_id: str, gh_run_id: str) -> None:
         async with aiosqlite.connect(DB_PATH) as db:
@@ -159,6 +277,10 @@ class ExecutionService:
                 (status.value, error_code, now, execution_id),
             )
             await db.commit()
+        _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
+        if status in _TERMINAL:
+            from app.services import repo_sync_service
+            asyncio.create_task(repo_sync_service.force_pull())
 
     async def list_all(self) -> list[Execution]:
         async with aiosqlite.connect(DB_PATH) as db:
@@ -177,8 +299,10 @@ class ExecutionService:
         return _row_to_execution(row) if row else None
 
     async def reconcile_stale(self) -> None:
-        """Al arrancar, sincroniza registros running/dispatching/queued contra la GH API."""
+        """Al arrancar, sincroniza registros activos contra la GH API y reactiva los waiting."""
         from app.services.github import fetch_run_status
+
+        # Sincronizar contra GH los que estaban en vuelo
         stale = ('running', 'dispatching', 'queued')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
@@ -195,7 +319,7 @@ class ExecutionService:
             if run_info is None:
                 await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
                 continue
-            gh_status = run_info.get("status")
+            gh_status     = run_info.get("status")
             gh_conclusion = run_info.get("conclusion")
             if gh_status == "completed":
                 if gh_conclusion == "success":
@@ -207,7 +331,19 @@ class ExecutionService:
                         execution_id, ExecutionStatus.failed,
                         f"GH_{(gh_conclusion or 'unknown').upper()}"
                     )
-            # in_progress/queued en GH → dejar como running (sigue activo)
+
+        # Reactivar los waiting_* cuya tarea asyncio se perdió al reiniciar
+        waiting = ('waiting_parent', 'waiting_runner')
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                f"SELECT * FROM executions WHERE status IN ({','.join('?'*len(waiting))})",
+                waiting,
+            ) as cursor:
+                waiting_rows = await cursor.fetchall()
+
+        for row in waiting_rows:
+            ex = _row_to_execution(row)
+            asyncio.create_task(self._dispatch(ex))
 
     async def cancel(self, execution_id: str) -> Execution:
         ex = await self.get(execution_id)

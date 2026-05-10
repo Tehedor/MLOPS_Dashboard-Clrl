@@ -16,8 +16,17 @@ function fmtBytes(bytes) {
   return `${v.toFixed(1)} ${units[i]}`
 }
 
-function LocalCell({ row, phase, onAction }) {
+function FileIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+      <path fillRule="evenodd" d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6.414A2 2 0 0 0 13.414 5L11 2.586A2 2 0 0 0 9.586 2H4Zm5 1.5v2A1.5 1.5 0 0 0 10.5 7h2V12a.5.5 0 0 1-.5.5H4A.5.5 0 0 1 3.5 12V4A.5.5 0 0 1 4 3.5h5Z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function LocalCell({ row, phase, onAction, selected, onToggleRow }) {
   const local = row._local || {}
+  const htmlReports = row._html_reports || []
   const [jobId, setJobId] = useState(null)
   const [jobStatus, setJobStatus] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -68,7 +77,7 @@ function LocalCell({ row, phase, onAction }) {
   }[local.status] || ''
 
   return (
-    <div className="flex items-center gap-1.5 min-w-[160px]">
+    <>
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-xl max-w-sm w-full mx-4">
@@ -92,35 +101,56 @@ function LocalCell({ row, phase, onAction }) {
           </div>
         </div>
       )}
-
-      <span className={`text-xs ${statusColor} flex-1`}>
-        {busy ? (
-          <span className="flex items-center gap-1">
-            <Spinner />
-            {jobStatus === 'queued' ? 'En cola…' : jobStatus === 'running' ? 'Procesando…' : statusLabel}
-          </span>
-        ) : statusLabel}
-      </span>
-
-      {!busy && local.status !== 'local' && (
-        <button
-          onClick={handlePull}
-          title="Descargar"
-          className="px-1.5 py-0.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0"
-        >
-          ↓
-        </button>
-      )}
-      {!busy && (local.status === 'local' || local.status === 'partial') && (
-        <button
-          onClick={() => setShowConfirm(true)}
-          title="Eliminar artefactos locales"
-          className="px-1.5 py-0.5 text-xs rounded bg-red-500 text-white hover:bg-red-600 shrink-0"
-        >
-          ✕
-        </button>
-      )}
-    </div>
+      <div className="flex items-center justify-between w-full">
+        <span className={`text-xs ${statusColor} truncate`}>
+          {busy ? (
+            <span className="flex items-center gap-1">
+              <Spinner />
+              {jobStatus === 'queued' ? 'En cola…' : jobStatus === 'running' ? 'Procesando…' : statusLabel}
+            </span>
+          ) : statusLabel}
+        </span>
+        <div className="flex items-center gap-1">
+          {htmlReports.map(report => (
+            <a
+              key={report.name}
+              href={report.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={report.name}
+              className="p-1 rounded bg-amber-500 text-white hover:bg-amber-600 shrink-0 flex items-center justify-center"
+            >
+              <FileIcon />
+            </a>
+          ))}
+          {!busy && local.status !== 'local' && (
+            <button
+              onClick={handlePull}
+              title="Descargar"
+              className="p-1 rounded bg-blue-600 text-white hover:bg-blue-700 shrink-0 flex items-center justify-center"
+            >
+              ↓
+            </button>
+          )}
+          {!busy && (local.status === 'local' || local.status === 'partial') && (
+            <button
+              onClick={() => setShowConfirm(true)}
+              title="Eliminar artefactos locales"
+              className="p-1 rounded bg-red-500 text-white hover:bg-red-600 shrink-0 flex items-center justify-center"
+            >
+              ✕
+            </button>
+          )}
+          <input
+            type="checkbox"
+            checked={selected.has(row.variant)}
+            onChange={() => onToggleRow(row.variant)}
+            className="cursor-pointer shrink-0"
+            title="Seleccionar fila"
+          />
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -255,9 +285,91 @@ function BulkActionBar({ selected, rows, onPull, onDelete, onClear, progress }) 
   )
 }
 
+// ── Filter popper ─────────────────────────────────────────────────────────────
+
+function FilterPopper({ colKey, value, onChange, onClose }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!ref.current || ref.current.contains(e.target)) return
+      if (e.target.closest('[data-filter-toggle]') === document.querySelector(`[data-filter-toggle="${colKey}"]`)) return
+      onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose, colKey])
+
+  return (
+    <div
+      ref={ref}
+      className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg p-2 min-w-[180px]"
+    >
+      <input
+        autoFocus
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+        placeholder="Filtrar…"
+        className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      {value && (
+        <div className="flex justify-end mt-1.5">
+          <button
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => { onChange(''); onClose() }}
+            className="text-[10px] text-red-400 hover:text-red-600 dark:hover:text-red-400"
+          >
+            Limpiar ✕
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Column resize ─────────────────────────────────────────────────────────────
+
+function ResizeHandle({ colKey, getWidth, colElemsRef, tableRef, headerDivRefs, onResizeEnd }) {
+  const onMouseDown = (e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = getWidth()
+    const startTableW = tableRef.current ? tableRef.current.offsetWidth : 0
+    let currentW = startW
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (mv) => {
+      const delta = mv.clientX - startX
+      const minW = (headerDivRefs.current[colKey]?.scrollWidth ?? 40) + 8
+      currentW = Math.min(500, Math.max(minW, startW + delta))
+      const colEl = colElemsRef.current[colKey]
+      if (colEl) colEl.style.width = currentW + 'px'
+      if (tableRef.current) tableRef.current.style.width = (startTableW + currentW - startW) + 'px'
+    }
+    const onUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      onResizeEnd(colKey, currentW)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-400 select-none z-20"
+    />
+  )
+}
+
 // ── Phase table ───────────────────────────────────────────────────────────────
 
 const LS_KEY = (phase) => `variants_hidden_cols_${phase}`
+const LS_WIDTHS_KEY = (phase) => `variants_col_widths_${phase}`
 
 function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const qc = useQueryClient()
@@ -274,7 +386,22 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const [bulkProgress, setBulkProgress] = useState(null)
   const bulkPollRef = useRef(null)
   useEffect(() => () => clearInterval(bulkPollRef.current), [])
-  const LIMIT = 50
+
+  const [colWidths, setColWidths] = useState(() => {
+    try { const s = localStorage.getItem(LS_WIDTHS_KEY(phase)); if (s) return JSON.parse(s) } catch {}
+    return {}
+  })
+  useEffect(() => {
+    localStorage.setItem(LS_WIDTHS_KEY(phase), JSON.stringify(colWidths))
+  }, [colWidths, phase])
+  const colElemsRef = useRef({})
+  const tableRef = useRef(null)
+  const headerDivRefs = useRef({})
+
+  const handleColResize = useCallback((key, w) => setColWidths(p => ({ ...p, [key]: w })), [])
+  const getColW = (key, def = 120) => colWidths[key] ?? def
+
+  const LIMIT = 100
 
   // Debounce column filters 300ms
   useEffect(() => {
@@ -332,15 +459,14 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const toggleFilter = useCallback((key) => {
     setOpenFilters(prev => {
       const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-        setFilter(key, '')
-      } else {
-        next.add(key)
-      }
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
-  }, [setFilter])
+  }, [])
+
+  const closeFilter = useCallback((key) => {
+    setOpenFilters(prev => { const n = new Set(prev); n.delete(key); return n })
+  }, [])
 
   // A filter is visible if explicitly opened OR if it has an active value
   const isFilterVisible = (key) => openFilters.has(key) || !!colFilters[key]
@@ -452,6 +578,9 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r.variant))
   const somePageSelected = !allPageSelected && pageRows.some(r => selected.has(r.variant))
 
+  const totalTableWidth = cols.reduce((s, col) => s + getColW(col.key, col.key === 'variant' ? 180 : 120), 0)
+    + getColW('_local', 200)
+
   return (
     <div className="flex flex-col h-full">
       {/* Bulk action bar */}
@@ -531,26 +660,33 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
             <Spinner /> <span className="ml-2">Cargando…</span>
           </div>
         ) : (
-          <table className="w-full text-xs border-collapse">
+          <table ref={tableRef} className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: totalTableWidth }}>
+            <colgroup>
+              {cols.map(col => (
+                <col key={col.key} ref={el => { colElemsRef.current[col.key] = el }} style={{ width: getColW(col.key, col.key === 'variant' ? 180 : 120) }} />
+              ))}
+              <col ref={el => { colElemsRef.current['_local'] = el }} style={{ width: getColW('_local', 200) }} />
+            </colgroup>
             <thead className="sticky top-0 bg-gray-100 dark:bg-gray-900 z-10">
               <tr>
                 {cols.map(col => (
                   <th
                     key={col.key}
                     style={col.color ? { backgroundColor: col.color + '70', borderTop: `2px solid ${col.color}` } : { backgroundColor: 'rgb(209 213 219)' }}
-                    className="px-2 py-1.5 text-left font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap border-b-2 border-gray-300 dark:border-gray-600 select-none"
+                    className="px-2 py-1.5 text-left font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600 select-none relative"
                   >
-                    <div className="flex items-center gap-1">
+                    <div ref={el => { headerDivRefs.current[col.key] = el }} className="flex items-center gap-1 overflow-hidden pr-2">
                       <span
                         onClick={() => handleSort(col.key)}
-                        className="cursor-pointer hover:opacity-70 flex items-center gap-0.5"
+                        className="cursor-pointer hover:opacity-70 flex items-center gap-0.5 min-w-0 shrink-0"
                       >
-                        {col.label}
-                        <span className={`text-[10px] ${sortBy === col.key ? 'text-gray-700' : 'text-gray-400'}`}>
+                        <span className="truncate">{col.label}</span>
+                        <span className={`text-[10px] shrink-0 ${sortBy === col.key ? 'text-gray-700' : 'text-gray-400'}`}>
                           {sortBy === col.key ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </span>
                       <button
+                        data-filter-toggle={col.key}
                         onClick={e => { e.stopPropagation(); toggleFilter(col.key) }}
                         title="Filtrar"
                         className={`shrink-0 rounded p-0.5 transition-colors ${isFilterVisible(col.key) ? 'text-blue-600' : 'text-gray-400 hover:text-gray-700'}`}
@@ -559,39 +695,34 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                           <path fillRule="evenodd" d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" clipRule="evenodd" />
                         </svg>
                       </button>
-                      {isFilterVisible(col.key) && (
-                        <input
-                          autoFocus
-                          value={colFilters[col.key] || ''}
-                          onChange={e => setFilter(col.key, e.target.value)}
-                          onClick={e => e.stopPropagation()}
-                          onKeyDown={e => { if (e.key === 'Escape') toggleFilter(col.key) }}
-                          placeholder="…"
-                          className="w-20 text-[10px] font-normal px-1.5 py-0.5 rounded border border-black/25 bg-white/80 dark:bg-black/30 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      )}
-                      {colFilters[col.key] && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setFilter(col.key, '') }}
-                          className="text-[11px] text-blue-600 font-bold leading-none hover:text-red-500"
-                          title="Borrar filtro"
-                        >×</button>
-                      )}
                     </div>
+                    {openFilters.has(col.key) && (
+                      <FilterPopper
+                        colKey={col.key}
+                        value={colFilters[col.key] || ''}
+                        onChange={v => setFilter(col.key, v)}
+                        onClose={() => closeFilter(col.key)}
+                      />
+                    )}
+                    <ResizeHandle colKey={col.key} getWidth={() => getColW(col.key, col.key === 'variant' ? 180 : 120)} colElemsRef={colElemsRef} tableRef={tableRef} headerDivRefs={headerDivRefs} onResizeEnd={handleColResize} />
                   </th>
                 ))}
-                <th className="px-2 py-1.5 text-left font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600 whitespace-nowrap" style={{ backgroundColor: 'rgb(209 213 219)' }}>
-                  Local
-                </th>
-                <th className="px-2 py-1.5 w-8 border-b-2 border-gray-300 dark:border-gray-600" style={{ backgroundColor: 'rgb(209 213 219)' }}>
-                  <input
-                    type="checkbox"
-                    checked={allPageSelected}
-                    ref={el => { if (el) el.indeterminate = somePageSelected }}
-                    onChange={togglePageAll}
-                    className="cursor-pointer"
-                    title="Seleccionar página"
-                  />
+                <th
+                  style={{ backgroundColor: 'rgb(209 213 219)' }}
+                  className="px-2 py-1.5 text-left font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600 relative"
+                >
+                  <div ref={el => { headerDivRefs.current['_local'] = el }} className="flex items-center justify-between gap-2">
+                    <span className="truncate min-w-0">Local</span>
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      ref={el => { if (el) el.indeterminate = somePageSelected }}
+                      onChange={togglePageAll}
+                      className="cursor-pointer shrink-0"
+                      title="Seleccionar página"
+                    />
+                  </div>
+                  <ResizeHandle colKey="_local" getWidth={() => getColW('_local', 200)} colElemsRef={colElemsRef} tableRef={tableRef} headerDivRefs={headerDivRefs} onResizeEnd={handleColResize} />
                 </th>
               </tr>
             </thead>
@@ -605,28 +736,22 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                   }`}
                 >
                   {cols.map(col => (
-                    <td key={col.key} style={col.color ? { backgroundColor: col.color + '18' } : {}} className="px-2 py-1 text-gray-800 dark:text-gray-200 whitespace-nowrap max-w-[200px] truncate">
-                      {row._parse_error && col.key === 'variant' ? (
-                        <span title={row._parse_error} className="text-red-500 cursor-help">
-                          ⚠ {row[col.key]}
-                        </span>
-                      ) : (
-                        Array.isArray(row[col.key])
-                          ? row[col.key].join(', ')
-                          : row[col.key] != null ? String(row[col.key]) : ''
-                      )}
+                    <td key={col.key} style={col.color ? { backgroundColor: col.color + '18' } : {}} className="px-2 py-1 text-gray-800 dark:text-gray-200">
+                      <div className="truncate" title={
+                        Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] != null ? String(row[col.key]) : ''
+                      }>
+                        {row._parse_error && col.key === 'variant' ? (
+                          <span className="text-red-500 cursor-help">⚠ {row[col.key]}</span>
+                        ) : (
+                          Array.isArray(row[col.key])
+                            ? row[col.key].join(', ')
+                            : row[col.key] != null ? String(row[col.key]) : ''
+                        )}
+                      </div>
                     </td>
                   ))}
                   <td className="px-2 py-1">
-                    <LocalCell row={row} phase={phase} onAction={refreshRows} />
-                  </td>
-                  <td className="px-2 py-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.variant)}
-                      onChange={() => toggleRow(row.variant)}
-                      className="cursor-pointer"
-                    />
+                    <LocalCell row={row} phase={phase} onAction={refreshRows} selected={selected} onToggleRow={toggleRow} />
                   </td>
                 </tr>
               ))}
@@ -644,12 +769,28 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
 
       {/* Pagination */}
       {pages > 1 && (
-        <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-500 shrink-0">
-          <button disabled={page === 0} onClick={() => setOffset(0)} className="disabled:opacity-30">«</button>
-          <button disabled={page === 0} onClick={() => setOffset((page - 1) * LIMIT)} className="disabled:opacity-30">‹</button>
-          <span>Pág {page + 1} / {pages}</span>
-          <button disabled={page >= pages - 1} onClick={() => setOffset((page + 1) * LIMIT)} className="disabled:opacity-30">›</button>
-          <button disabled={page >= pages - 1} onClick={() => setOffset((pages - 1) * LIMIT)} className="disabled:opacity-30">»</button>
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200 dark:border-gray-800 text-sm text-gray-600 dark:text-gray-400 shrink-0">
+          <button
+            disabled={page === 0}
+            onClick={() => setOffset(0)}
+            className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-base leading-none"
+          >«</button>
+          <button
+            disabled={page === 0}
+            onClick={() => setOffset((page - 1) * LIMIT)}
+            className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-base leading-none"
+          >‹</button>
+          <span className="px-2 font-medium">Pág {page + 1} / {pages}</span>
+          <button
+            disabled={page >= pages - 1}
+            onClick={() => setOffset((page + 1) * LIMIT)}
+            className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-base leading-none"
+          >›</button>
+          <button
+            disabled={page >= pages - 1}
+            onClick={() => setOffset((pages - 1) * LIMIT)}
+            className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed font-bold text-base leading-none"
+          >»</button>
         </div>
       )}
     </div>

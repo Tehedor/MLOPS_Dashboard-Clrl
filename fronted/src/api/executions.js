@@ -48,3 +48,21 @@ export async function retryExecution(id) {
   if (!res.ok) throw new Error('Failed to retry execution')
   return res.json()
 }
+
+export async function getQueueStatus() {
+  const res = await fetch(`${BASE}/queue/status`)
+  if (!res.ok) throw new Error('Failed to fetch queue status')
+  return res.json()
+}
+
+export async function pauseQueue() {
+  const res = await fetch(`${BASE}/queue/pause`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to pause queue')
+  return res.json()
+}
+
+export async function resumeQueue() {
+  const res = await fetch(`${BASE}/queue/resume`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to resume queue')
+  return res.json()
+}

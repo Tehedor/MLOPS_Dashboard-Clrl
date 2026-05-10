@@ -1,8 +1,49 @@
 import asyncio
+import json
+import re
 from datetime import datetime, timezone
 
 import httpx
 from app.core.config import settings
+
+_TS_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z ')
+
+
+def _strip_ts(line: str) -> str:
+    return _TS_RE.sub('', line)
+
+
+def _parse_job_to_steps(job_name: str, raw: str) -> list[dict]:
+    """Split a GH job log blob into sub-steps using ##[group] markers, stripping timestamps."""
+    steps: list[dict] = []
+    current: str | None = None
+    lines: list[str] = []
+    has_groups = False
+
+    for raw_line in raw.splitlines():
+        line = _strip_ts(raw_line)
+        if line.startswith('##[group]'):
+            if has_groups and current is not None:
+                steps.append({'step_name': current, 'content': '\n'.join(lines)})
+            current = line[len('##[group]'):]
+            lines = []
+            has_groups = True
+        elif line.startswith('##[endgroup]'):
+            if current is not None:
+                steps.append({'step_name': current, 'content': '\n'.join(lines)})
+            current = None
+            lines = []
+        elif current is not None and not line.startswith('##['):
+            lines.append(line)
+
+    if current and lines:
+        steps.append({'step_name': current, 'content': '\n'.join(lines)})
+
+    if not steps:
+        content = '\n'.join(_strip_ts(l) for l in raw.splitlines())
+        steps.append({'step_name': job_name, 'content': content})
+
+    return steps
 
 _DISPATCH_URL = f"https://api.github.com/repos/{settings.github_repo}/dispatches"
 _RUNS_URL     = f"https://api.github.com/repos/{settings.github_repo}/actions/runs"
@@ -43,6 +84,20 @@ async def _find_run_after(created_after: str) -> str | None:
     return None
 
 
+def _log_curl(url: str, headers: dict, payload: dict) -> None:
+    token = headers.get("Authorization", "")
+    masked = token.replace(settings.github_token, "***") if settings.github_token else token
+    header_flags = " \\\n  ".join(
+        f'-H "{k}: {masked if k == "Authorization" else v}"'
+        for k, v in headers.items()
+    )
+    body = json.dumps(payload, ensure_ascii=False, indent=2)
+    print(
+        f"\n[dispatch] curl -X POST '{url}' \\\n  {header_flags} \\\n"
+        f"  -d '{body}'\n"
+    )
+
+
 async def dispatch_phase(fase: str, variant: str, parent: str | None, params: dict, runner_json: str | None = None) -> str | None:
     """Dispatch a workflow and return the GH run_id if it can be found."""
     payload = {
@@ -56,6 +111,7 @@ async def dispatch_phase(fase: str, variant: str, parent: str | None, params: di
         },
     }
     headers      = {**_HEADERS, "Authorization": f"Bearer {settings.github_token}"}
+    _log_curl(_DISPATCH_URL, headers, payload)
     dispatch_ts  = datetime.now(timezone.utc).isoformat()
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(_DISPATCH_URL, json=payload, headers=headers)
@@ -99,8 +155,5 @@ async def fetch_run_logs(gh_run_id: str) -> list[dict]:
             log_url = f"https://api.github.com/repos/{settings.github_repo}/actions/jobs/{job['id']}/logs"
             log_resp = await client.get(log_url, headers=headers)
             if log_resp.status_code == 200:
-                results.append({
-                    "step_name": job["name"],
-                    "content":   log_resp.text[:200_000],
-                })
+                results.extend(_parse_job_to_steps(job["name"], log_resp.text[:200_000]))
     return results

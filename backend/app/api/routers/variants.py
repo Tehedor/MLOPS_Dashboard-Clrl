@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.services import variants_service, repo_sync_service
@@ -77,3 +78,18 @@ async def get_job(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.get("/report/{phase}/{variant}/{filename}")
+async def get_report(phase: str, variant: str, filename: str):
+    if not filename.endswith(".html"):
+        raise HTTPException(status_code=400, detail="Only HTML files are supported")
+    exec_root = variants_service._executions_root()
+    path = exec_root / phase / variant / filename
+    try:
+        path.resolve().relative_to(exec_root.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Report not found")
+    return FileResponse(path, media_type="text/html")

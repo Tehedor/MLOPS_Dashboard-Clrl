@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.db import init_db
 from app.api.routers import config, executions, lineage, variants, services
@@ -45,3 +46,7 @@ app.include_router(variants.router, prefix="/api/variants", tags=["variants"])
 app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(runners_router, prefix="/api/runners", tags=["runners"])
 app.include_router(terminal_ws_router, prefix="/ws/terminal", tags=["terminal"])
+
+_exec_root = variants_service._executions_root()
+if _exec_root.exists():
+    app.mount("/executions", StaticFiles(directory=str(_exec_root)), name="executions")
