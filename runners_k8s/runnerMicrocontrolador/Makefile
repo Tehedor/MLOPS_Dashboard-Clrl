@@ -158,6 +158,7 @@ clean-tunnel: stop-tunnel
 
 clean-tunnel-d:
 	@echo "☁️  Desvinculando la ruta DNS en Cloudflare..."
+	@echo "⚠️  Eliminando ruta DNS: $(TUNNEL_NAME) - $(FULL_FQDN)"
 	@$(CLOUDFLARED) tunnel route dns delete $(TUNNEL_NAME) $(FULL_FQDN) >/dev/null 2>&1 || echo "⚠️  Aviso: No se pudo desvincular el DNS (quizás ya no existía)."
 	@echo "☁️  Eliminando identidad del túnel en la nube de Cloudflare..."
 	@$(CLOUDFLARED) tunnel delete -f $(TUNNEL_NAME) || echo "⚠️  Aviso: No se pudo borrar el túnel (quizás ya no existía)."
