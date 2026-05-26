@@ -58,21 +58,30 @@ help:
 # ==============================================================================
 # 1. SETUP
 # ==============================================================================
+# ==============================================================================
+# 1. SETUP
+# ==============================================================================
 setup:
 	@echo "🚀 Configurando túnel para $(FULL_FQDN)..."
 	@$(CLOUDFLARED) tunnel create $(TUNNEL_NAME) >/dev/null 2>&1 || true
 	@$(CLOUDFLARED) tunnel route dns $(TUNNEL_NAME) $(FULL_FQDN) >/dev/null 2>&1 || true
-	@$(eval TUNNEL_ID := $(shell $(CLOUDFLARED) tunnel list | grep "$(TUNNEL_NAME)" | head -n 1 | sed 's/[[:space:]].*//'))
-	@if [ -z "$(TUNNEL_ID)" ]; then echo "❌ Error: No se pudo obtener el ID del túnel."; exit 1; fi
-	@echo "✅ Túnel ID: $(TUNNEL_ID)"
-	@echo "📝 Generando config.yaml..."
-	@sed -e 's|__TUNNEL_ID__|$(TUNNEL_ID)|g' \
-	     -e 's|__RUN_USER__|$(RUN_USER)|g' \
-	     -e 's|__FULL_FQDN__|$(FULL_FQDN)|g' \
-	     -e 's|__PORT__|$(PORT)|g' \
-	     templates/config.yaml.tpl > $(PROJECT_DIR)/config.yaml
-	@echo "✅ config.yaml generado."
+	@echo "⏳ Esperando 3 segundos a que Cloudflare registre el túnel..."
+	@sleep 3
+	@TUNNEL_ID=$$($(CLOUDFLARED) tunnel list | grep "$(TUNNEL_NAME)" | head -n 1 | sed 's/[[:space:]].*//'); \
+	if [ -z "$$TUNNEL_ID" ]; then \
+		echo "❌ Error: No se pudo obtener el ID del túnel de la API de Cloudflare."; \
+		exit 1; \
+	fi; \
+	echo "✅ Túnel ID detectado: $$TUNNEL_ID"; \
+	echo "📝 Generando config.yaml..."; \
+	sed -e "s|__TUNNEL_ID__|$$TUNNEL_ID|g" \
+	    -e "s|__RUN_USER__|$(RUN_USER)|g" \
+	    -e "s|__FULL_FQDN__|$(FULL_FQDN)|g" \
+	    -e "s|__PORT__|$(PORT)|g" \
+	    templates/config.yaml.tpl > $(PROJECT_DIR)/config.yaml
+	@echo "✅ config.yaml generado con éxito."
 
+	
 # ==============================================================================
 # 2. COMANDOS DE TTYD (Terminal Web)
 # ==============================================================================
