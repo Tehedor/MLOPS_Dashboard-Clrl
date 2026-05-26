@@ -62,26 +62,23 @@ help:
 # 1. SETUP
 # ==============================================================================
 setup:
-	@echo "🚀 Configurando túnel para $(FULL_FQDN)..."
-	@$(CLOUDFLARED) tunnel create $(TUNNEL_NAME) >/dev/null 2>&1 || true
+	@echo "🚀 Comprobando túnel para $(FULL_FQDN)..."
+	@$(CLOUDFLARED) tunnel create $(TUNNEL_NAME) >/dev/null 2>&1 || echo "ℹ️ El túnel ya existe en Cloudflare, reutilizando identidad..."
+	@echo "🧹 Asegurando enrutamiento DNS limpio..."
+	@$(CLOUDFLARED) tunnel route dns delete $(TUNNEL_NAME) $(FULL_FQDN) >/dev/null 2>&1 || true
 	@$(CLOUDFLARED) tunnel route dns $(TUNNEL_NAME) $(FULL_FQDN) >/dev/null 2>&1 || true
-	@echo "⏳ Esperando 3 segundos a que Cloudflare registre el túnel..."
-	@sleep 3
+	@echo "⏳ Esperando propagación de API..."
+	@sleep 2
 	@TUNNEL_ID=$$($(CLOUDFLARED) tunnel list | grep "$(TUNNEL_NAME)" | head -n 1 | sed 's/[[:space:]].*//'); \
-	if [ -z "$$TUNNEL_ID" ]; then \
-		echo "❌ Error: No se pudo obtener el ID del túnel de la API de Cloudflare."; \
-		exit 1; \
-	fi; \
-	echo "✅ Túnel ID detectado: $$TUNNEL_ID"; \
-	echo "📝 Generando config.yaml..."; \
+	if [ -z "$$TUNNEL_ID" ]; then echo "❌ Error al obtener el ID del túnel."; exit 1; fi; \
+	echo "✅ Túnel ID: $$TUNNEL_ID"; \
 	sed -e "s|__TUNNEL_ID__|$$TUNNEL_ID|g" \
 	    -e "s|__RUN_USER__|$(RUN_USER)|g" \
 	    -e "s|__FULL_FQDN__|$(FULL_FQDN)|g" \
 	    -e "s|__PORT__|$(PORT)|g" \
 	    templates/config.yaml.tpl > $(PROJECT_DIR)/config.yaml
-	@echo "✅ config.yaml generado con éxito."
+	@echo "✅ config.yaml generado correctamente."
 
-	
 # ==============================================================================
 # 2. COMANDOS DE TTYD (Terminal Web)
 # ==============================================================================
@@ -152,15 +149,13 @@ logs-live-tunnel:
 	@sudo journalctl -u cftunnel.service -f
 
 clean-tunnel: stop-tunnel
-	@echo "🗑️  Limpiando servicio local de Cloudflare..."
+	@echo "🗑️ Limpiando configuración local de Cloudflare..."
 	@sudo systemctl disable cftunnel.service >/dev/null 2>&1 || true
 	@sudo rm -f /etc/systemd/system/cftunnel.service
-	@echo "🧹  Eliminando registro CNAME del DNS de Cloudflare..."
+	@echo "🧹 Desvinculando ruta DNS para evitar bloqueos..."
 	@$(CLOUDFLARED) tunnel route dns delete $(TUNNEL_NAME) $(FULL_FQDN) >/dev/null 2>&1 || true
-	@echo "☁️  Destruyendo identidad del túnel..."
-	@$(CLOUDFLARED) tunnel delete -f $(TUNNEL_NAME) >/dev/null 2>&1 || true
 	@rm -f $(PROJECT_DIR)/config.yaml
-	@echo "✅ Túnel y DNS eliminados completamente sin dejar rastro."
+	@echo "✅ Lado local e histórico de DNS limpios."
 
 # clean-tunnel-d:
 # 	@echo "☁️  Desvinculando la ruta DNS en Cloudflare..."
@@ -201,11 +196,10 @@ install-runner:
 	@cd $(RUNNER_DIR) && sudo ./svc.sh install $(RUN_USER) >/dev/null 2>&1 || true
 
 start-runner:
-	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
-		SVC=$$(cat $(RUNNER_DIR)/.service); \
-		sudo systemctl start $$SVC >/dev/null 2>&1 || true; \
+	@if [ -d "$(RUNNER_DIR)" ]; then \
+		cd $(RUNNER_DIR) && sudo ./svc.sh start >/dev/null 2>&1 || true; \
 	else \
-		echo "❌ Servicio del Runner no encontrado."; \
+		echo "❌ Directorio del Runner no encontrado."; \
 	fi
 	@echo "▶️  GitHub Runner iniciado."
 
