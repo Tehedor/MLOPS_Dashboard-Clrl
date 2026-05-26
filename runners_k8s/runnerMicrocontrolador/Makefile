@@ -175,23 +175,38 @@ install-runner:
 		tar xzf ./actions-runner-linux-x64-$(RUNNER_VER).tar.gz; \
 	fi
 	@echo "📝 Registrando el Runner en GitHub (Modo Desatendido)..."
-	@cd $(RUNNER_DIR) && ./config.sh --unattended \
-		--url $(GITHUB_URL) \
-		--token $(GITHUB_TOKEN) \
-		--name $(RUNNER_NAME) \
-		--runnergroup "Default" \
-		--labels $(RUNNER_LABELS) \
-		--work "_work" \
-		--replace
+	@cd $(RUNNER_DIR) && \
+	if [ ! -f .runner ]; then \
+		./config.sh --unattended \
+			--url $(GITHUB_URL) \
+			--token $(GITHUB_TOKEN) \
+			--name $(RUNNER_NAME) \
+			--runnergroup "Default" \
+			--labels $(RUNNER_LABELS) \
+			--work "_work" \
+			--replace; \
+	else \
+		echo "ℹ️  Runner ya configurado; se omite el registro."; \
+	fi
 	@echo "⚙️ Configurando el servicio systemd del Runner..."
 	@cd $(RUNNER_DIR) && sudo ./svc.sh install $(RUN_USER) >/dev/null 2>&1 || true
 
 start-runner:
-	@cd $(RUNNER_DIR) && sudo ./svc.sh start
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		sudo systemctl start $$SVC >/dev/null 2>&1 || true; \
+	else \
+		echo "❌ Servicio del Runner no encontrado."; \
+	fi
 	@echo "▶️  GitHub Runner iniciado."
 
 stop-runner:
-	@cd $(RUNNER_DIR) && sudo ./svc.sh stop || true
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		sudo systemctl stop $$SVC >/dev/null 2>&1 || true; \
+	else \
+		echo "❌ Servicio del Runner no encontrado."; \
+	fi
 	@echo "⏹️  GitHub Runner detenido."
 
 status-runner:
