@@ -199,7 +199,10 @@ stop-runner:
 
 status-runner:
 	@echo "📊 Estado GitHub Runner:"
-	@cd $(RUNNER_DIR) && sudo ./svc.sh status || true
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		sudo systemctl is-active $$SVC || true; \
+	else echo "❌ Servicio del Runner no encontrado."; fi
 
 logs-runner:
 	@echo "📋 Logs GitHub Runner:"
