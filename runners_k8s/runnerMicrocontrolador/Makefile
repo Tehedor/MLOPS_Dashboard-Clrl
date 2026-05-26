@@ -204,11 +204,10 @@ start-runner:
 	@echo "▶️  GitHub Runner iniciado."
 
 stop-runner:
-	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
-		SVC=$$(cat $(RUNNER_DIR)/.service); \
-		sudo systemctl stop $$SVC >/dev/null 2>&1 || true; \
+	@if [ -d "$(RUNNER_DIR)" ]; then \
+		cd $(RUNNER_DIR) && sudo ./svc.sh stop >/dev/null 2>&1 || true; \
 	else \
-		echo "❌ Servicio del Runner no encontrado."; \
+		echo "❌ Directorio del Runner no encontrado."; \
 	fi
 	@echo "⏹️  GitHub Runner detenido."
 
