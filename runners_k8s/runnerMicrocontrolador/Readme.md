@@ -1,7 +1,3 @@
-Aquí tienes un `README.md` estructurado, directo y listo para añadir a tu repositorio o carpeta de trabajo. Explica exactamente el propósito de la infraestructura y detalla el orden estricto en el que se deben ejecutar los comandos.
-
-Puedes guardarlo como `README.md` en la raíz de tu proyecto:
-
 ```markdown
 # 🛠️ Gestor de Terminal Web (TTYD) y Túnel Cloudflare
 
@@ -19,7 +15,6 @@ Asegúrate de tener esta estructura antes de empezar:
     ├── cftunnel.service.tpl # Plantilla del demonio de Cloudflare
     ├── config.yaml.tpl      # Plantilla del túnel
     └── ttyd.service.tpl     # Plantilla del demonio de la terminal
-
 ```
 
 ## 📋 Requisitos Previos
@@ -28,9 +23,7 @@ Asegúrate de tener esta estructura antes de empezar:
 2. **Autenticación en Cloudflare:** Antes de ejecutar ningún script, debes autenticar tu máquina en Cloudflare. Ejecuta este comando y sigue el enlace en el navegador:
 ```bash
 cloudflared tunnel login
-
 ```
-
 
 
 ---
@@ -45,8 +38,7 @@ Crea tu archivo `.env` a partir del ejemplo y edítalo con tus credenciales segu
 
 ```bash
 cp .env.example .env
-nano .env
-
+vim .env
 ```
 
 ### 2. Generar el Túnel e Infraestructura
@@ -55,7 +47,6 @@ Este comando se comunica con la API de Cloudflare, crea el túnel, enruta el sub
 
 ```bash
 make setup
-
 ```
 
 ### 3. Instalar los Servicios en Systemd
@@ -64,7 +55,6 @@ Este paso inyecta tus variables en las plantillas `.tpl`, mueve los archivos a `
 
 ```bash
 make install
-
 ```
 
 ### 4. Arrancar los Servicios
@@ -73,7 +63,6 @@ Inicia tanto la terminal web como el túnel de Cloudflare simultáneamente.
 
 ```bash
 make start
-
 ```
 
 ### 5. Verificar el Estado
@@ -82,7 +71,6 @@ Comprueba que ambos servicios están corriendo (deben aparecer como `Active: act
 
 ```bash
 make status
-
 ```
 
 ¡Listo! Ya puedes acceder a tu terminal desde el navegador usando el subdominio que configuraste (ej. `https://terminalESP.tehelab.com`).
@@ -111,7 +99,3 @@ Si solo quieres interactuar con un servicio sin afectar al otro, añade el sufij
 * `make stop-tunnel` (Corta el acceso a internet, pero la terminal sigue viva localmente)
 * `make logs-ttyd` (Revisa los accesos a la terminal)
 * `make restart-tunnel` (Para reiniciar un servicio concreto, usa `make stop-tunnel` y luego `make start-tunnel`)
-
-```
-
-```

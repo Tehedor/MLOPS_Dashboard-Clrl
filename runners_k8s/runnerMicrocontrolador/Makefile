@@ -9,6 +9,7 @@ endif
 # ==============================================================================
 # VALORES POR DEFECTO
 # ==============================================================================
+# Terminal y Túnel
 DOMAIN        ?= tehelab.com
 SUBDOMAIN     ?= terminalESP
 PORT          ?= 7681
@@ -17,8 +18,14 @@ TERMINAL_USER ?= admin
 TERMINAL_PASS ?= tu_clave_segura
 RUN_USER      ?= runner
 
-# Ruta donde está instalado el GitHub Runner
+# GitHub Runner
 RUNNER_DIR    ?= /home/$(RUN_USER)/actions-runner
+GITHUB_URL    ?= https://github.com/Tehedor/MLOps_actions_v2
+GITHUB_TOKEN  ?= AYIURPQROSPWEDBEWMVVPATKCV5OK
+RUNNER_NAME   ?= MLOPSRunner1
+RUNNER_LABELS ?= "self-hosted-tehelab,mlops,tfm"
+RUNNER_VER    ?= 2.334.0
+RUNNER_HASH   ?= 048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271
 
 # ==============================================================================
 # RUTAS DINÁMICAS (No tocar)
@@ -32,23 +39,21 @@ export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 .PHONY: help setup install start stop status logs clean \
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
+        install-runner start-runner stop-runner status-runner clean-runner \
         logs-runner logs-live-runner logs-live daemon-reload
 
 help:
-	@echo "🛠️ Panel de Control Modular (TTYD + Cloudflare Tunnel + Runner)"
+	@echo "🛠️ Panel de Control MLOps (TTYD + CF Tunnel + GitHub Runner)"
 	@echo "---------------------------------------------------------"
 	@echo "COMANDOS GLOBALES:"
 	@echo "  make setup       - Crea el túnel en CF y genera config.yaml"
-	@echo "  make install     - Genera e instala todos los servicios"
+	@echo "  make install     - Descarga, configura e instala todos los servicios"
 	@echo "  make start       - Inicia todos los servicios"
 	@echo "  make stop        - Detiene todos los servicios"
 	@echo "  make status      - Estado de todos los servicios"
-	@echo "  make logs        - Logs estáticos de TTYD y Tunnel"
+	@echo "  make logs        - Logs estáticos de todo el stack"
 	@echo "  make logs-live   - 🔴 Logs EN VIVO combinados (TTYD + Tunnel)"
 	@echo "  make clean       - Borra toda la infraestructura"
-	@echo "---------------------------------------------------------"
-	@echo "COMANDOS INDIVIDUALES (Añade -ttyd, -tunnel o -runner):"
-	@echo "  Ejemplo: make logs-live-ttyd, make logs-live-runner"
 
 # ==============================================================================
 # 1. SETUP
@@ -145,25 +150,60 @@ clean-tunnel: stop-tunnel
 	@rm -f $(PROJECT_DIR)/config.yaml
 
 # ==============================================================================
-# 4. COMANDOS GITHUB RUNNER (Auto-detecta el servicio)
+# 4. COMANDOS GITHUB RUNNER (Descarga, Registro y Servicio)
 # ==============================================================================
+install-runner:
+	@echo "⚙️ Descargando e instalando dependencias del GitHub Runner..."
+	@mkdir -p $(RUNNER_DIR)
+	@cd $(RUNNER_DIR) && \
+	if [ ! -f config.sh ]; then \
+		curl -o actions-runner-linux-x64-$(RUNNER_VER).tar.gz -L https://github.com/actions/runner/releases/download/v$(RUNNER_VER)/actions-runner-linux-x64-$(RUNNER_VER).tar.gz; \
+		echo "$(RUNNER_HASH)  actions-runner-linux-x64-$(RUNNER_VER).tar.gz" | shasum -a 256 -c; \
+		tar xzf ./actions-runner-linux-x64-$(RUNNER_VER).tar.gz; \
+	fi
+	@echo "📝 Registrando el Runner en GitHub (Modo Desatendido)..."
+	@cd $(RUNNER_DIR) && ./config.sh --unattended \
+		--url $(GITHUB_URL) \
+		--token $(GITHUB_TOKEN) \
+		--name $(RUNNER_NAME) \
+		--runnergroup "Default" \
+		--labels $(RUNNER_LABELS) \
+		--work "_work" \
+		--replace
+	@echo "⚙️ Configurando el servicio systemd del Runner..."
+	@cd $(RUNNER_DIR) && sudo ./svc.sh install $(RUN_USER) >/dev/null 2>&1 || true
+
+start-runner:
+	@cd $(RUNNER_DIR) && sudo ./svc.sh start
+	@echo "▶️  GitHub Runner iniciado."
+
+stop-runner:
+	@cd $(RUNNER_DIR) && sudo ./svc.sh stop || true
+	@echo "⏹️  GitHub Runner detenido."
+
+status-runner:
+	@echo "📊 Estado GitHub Runner:"
+	@cd $(RUNNER_DIR) && sudo ./svc.sh status || true
+
 logs-runner:
 	@echo "📋 Logs GitHub Runner:"
 	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
 		SVC=$$(cat $(RUNNER_DIR)/.service); \
 		sudo journalctl -u $$SVC -n 15 --no-pager; \
-	else \
-		echo "❌ No se encuentra el servicio del Runner en $(RUNNER_DIR)"; \
-	fi
+	else echo "❌ Servicio del Runner no encontrado."; fi
 
 logs-live-runner:
 	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
 		SVC=$$(cat $(RUNNER_DIR)/.service); \
 		echo "🔴 Logs EN VIVO del Runner [$$SVC] (Ctrl+C para salir)..."; \
 		sudo journalctl -u $$SVC -f; \
-	else \
-		echo "❌ No se encuentra el servicio del Runner en $(RUNNER_DIR)"; \
-	fi
+	else echo "❌ Servicio del Runner no encontrado."; fi
+
+clean-runner: stop-runner
+	@echo "🗑️  Limpiando configuración del Runner..."
+	@cd $(RUNNER_DIR) && sudo ./svc.sh uninstall || true
+	@cd $(RUNNER_DIR) && ./config.sh remove --unattended --token $(GITHUB_TOKEN) || true
+	@rm -rf $(RUNNER_DIR)
 
 # ==============================================================================
 # 5. COMANDOS GLOBALES (Orquestadores)
@@ -172,19 +212,18 @@ daemon-reload:
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable ttyd.service cftunnel.service >/dev/null 2>&1 || true
 
-install: install-ttyd install-tunnel daemon-reload
-	@echo "✅ Todos los servicios generados e instalados."
+install: install-ttyd install-tunnel install-runner daemon-reload
+	@echo "✅ Toda la infraestructura (Terminal, Túnel y Runner) generada e instalada."
 
-start: start-ttyd start-tunnel
-stop: stop-ttyd stop-tunnel
-status: status-ttyd status-tunnel
-logs: logs-ttyd logs-tunnel
+start: start-ttyd start-tunnel start-runner
+stop: stop-ttyd stop-tunnel stop-runner
+status: status-ttyd status-tunnel status-runner
+logs: logs-ttyd logs-tunnel logs-runner
 
-# Mira los logs de TTYD y Tunnel a la vez de forma intercalada
 logs-live:
 	@echo "🔴 Logs EN VIVO combinados (TTYD + Tunnel). Pulsa Ctrl+C para salir."
 	@sudo journalctl -u ttyd.service -u cftunnel.service -f
 
-clean: clean-ttyd clean-tunnel
+clean: clean-ttyd clean-tunnel clean-runner
 	@sudo systemctl daemon-reload
 	@echo "✅ Limpieza global completada."
