@@ -1,14 +1,8 @@
 runners:
   - GithubActions:
-    max-parallel: 2
-    # max-parallel: 20
+    # max-parallel: 2
+    max-parallel: 20
     labels: [ubuntu-latest]
-  - CPU-self-hosted:
-    max-parallel: 2
-    labels: [self-hosted, CPU]
-  - GPU-self-hosted:
-    max-parallel: 2
-    labels: [self-hosted, GPU]
   - ESP32-self-hosted:
     labels: [self-hosted, ESP32]
     max-parallel: 1
@@ -18,37 +12,43 @@ runners:
     # Ejecuta los pasos definidos en config/local_workflows.yaml
     # en un clon separado del repo (local_runner_workspace en config.yaml).
     # Crea PRs igual que los workflows de GH Actions.
+  - K8s-8gb:
+    max-parallel: 4
+    labels: [runner-8gb]
+  - K8s-24gb:
+    max-parallel: 2
+    labels: [runner-24gb]
 
 fases:
   - fase: f01_explore
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f01_explore"
     parent_required: false
   - fase: f02_events
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f02_events"
     parent_required: true
   - fase: f03_windows
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f03_windows"
     parent_required: true
   - fase: f04_targets
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f04_targets"
     parent_required: true
   - fase: f05_modeling
-    runner: "GPU-self-hosted, CPU-self-hosted, Local"
+    runner: "GithubActions,K8s-8gb, K8s-24gb, Local"
     gh_fase: "f05_modeling"
     parent_required: true
   - fase: f06_quant
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f06_quant"
     parent_required: true
   - fase: f07_modval
-    runner: '["self-hosted", "Linux", "X64", "self-hosted-tehelab"], ESP32-self-hosted, CPU-self-hosted, Local'
+    runner: 'ESP32-self-hosted, Local'
     gh_fase: "f07_modval"
     parent_required: true
   - fase: f08_sysval
-    runner: "GithubActions, CPU-self-hosted, Local"
+    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
     gh_fase: "f08_sysval"
     parent_required: true

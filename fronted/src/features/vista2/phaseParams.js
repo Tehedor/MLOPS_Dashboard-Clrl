@@ -25,21 +25,33 @@ function buildPhaseParams(phases) {
   const out = {}
   for (const [phaseId, phase] of Object.entries(phases)) {
     const params = phase.parameters ?? {}
-    out[phaseId] = Object.entries(params).map(([id, def]) => {
-      const entry = {
-        id,
-        label: id,
-        type: paramType(def),
-        required: def.required ?? false,
-      }
-      if (def.inherited)        entry.inherited = true
-      if (def.allowed)          entry.options   = def.allowed
-      const hint = paramHint(def)
-      if (hint !== undefined)   entry.hint      = hint
-      return entry
-    })
+    out[phaseId] = Object.entries(params)
+      .filter(([id]) => id !== 'parent_variant')
+      .filter(([, def]) => !def.inherited)
+      .map(([id, def]) => {
+        const entry = {
+          id,
+          label: id,
+          type: paramType(def),
+          required: def.required ?? false,
+        }
+        if (def.allowed)          entry.options   = def.allowed
+        const hint = paramHint(def)
+        if (hint !== undefined)   entry.hint      = hint
+        return entry
+      })
+  }
+  return out
+}
+
+function buildPhaseParentVariant(phases) {
+  const out = {}
+  for (const [phaseId, phase] of Object.entries(phases)) {
+    const pv = phase.parameters?.parent_variant
+    if (pv) out[phaseId] = { mode: pv.mode ?? 'single', regex: pv.regex ?? null }
   }
   return out
 }
 
 export const PHASE_PARAMS = buildPhaseParams(schema.phases)
+export const PHASE_PARENT_VARIANT = buildPhaseParentVariant(schema.phases)

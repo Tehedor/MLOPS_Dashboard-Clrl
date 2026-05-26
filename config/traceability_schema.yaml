@@ -46,8 +46,7 @@ phases:
 
   f01_explore:
 
-    parent:
-      required: false
+    parent_required: false
 
     parameters:
 
@@ -148,12 +147,15 @@ phases:
 
   f02_events:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v1_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v1_[0-9]{4}$"
 
       Tu:
         type: integer
@@ -241,12 +243,16 @@ phases:
 
   f03_windows:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v2_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v2_[0-9]{4}$"
 
       Tu:
         type: integer
@@ -342,14 +348,6 @@ phases:
           type: integer
           required: true
 
-        n_windows_pos:
-          type: integer
-          required: true
-
-        n_windows_neg:
-          type: integer
-          required: true
-
       metrics:
 
         execution_time:
@@ -360,21 +358,22 @@ phases:
           type: integer
           required: true
 
-        positive_ratio:
-          type: float
-          required: true       
-    # ------------------------------------------------------------
+  # ------------------------------------------------------------
   # F04 — TARGET ENGINEERING (WINDOW LABELING)
   # ------------------------------------------------------------
 
   f04_targets:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v3_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v3_[0-9]{4}$"
 
       # Solo para trazabilidad estructural (heredados si no se redefinen)
       Tu:
@@ -506,17 +505,20 @@ phases:
 
   f05_modeling:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v4_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v4_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada
       # -------------------------------------------------
-
       Tu:
         type: integer
         required: false
@@ -597,8 +599,29 @@ phases:
         type: dict
         required: true
         default:
-          epochs: 20
+          epochs: 10
           max_samples: null
+
+      # -------------------------------------------------
+      # Deduplicacion mode
+      # -------------------------------------------------
+      deduplication_mode:
+        type: string
+        required: false
+        inherited: false
+        allowed:
+          - none
+          - auto  
+          - neg_only
+          - all
+
+      #--------------------------------------------------
+      # Seed
+      #--------------------------------------------------
+      seed:
+        type: integer
+        required: false
+        inherited: false
 
       # -------------------------------------------------
       # Evaluation split
@@ -763,17 +786,20 @@ phases:
 
   f06_quant:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v5_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v5_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada
       # -------------------------------------------------
-
       Tu:
         type: integer
         required: false
@@ -1005,12 +1031,16 @@ phases:
 
   f07_modval:
 
-    parent:
-      type: string
-      required: true
-      regex: "^v6_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: single
+        type: string
+        required: true
+        inherited: false
+        regex: "^v6_[0-9]{4}$"
 
       # -------------------------------------------------
       # Geometría heredada desde F06
@@ -1318,6 +1348,7 @@ phases:
 
         # Consistencia PC vs ESP32 (comparación de predicciones)
         pc_esp_agreement:
+          type: float
           required: false
 
         # Tasas de outcome observadas
@@ -1340,20 +1371,19 @@ phases:
 
   f08_sysval:
 
-    parent:
-      required: true
-      mode: multi
-      regex: "^v7_[0-9]{4}$"
+    parent_required: true
 
     parameters:
+
+      parent_variant:
+        mode: multi
+        type: list
+        required: true
+        regex: "^v7_[0-9]{4}$"
 
       # -------------------------------------------------
       # Multi-parent explícito (modo manual)
       # -------------------------------------------------
-
-      parents:
-        type: list
-        required: true
 
       selection_mode:
         type: string

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExecution } from '../../api/executions'
 import { getRows } from '../../api/variants'
-import { PHASE_PARAMS } from './phaseParams'
+import { PHASE_PARAMS, PHASE_PARENT_VARIANT } from './phaseParams'
 import ParamsEditor from './ParamsEditor'
 
 function phaseNum(phaseId) {
@@ -20,14 +20,19 @@ function nextVariant(phaseId, existing = []) {
   return `${prefix}${String(next).padStart(4, '0')}`
 }
 
-function suggestParent(phaseId, executions = []) {
+function suggestParent(phaseId, executions = [], mode = 'single') {
   const parentN = phaseNum(phaseId) - 1
   if (parentN < 1) return ''
   const prefix = `v${parentN}_`
-  return executions
+  const variants = executions
     .filter(e => e.variant?.startsWith(prefix))
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
-    ?.variant ?? `${prefix}0001`
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .map(e => e.variant)
+  if (mode === 'multi') {
+    const top = variants.slice(0, 3)
+    return top.length > 0 ? JSON.stringify(top) : `["${prefix}0001"]`
+  }
+  return variants[0] ?? `${prefix}0001`
 }
 
 function parseRawParams(raw) {
@@ -61,7 +66,9 @@ function buildJsonTemplate(faseId, params, availableRunners) {
   } else {
     templateParams = params && Object.keys(params).length > 0 ? params : {}
   }
-  const obj = { variant: 'v1_0001', params: templateParams }
+  const pvDef = PHASE_PARENT_VARIANT[faseId]
+  const obj = { variant: `v${phaseNum(faseId)}_0001`, params: templateParams }
+  if (pvDef) obj.parent = pvDef.mode === 'multi' ? [] : ''
   if (availableRunners?.length > 1) obj.selected_runner = availableRunners[0]?.id ?? null
   return JSON.stringify(obj, null, 2)
 }
@@ -115,6 +122,10 @@ function TabBtn({ label, active, onClick }) {
 
 export default function PhaseCard({ phase, executions, preload, onPreloadConsumed }) {
   const qc = useQueryClient()
+
+  const parentDef  = PHASE_PARENT_VARIANT[phase.id]
+  const parentMode = parentDef?.mode ?? 'single'
+  const showParent = !!(phase.parentRequired || parentDef)
 
   // Calcular params sugeridos antes de los estados (necesario para el template inicial)
   const latestExInit = executions?.filter(e => e.fase === phase.id)[0]
@@ -229,9 +240,13 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
       const finalVariant = variant.trim() || suggestedVariant
       if (!finalVariant) return
       setErrorMsg(null)
+      let parentValue = parent.trim() || null
+      if (parentValue && parentMode === 'multi' && !parentValue.startsWith('[')) {
+        parentValue = JSON.stringify(parentValue.split(',').map(s => s.trim()).filter(Boolean))
+      }
       mutate({
         fase: phase.id, variant: finalVariant,
-        parent: parent || null,
+        parent: parentValue,
         params: { ...suggestedParams, ...paramsRef.current },
         selected_runner: selectedRunner || null,
       })
@@ -310,12 +325,14 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
               </div>
             </div>
 
-            {phase.parentRequired && (
+            {showParent && (
               <div>
-                <label className="block text-xs text-gray-600 dark:text-gray-500 mb-0.5">Parent</label>
+                <label className="block text-xs text-gray-600 dark:text-gray-500 mb-0.5">
+                  {parentMode === 'multi' ? 'Parents' : 'Parent'}
+                </label>
                 <input
-                  className="w-full bg-gray-100 border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-600"
-                  placeholder={suggestParent(phase.id, executions)}
+                  className={`w-full bg-gray-100 border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 placeholder-gray-500 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-600${parentMode === 'multi' ? ' font-mono' : ''}`}
+                  placeholder={suggestParent(phase.id, executions, parentMode)}
                   value={parent}
                   onChange={e => setParent(e.target.value)}
                 />

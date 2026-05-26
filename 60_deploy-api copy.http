@@ -1,13 +1,13 @@
 @TOKEN_FINE_GRAINED_AQUI = ****
 
 ### Fase setup
-f01_explore
-f02_events
-f03_windows
-f04_targets
-f05_modeling
-f06_quant
-f07_modval
+f01_explore  
+f02_events   
+f03_windows  
+f04_targets  
+f05_modeling  
+f06_quant     
+f07_modval  
 f08_sysval
 
 ### Fase 1
@@ -30,7 +30,7 @@ Content-Type: application/json
   }
 }
 
-### Fase 1 — K8s-8gb (runner ligero)
+### Fase 1 — K8s-8gb
 POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
 Accept: application/vnd.github.v3+json
 Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
@@ -51,7 +51,7 @@ Content-Type: application/json
   }
 }
 
-### Fase 1 — K8s-16gb (runner pesado)
+### Fase 1 — K8s-16gb
 POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
 Accept: application/vnd.github.v3+json
 Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
@@ -83,50 +83,6 @@ Content-Type: application/json
   "event_type": "ejecutar-fase-api",
   "client_payload": {
     "fase": "f02_prepareeventsds",
-    "variant_id": "v202",
-    "parent_variant": "v0023",
-    "params": {
-      "STRATEGY": "transitions",
-      "BANDS": [10, 90],
-      "NAN_MODE": "discard"
-    }
-  }
-}
-
-### Fase 2 — K8s-8gb (runner ligero)
-POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
-Accept: application/vnd.github.v3+json
-Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
-X-GitHub-Api-Version: 2022-11-28
-Content-Type: application/json
-
-{
-  "event_type": "ejecutar-fase-api",
-  "client_payload": {
-    "fase": "f02_prepareeventsds",
-    "runner": ["self-hosted-k3s", "runner-8gb"],
-    "variant_id": "v202",
-    "parent_variant": "v0023",
-    "params": {
-      "STRATEGY": "transitions",
-      "BANDS": [10, 90],
-      "NAN_MODE": "discard"
-    }
-  }
-}
-
-### Fase 2 — K8s-16gb (runner pesado)
-POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
-Accept: application/vnd.github.v3+json
-Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
-X-GitHub-Api-Version: 2022-11-28
-Content-Type: application/json
-
-{
-  "event_type": "ejecutar-fase-api",
-  "client_payload": {
-    "fase": "f02_prepareeventsds",
-    "runner": ["self-hosted-k3s", "runner-16gb"],
     "variant_id": "v202",
     "parent_variant": "v0023",
     "params": {
@@ -219,6 +175,7 @@ Content-Type: application/json
   }
 }
 
+
 # {
 #   "event_type": "ejecutar-fase-api",
 #   "client_payload": {
@@ -253,7 +210,7 @@ Content-Type: application/json
   }
 }
 
-### Fase 7 — tehelab2
+### Fase 7
 POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
 Accept: application/vnd.github.v3+json
 Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}
@@ -275,7 +232,7 @@ Content-Type: application/json
   }
 }
 
-### Fase 8 - parents_variant como valor único
+### Fase 8 - parents_variant como valor unico
 POST https://api.github.com/repos/Tehedor/MLOps_actions_v2/dispatches
 Accept: application/vnd.github.v3+json
 Authorization: Bearer {{TOKEN_FINE_GRAINED_AQUI}}

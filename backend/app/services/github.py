@@ -107,7 +107,7 @@ async def dispatch_phase(fase: str, variant: str, parent: str | None, params: di
             "variant_id": variant,
             **({"parent_variant": parent} if parent else {}),
             "params": _normalize_params(params),
-            **({"runner": runner_json} if runner_json else {}),
+            **({"runner": json.loads(runner_json)} if runner_json else {}),
         },
     }
     headers      = {**_HEADERS, "Authorization": f"Bearer {settings.github_token}"}

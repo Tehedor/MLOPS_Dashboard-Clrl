@@ -71,7 +71,7 @@ def _get_runner_json(runner_name: str) -> str | None:
             name = next((k for k in item if k not in ('max-parallel', 'labels')), None)
             if name == runner_name:
                 labels = item.get("labels", [])
-                return json.dumps(labels[0] if len(labels) == 1 else labels)
+                return json.dumps(labels)
     except Exception:
         pass
     return None
@@ -108,13 +108,11 @@ def _parent_fase_dir(parent_variant: str) -> Path | None:
     return Path(matches[0]) if matches else None
 
 
-def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
-    if not phase_requires_parent or not ex.parent:
-        return True
-    fase_dir = _parent_fase_dir(ex.parent)
+def _single_parent_exists(parent: str) -> bool:
+    fase_dir = _parent_fase_dir(parent)
     if not fase_dir:
         return False
-    metadata_path = fase_dir / ex.parent / "metadata.yaml"
+    metadata_path = fase_dir / parent / "metadata.yaml"
     if not metadata_path.exists():
         return False
     try:
@@ -123,6 +121,19 @@ def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
         return data.get("lifecycle_state") == "EXECUTION_COMPLETED"
     except Exception:
         return False
+
+
+def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
+    if not phase_requires_parent or not ex.parent:
+        return True
+    parent = ex.parent.strip()
+    if parent.startswith('['):
+        try:
+            parents = json.loads(parent)
+        except Exception:
+            return False
+        return all(_single_parent_exists(str(p)) for p in parents)
+    return _single_parent_exists(parent)
 
 
 def _row_to_execution(row) -> Execution:
