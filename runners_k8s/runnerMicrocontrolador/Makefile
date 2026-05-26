@@ -1,22 +1,24 @@
 # ==============================================================================
 # CARGA DE VARIABLES (.env)
 # ==============================================================================
-# Si el archivo .env existe, lo importamos y exportamos las variables
 ifneq (,$(wildcard ./.env))
     include .env
     export
 endif
 
 # ==============================================================================
-# VALORES POR DEFECTO (Fallback si no existe .env)
+# VALORES POR DEFECTO
 # ==============================================================================
-DOMAIN        ?= *****.com
+DOMAIN        ?= tehelab.com
 SUBDOMAIN     ?= terminalESP
 PORT          ?= 7681
 TUNNEL_NAME   ?= runner-esp32-tunnel2
 TERMINAL_USER ?= admin
 TERMINAL_PASS ?= tu_clave_segura
 RUN_USER      ?= runner
+
+# Ruta donde está instalado el GitHub Runner
+RUNNER_DIR    ?= /home/$(RUN_USER)/actions-runner
 
 # ==============================================================================
 # RUTAS DINÁMICAS (No tocar)
@@ -27,29 +29,29 @@ TTYD          := $(shell which ttyd)
 FULL_FQDN     := $(SUBDOMAIN).$(DOMAIN)
 export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 
-# Definimos todos los comandos disponibles para evitar conflictos con archivos
 .PHONY: help setup install start stop status logs clean \
-        install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd clean-ttyd \
-        install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel clean-tunnel \
-        daemon-reload
+        install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
+        install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
+        logs-runner logs-live-runner logs-live daemon-reload
 
 help:
-	@echo "🛠️ Panel de Control Modular (TTYD + Cloudflare Tunnel)"
+	@echo "🛠️ Panel de Control Modular (TTYD + Cloudflare Tunnel + Runner)"
 	@echo "---------------------------------------------------------"
 	@echo "COMANDOS GLOBALES:"
-	@echo "  make setup    - Crea el túnel en CF y genera config.yaml"
-	@echo "  make install  - Genera e instala todos los servicios"
-	@echo "  make start    - Inicia todos los servicios"
-	@echo "  make stop     - Detiene todos los servicios"
-	@echo "  make status   - Estado de todos los servicios"
-	@echo "  make logs     - Logs de todos los servicios"
-	@echo "  make clean    - Borra toda la infraestructura"
+	@echo "  make setup       - Crea el túnel en CF y genera config.yaml"
+	@echo "  make install     - Genera e instala todos los servicios"
+	@echo "  make start       - Inicia todos los servicios"
+	@echo "  make stop        - Detiene todos los servicios"
+	@echo "  make status      - Estado de todos los servicios"
+	@echo "  make logs        - Logs estáticos de TTYD y Tunnel"
+	@echo "  make logs-live   - 🔴 Logs EN VIVO combinados (TTYD + Tunnel)"
+	@echo "  make clean       - Borra toda la infraestructura"
 	@echo "---------------------------------------------------------"
-	@echo "COMANDOS INDIVIDUALES (Añade -ttyd o -tunnel al comando):"
-	@echo "  Ejemplo: make start-ttyd, make logs-tunnel, make stop-ttyd"
+	@echo "COMANDOS INDIVIDUALES (Añade -ttyd, -tunnel o -runner):"
+	@echo "  Ejemplo: make logs-live-ttyd, make logs-live-runner"
 
 # ==============================================================================
-# 1. SETUP (Configuración inicial de Cloudflare)
+# 1. SETUP
 # ==============================================================================
 setup:
 	@echo "🚀 Configurando túnel para $(FULL_FQDN)..."
@@ -95,6 +97,10 @@ logs-ttyd:
 	@echo "📋 Logs TTYD:"
 	@sudo journalctl -u ttyd.service -n 15 --no-pager
 
+logs-live-ttyd:
+	@echo "🔴 Logs EN VIVO TTYD (Ctrl+C para salir)..."
+	@sudo journalctl -u ttyd.service -f
+
 clean-ttyd: stop-ttyd
 	@echo "🗑️  Limpiando TTYD..."
 	@sudo systemctl disable ttyd.service >/dev/null 2>&1 || true
@@ -127,6 +133,10 @@ logs-tunnel:
 	@echo "📋 Logs Cloudflare Tunnel:"
 	@sudo journalctl -u cftunnel.service -n 15 --no-pager
 
+logs-live-tunnel:
+	@echo "🔴 Logs EN VIVO Cloudflare Tunnel (Ctrl+C para salir)..."
+	@sudo journalctl -u cftunnel.service -f
+
 clean-tunnel: stop-tunnel
 	@echo "🗑️  Limpiando Cloudflare Tunnel..."
 	@sudo systemctl disable cftunnel.service >/dev/null 2>&1 || true
@@ -135,13 +145,33 @@ clean-tunnel: stop-tunnel
 	@rm -f $(PROJECT_DIR)/config.yaml
 
 # ==============================================================================
-# 4. COMANDOS GLOBALES (Orquestadores)
+# 4. COMANDOS GITHUB RUNNER (Auto-detecta el servicio)
+# ==============================================================================
+logs-runner:
+	@echo "📋 Logs GitHub Runner:"
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		sudo journalctl -u $$SVC -n 15 --no-pager; \
+	else \
+		echo "❌ No se encuentra el servicio del Runner en $(RUNNER_DIR)"; \
+	fi
+
+logs-live-runner:
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		echo "🔴 Logs EN VIVO del Runner [$$SVC] (Ctrl+C para salir)..."; \
+		sudo journalctl -u $$SVC -f; \
+	else \
+		echo "❌ No se encuentra el servicio del Runner en $(RUNNER_DIR)"; \
+	fi
+
+# ==============================================================================
+# 5. COMANDOS GLOBALES (Orquestadores)
 # ==============================================================================
 daemon-reload:
 	@sudo systemctl daemon-reload
 	@sudo systemctl enable ttyd.service cftunnel.service >/dev/null 2>&1 || true
 
-# Ejecutan los comandos individuales en secuencia
 install: install-ttyd install-tunnel daemon-reload
 	@echo "✅ Todos los servicios generados e instalados."
 
@@ -149,6 +179,11 @@ start: start-ttyd start-tunnel
 stop: stop-ttyd stop-tunnel
 status: status-ttyd status-tunnel
 logs: logs-ttyd logs-tunnel
+
+# Mira los logs de TTYD y Tunnel a la vez de forma intercalada
+logs-live:
+	@echo "🔴 Logs EN VIVO combinados (TTYD + Tunnel). Pulsa Ctrl+C para salir."
+	@sudo journalctl -u ttyd.service -u cftunnel.service -f
 
 clean: clean-ttyd clean-tunnel
 	@sudo systemctl daemon-reload
