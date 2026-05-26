@@ -143,11 +143,17 @@ logs-live-tunnel:
 	@sudo journalctl -u cftunnel.service -f
 
 clean-tunnel: stop-tunnel
-	@echo "🗑️  Limpiando Cloudflare Tunnel..."
+	@echo "🗑️  Limpiando servicio local de Cloudflare..."
 	@sudo systemctl disable cftunnel.service >/dev/null 2>&1 || true
 	@sudo rm -f /etc/systemd/system/cftunnel.service
-	@$(CLOUDFLARED) tunnel delete -f $(TUNNEL_NAME) >/dev/null 2>&1 || true
+	@echo "☁️  Eliminando identidad del túnel en la nube de Cloudflare..."
+	@$(CLOUDFLARED) tunnel delete -f $(TUNNEL_NAME) || echo "⚠️  Aviso: No se pudo borrar el túnel (quizás ya no existía)."
 	@rm -f $(PROJECT_DIR)/config.yaml
+	@echo "-----------------------------------------------------------------"
+	@echo "🚨 IMPORTANTE: Cloudflare NO borra los registros DNS automáticamente."
+	@echo "👉 Debes ir a dash.cloudflare.com > DNS > Registros"
+	@echo "👉 Y borrar manualmente el registro CNAME llamado: $(SUBDOMAIN)"
+	@echo "-----------------------------------------------------------------"
 
 # ==============================================================================
 # 4. COMANDOS GITHUB RUNNER (Descarga, Registro y Servicio)
