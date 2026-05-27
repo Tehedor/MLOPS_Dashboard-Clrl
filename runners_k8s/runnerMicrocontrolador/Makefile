@@ -40,7 +40,7 @@ FULL_FQDN     := $(SUBDOMAIN).$(DOMAIN)
 export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 
 .PHONY: help setup install start stop status logs clean \
-        install-deps install-sys-deps install-python-deps \
+        install-deps install-sys-deps install-python-deps configure-venv-path \
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
         install-runner start-runner stop-runner status-runner clean-runner \
@@ -60,9 +60,10 @@ help:
 	@echo "  make clean              - Borra toda la infraestructura"
 	@echo ""
 	@echo "DEPENDENCIAS DEL ENTORNO:"
-	@echo "  make install-deps       - Instala dependencias de sistema + Python (todo)"
-	@echo "  make install-sys-deps   - Solo paquetes apt (git, gh, curl...)"
-	@echo "  make install-python-deps- Solo venv + pip + requirements.txt"
+	@echo "  make install-deps         - Sistema + Python + PATH del venv (todo)"
+	@echo "  make install-sys-deps     - Solo paquetes apt (git, gh, curl...)"
+	@echo "  make install-python-deps  - Solo venv + pip + requirements.txt"
+	@echo "  make configure-venv-path  - Expone el venv al runner (profile.d + systemd)"
 
 # ==============================================================================
 # 0. DEPENDENCIAS DEL ENTORNO (Sistema + Python)
@@ -93,10 +94,34 @@ install-python-deps:
 	@find $(VENV_DIR) -type f -name "*.pyc" -delete
 	@find $(VENV_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@echo "✅ Dependencias Python instaladas en $(VENV_DIR)."
-	@echo "   Para activar: source $(VENV_DIR)/bin/activate"
+	@$(MAKE) configure-venv-path
+
+configure-venv-path:
+	@echo "🔧 Exponiendo $(VENV_DIR)/bin en el entorno del sistema..."
+	@printf 'export VIRTUAL_ENV=$(VENV_DIR)\nexport PATH="$(VENV_DIR)/bin:$$PATH"\n' \
+		| sudo tee /etc/profile.d/mlops-venv.sh > /dev/null
+	@sudo chmod +x /etc/profile.d/mlops-venv.sh
+	@echo "   → /etc/profile.d/mlops-venv.sh escrito"
+	@grep -qxF '. /etc/profile.d/mlops-venv.sh' /home/$(RUN_USER)/.bashrc 2>/dev/null || \
+		echo '. /etc/profile.d/mlops-venv.sh' | sudo tee -a /home/$(RUN_USER)/.bashrc > /dev/null
+	@grep -qxF '. /etc/profile.d/mlops-venv.sh' /home/$(RUN_USER)/.profile 2>/dev/null || \
+		echo '. /etc/profile.d/mlops-venv.sh' | sudo tee -a /home/$(RUN_USER)/.profile > /dev/null
+	@echo "   → .bashrc y .profile del usuario $(RUN_USER) actualizados"
+	@if [ -f "$(RUNNER_DIR)/.service" ]; then \
+		SVC=$$(cat $(RUNNER_DIR)/.service); \
+		sudo mkdir -p /etc/systemd/system/$$SVC.d; \
+		printf '[Service]\nEnvironment="PATH=$(VENV_DIR)/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"\nEnvironment="VIRTUAL_ENV=$(VENV_DIR)"\n' \
+			| sudo tee /etc/systemd/system/$$SVC.d/venv-path.conf > /dev/null; \
+		sudo systemctl daemon-reload; \
+		echo "   → Drop-in systemd creado: /etc/systemd/system/$$SVC.d/venv-path.conf"; \
+		echo "   Reinicia el runner para aplicar: make stop-runner && make start-runner"; \
+	else \
+		echo "   ℹ️  Runner no instalado aún; el drop-in systemd se creará al ejecutar install-runner"; \
+	fi
+	@echo "✅ PATH del venv configurado."
 
 install-deps: install-sys-deps install-python-deps
-	@echo "✅ Instalación completa: sistema + Python lista."
+	@echo "✅ Instalación completa: sistema + Python + PATH lista."
 
 # ==============================================================================
 # 1. SETUP
@@ -234,6 +259,7 @@ install-runner:
 	fi
 	@echo "⚙️ Configurando el servicio systemd del Runner..."
 	@cd $(RUNNER_DIR) && sudo ./svc.sh install $(RUN_USER) >/dev/null 2>&1 || true
+	@$(MAKE) configure-venv-path
 
 start-runner:
 	@if [ -d "$(RUNNER_DIR)" ]; then \
