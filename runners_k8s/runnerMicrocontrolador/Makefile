@@ -18,6 +18,9 @@ TERMINAL_USER ?= admin
 TERMINAL_PASS ?= tu_clave_segura
 RUN_USER      ?= runner
 
+# Python venv (espeja la ruta del Dockerfile)
+VENV_DIR      ?= /opt/.venv
+
 # GitHub Runner
 RUNNER_DIR    ?= /home/$(RUN_USER)/actions-runner
 GITHUB_URL    ?= https://github.com/Tehedor/MLOps_actions_v2
@@ -37,6 +40,7 @@ FULL_FQDN     := $(SUBDOMAIN).$(DOMAIN)
 export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 
 .PHONY: help setup install start stop status logs clean \
+        install-deps install-sys-deps install-python-deps \
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
         install-runner start-runner stop-runner status-runner clean-runner \
@@ -46,18 +50,54 @@ help:
 	@echo "🛠️ Panel de Control MLOps (TTYD + CF Tunnel + GitHub Runner)"
 	@echo "---------------------------------------------------------"
 	@echo "COMANDOS GLOBALES:"
-	@echo "  make setup       - Crea el túnel en CF y genera config.yaml"
-	@echo "  make install     - Descarga, configura e instala todos los servicios"
-	@echo "  make start       - Inicia todos los servicios"
-	@echo "  make stop        - Detiene todos los servicios"
-	@echo "  make status      - Estado de todos los servicios"
-	@echo "  make logs        - Logs estáticos de todo el stack"
-	@echo "  make logs-live   - 🔴 Logs EN VIVO combinados (TTYD + Tunnel)"
-	@echo "  make clean       - Borra toda la infraestructura"
+	@echo "  make setup              - Crea el túnel en CF y genera config.yaml"
+	@echo "  make install            - Descarga, configura e instala todos los servicios"
+	@echo "  make start              - Inicia todos los servicios"
+	@echo "  make stop               - Detiene todos los servicios"
+	@echo "  make status             - Estado de todos los servicios"
+	@echo "  make logs               - Logs estáticos de todo el stack"
+	@echo "  make logs-live          - 🔴 Logs EN VIVO combinados (TTYD + Tunnel)"
+	@echo "  make clean              - Borra toda la infraestructura"
+	@echo ""
+	@echo "DEPENDENCIAS DEL ENTORNO:"
+	@echo "  make install-deps       - Instala dependencias de sistema + Python (todo)"
+	@echo "  make install-sys-deps   - Solo paquetes apt (git, gh, curl...)"
+	@echo "  make install-python-deps- Solo venv + pip + requirements.txt"
 
 # ==============================================================================
-# 1. SETUP
+# 0. DEPENDENCIAS DEL ENTORNO (Sistema + Python)
 # ==============================================================================
+install-sys-deps:
+	@echo "📦 Instalando paquetes del sistema..."
+	@sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+		git make procps util-linux curl ca-certificates gnupg
+	@echo "🔑 Añadiendo repositorio GitHub CLI..."
+	@sudo mkdir -p /etc/apt/keyrings
+	@curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+		| sudo gpg --dearmor -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+	@sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+	@echo "deb [arch=$$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+		| sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+	@sudo apt-get update && sudo apt-get install -y --no-install-recommends gh
+	@sudo rm -rf /var/lib/apt/lists/*
+	@echo "✅ Paquetes del sistema instalados."
+
+install-python-deps:
+	@echo "🐍 Creando venv en $(VENV_DIR)..."
+	@sudo mkdir -p $(VENV_DIR) && sudo chown $$(whoami) $(VENV_DIR)
+	@python3.11 -m venv $(VENV_DIR)
+	@echo "📦 Instalando dependencias Python..."
+	@$(VENV_DIR)/bin/pip install --upgrade pip "setuptools>=68,<81" wheel
+	@$(VENV_DIR)/bin/pip install -r $(PROJECT_DIR)/requirements.txt
+	@echo "🧹 Limpiando cachés del venv..."
+	@find $(VENV_DIR) -type f -name "*.pyc" -delete
+	@find $(VENV_DIR) -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@echo "✅ Dependencias Python instaladas en $(VENV_DIR)."
+	@echo "   Para activar: source $(VENV_DIR)/bin/activate"
+
+install-deps: install-sys-deps install-python-deps
+	@echo "✅ Instalación completa: sistema + Python lista."
+
 # ==============================================================================
 # 1. SETUP
 # ==============================================================================
