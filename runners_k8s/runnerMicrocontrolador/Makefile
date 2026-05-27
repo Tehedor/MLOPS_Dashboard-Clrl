@@ -18,8 +18,8 @@ TERMINAL_USER ?= admin
 TERMINAL_PASS ?= tu_clave_segura
 RUN_USER      ?= runner
 
-# Python venv (espeja la ruta del Dockerfile)
-VENV_DIR      ?= /opt/.venv
+# Python venv — debe coincidir con $HOME/.venv del usuario runner (el workflow añade este path)
+VENV_DIR      ?= /home/$(RUN_USER)/.venv
 
 # GitHub Runner
 RUNNER_DIR    ?= /home/$(RUN_USER)/actions-runner
@@ -83,10 +83,13 @@ install-sys-deps:
 	@echo "✅ Paquetes del sistema instalados."
 
 install-python-deps:
-	@echo "🐍 Instalando dependencias Python en el sistema..."
-	@pip3 install --break-system-packages --upgrade pip "setuptools>=68,<81" wheel
-	@pip3 install --break-system-packages -r $(PROJECT_DIR)/requirements.txt
-	@echo "✅ Dependencias Python instaladas en el sistema."
+	@echo "🐍 Creando venv en $(VENV_DIR)..."
+	@python3 -m venv $(VENV_DIR)
+	@echo "📦 Instalando dependencias Python..."
+	@$(VENV_DIR)/bin/pip install --upgrade pip "setuptools>=68,<81" wheel
+	@$(VENV_DIR)/bin/pip install -r $(PROJECT_DIR)/requirements.txt
+	@echo "✅ Dependencias Python instaladas en $(VENV_DIR)."
+	@$(MAKE) configure-venv-path
 
 configure-venv-path:
 	@echo "🔧 Exponiendo $(VENV_DIR)/bin en el entorno del sistema..."
@@ -113,7 +116,7 @@ configure-venv-path:
 	@echo "✅ PATH del venv configurado."
 
 install-deps: install-sys-deps install-python-deps
-	@echo "✅ Instalación completa: sistema + Python lista."
+	@echo "✅ Instalación completa: sistema + Python + PATH lista."
 
 # ==============================================================================
 # 1. SETUP
