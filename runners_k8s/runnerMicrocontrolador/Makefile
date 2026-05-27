@@ -254,6 +254,7 @@ install-runner:
 	fi
 	@echo "⚙️ Configurando el servicio systemd del Runner..."
 	@cd $(RUNNER_DIR) && sudo ./svc.sh install $(RUN_USER) >/dev/null 2>&1 || true
+	@$(MAKE) configure-venv-path
 
 start-runner:
 	@if [ -d "$(RUNNER_DIR)" ]; then \
