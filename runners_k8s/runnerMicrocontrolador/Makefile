@@ -40,7 +40,7 @@ FULL_FQDN     := $(SUBDOMAIN).$(DOMAIN)
 export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 
 .PHONY: help setup install start stop status logs clean \
-        install-deps install-sys-deps install-python-deps \
+        install-deps install-sys-deps install-python-deps configure-venv-path \
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
         install-runner start-runner stop-runner status-runner clean-runner \
