@@ -60,9 +60,10 @@ help:
 	@echo "  make clean              - Borra toda la infraestructura"
 	@echo ""
 	@echo "DEPENDENCIAS DEL ENTORNO:"
-	@echo "  make install-deps         - Sistema + Python (todo)"
+	@echo "  make install-deps         - Sistema + Python + PATH del venv (todo)"
 	@echo "  make install-sys-deps     - Solo paquetes apt (git, gh, curl...)"
-	@echo "  make install-python-deps  - Solo pip install al Python del sistema"
+	@echo "  make install-python-deps  - Solo venv en \$$HOME/.venv + requirements.txt"
+	@echo "  make configure-venv-path  - Expone el venv al runner (profile.d + systemd)"
 
 # ==============================================================================
 # 0. DEPENDENCIAS DEL ENTORNO (Sistema + Python)
