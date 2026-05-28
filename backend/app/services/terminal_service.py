@@ -32,6 +32,27 @@ def _load_dotenv_values() -> dict[str, str]:
 _DOTENV_VALUES = _load_dotenv_values()
 
 
+def _write_dotenv_values(updates: dict[str, str]) -> None:
+    lines = _ENV_PATH.read_text().splitlines() if _ENV_PATH.exists() else []
+    written: set[str] = set()
+    new_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#') or '=' not in stripped:
+            new_lines.append(line)
+            continue
+        key = stripped.split('=', 1)[0].strip()
+        if key in updates:
+            new_lines.append(f'{key}={updates[key]}')
+            written.add(key)
+        else:
+            new_lines.append(line)
+    for key, value in updates.items():
+        if key not in written:
+            new_lines.append(f'{key}={value}')
+    _ENV_PATH.write_text('\n'.join(new_lines) + '\n')
+
+
 def _resolve(value: str) -> str:
     if _ENV_VAR_RE.match(value):
         return os.environ.get(value, _DOTENV_VALUES.get(value, ""))
@@ -54,6 +75,52 @@ def _load_runners() -> dict:
 
 def get_runners() -> dict:
     return _load_runners()
+
+
+def get_runner_env_config() -> list[dict]:
+    config = load_app_config()
+    raw = config.get("TERMINAL_RUNNERS", {}) or {}
+    result = []
+    for runner_id, cfg in raw.items():
+        url_var = str(cfg.get("url", ""))
+        user_var = str(cfg.get("username", ""))
+        pass_var = str(cfg.get("password", ""))
+        result.append({
+            "id": runner_id,
+            "url_var": url_var,
+            "username_var": user_var,
+            "password_var": pass_var,
+            "url": _resolve(url_var),
+            "username": _resolve(user_var),
+        })
+    return result
+
+
+def update_runner_env(runner_id: str, url: str | None, username: str | None, password: str | None) -> None:
+    config = load_app_config()
+    raw = config.get("TERMINAL_RUNNERS", {}) or {}
+    cfg = raw.get(runner_id)
+    if not cfg:
+        raise ValueError(f"Runner '{runner_id}' not found")
+
+    updates: dict[str, str] = {}
+    for field_val, var_name in (
+        (url,      str(cfg.get("url", ""))),
+        (username, str(cfg.get("username", ""))),
+        (password, str(cfg.get("password", ""))),
+    ):
+        if field_val is not None and _ENV_VAR_RE.match(var_name):
+            updates[var_name] = field_val
+
+    if not updates:
+        return
+
+    _write_dotenv_values(updates)
+    for key, value in updates.items():
+        _DOTENV_VALUES[key] = value
+        os.environ[key] = value
+
+    _load_runners.cache_clear()
 
 
 def runner_ws_url(runner_id: str) -> str:

@@ -29,6 +29,18 @@ async def get_phases():
     return variants_service.discover_phases()
 
 
+@router.get("/exists")
+async def variant_exists(phase: str = Query(...), variant: str = Query(...)):
+    from app.services.execution_service import _normalize_variant
+    normalized = _normalize_variant(phase, variant)
+    info = variants_service.get_variant_info(phase, normalized)
+    return {
+        "exists": info is not None,
+        "normalized": normalized,
+        "status": info["status"] if info else None,
+    }
+
+
 @router.get("/table-config/{phase_id}")
 async def get_table_config(phase_id: str):
     cfg = variants_service.get_table_config_for_phase(phase_id)

@@ -1,17 +1,21 @@
 import asyncio
 import base64
 import json
+from typing import Optional
 
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket
+from pydantic import BaseModel
 import websockets
 
 from app.services.terminal_service import (
+    get_runner_env_config,
     get_runners,
     runner_credentials,
     runner_ws_url,
     session_decrement,
     session_increment,
     session_count,
+    update_runner_env,
 )
 
 rest_router = APIRouter()
@@ -29,6 +33,26 @@ def list_runners():
         {"id": rid, "label": rid, "active_sessions": session_count(rid)}
         for rid in get_runners()
     ]
+
+
+@rest_router.get("/config")
+def get_config():
+    return get_runner_env_config()
+
+
+class RunnerEnvUpdate(BaseModel):
+    url: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
+@rest_router.patch("/{runner_id}/config")
+def patch_runner_config(runner_id: str, body: RunnerEnvUpdate):
+    try:
+        update_runner_env(runner_id, body.url, body.username, body.password)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"ok": True}
 
 
 @ws_router.websocket("/{runner_id}")

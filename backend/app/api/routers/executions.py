@@ -25,10 +25,10 @@ def _parse_runner_map(config: dict) -> dict:
     """Devuelve {runner_name: runner_json} para fromJSON(inputs.runner) de GHA."""
     result = {}
     for item in config.get("runners", []):
-        name = next((k for k in item if k not in ('max-parallel', 'labels')), None)
+        name = next((k for k in item if k not in ('max-parallel', 'labels', 'runs-on')), None)
         if not name:
             continue
-        labels = item.get("labels", [])
+        labels = item.get("runs-on", item.get("labels", []))
         result[name] = json.dumps(labels[0] if len(labels) == 1 else labels)
     return result
 

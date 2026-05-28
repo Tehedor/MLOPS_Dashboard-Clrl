@@ -82,6 +82,32 @@ def discover_variants(phase_id: str) -> list[str]:
     return sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
+def get_variant_info(phase_id: str, variant_id: str) -> dict | None:
+    """Returns execution status for a variant read from filesystem metadata.yaml.
+    Returns None if the variant folder does not exist."""
+    variant_path = _executions_root() / phase_id / variant_id
+    if not variant_path.exists():
+        return None
+    meta_path = variant_path / "metadata.yaml"
+    if meta_path.exists():
+        try:
+            meta = yaml.safe_load(meta_path.read_text()) or {}
+            lifecycle = meta.get("lifecycle_state", "UNKNOWN")
+        except Exception:
+            lifecycle = "ERROR"
+    else:
+        lifecycle = "PENDING"
+    if lifecycle == "EXECUTION_COMPLETED":
+        status = "completed"
+    elif lifecycle in ("EXECUTION_FAILED", "ERROR"):
+        status = "failed"
+    elif lifecycle == "PENDING":
+        status = "pending"
+    else:
+        status = "running"
+    return {"status": status}
+
+
 # ── Local-status ──────────────────────────────────────────────────────────────
 
 def _local_status(variant_path: Path) -> dict:
@@ -236,6 +262,25 @@ def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int]) -> dict:
     cells["_parent"] = params_data.get("parent")
     cells["_parse_error"] = rd["parse_error"]
     cells["_updated_at"] = rd["updated_at"]
+
+    meta_path = variant_path / "metadata.yaml"
+    if meta_path.exists():
+        try:
+            meta = yaml.safe_load(meta_path.read_text()) or {}
+            lifecycle = meta.get("lifecycle_state", "UNKNOWN")
+        except Exception:
+            lifecycle = "ERROR"
+    else:
+        lifecycle = "PENDING"
+    if lifecycle == "EXECUTION_COMPLETED":
+        cells["_execution_status"] = "completed"
+    elif lifecycle in ("EXECUTION_FAILED", "ERROR"):
+        cells["_execution_status"] = "failed"
+    elif lifecycle == "PENDING":
+        cells["_execution_status"] = "pending"
+    else:
+        cells["_execution_status"] = "running"
+
     return cells
 
 

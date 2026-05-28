@@ -4,7 +4,7 @@ runners:
     max-parallel: 20
     labels: [ubuntu-latest]
   - ESP32-self-hosted:
-    labels: [self-hosted, ESP32]
+    labels: [self-hosted, Linux, X64, self-hosted-tehelab, ESP32v1]
     max-parallel: 1
   - Local:
     max-parallel: 1

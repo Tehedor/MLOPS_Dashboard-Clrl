@@ -1,12 +1,28 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExecution } from '../../api/executions'
-import { getRows } from '../../api/variants'
+import { getRows, checkVariantExists } from '../../api/variants'
 import { PHASE_PARAMS, PHASE_PARENT_VARIANT } from './phaseParams'
 import ParamsEditor from './ParamsEditor'
 
 function phaseNum(phaseId) {
   return parseInt(phaseId.match(/^f(\d+)/)?.[1] ?? '1')
+}
+
+const ACTIVE_STATUSES = new Set(['queued', 'waiting_parent', 'dispatching', 'running'])
+
+function normalizeVariant(phaseId, variant) {
+  const v = variant.trim()
+  if (/^v\d_\d{4}$/.test(v)) return v
+  const m = v.match(/^v?(\d{1,4})$/)
+  if (m) {
+    const pm = phaseId.match(/\d{2}/)
+    if (pm) {
+      const phaseDigit = parseInt(pm[0], 10)
+      return `v${phaseDigit}_${String(parseInt(m[1], 10)).padStart(4, '0')}`
+    }
+  }
+  return v
 }
 
 function nextVariant(phaseId, existing = []) {
@@ -150,7 +166,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
   const [showDropdown, setShowDropdown] = useState(false)
 
   // Inline error (single)
-  const [errorMsg, setErrorMsg] = useState(null)
+  const [errorMsg,   setErrorMsg]   = useState(null)
+  const [isChecking, setIsChecking] = useState(false)
 
   // Pre-fill
   const [preloadKey,    setPreloadKey]    = useState(0)
@@ -218,8 +235,36 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
       if (parsedJson.error || parsedJson.entries.length === 0) return
       setJsonPending(true)
       setJsonErrors({})
+      // Check cola activa + filesystem para cada variante
+      const existChecks = await Promise.allSettled(
+        parsedJson.entries.map(e => checkVariantExists(phase.id, e.variant.trim()))
+      )
+      const existingErrors = {}
+      const toDispatch = parsedJson.entries.filter((entry, i) => {
+        const norm = normalizeVariant(phase.id, entry.variant.trim())
+        // Cola activa
+        const activeEx = executions?.find(
+          e => e.fase === phase.id && e.variant === norm && ACTIVE_STATUSES.has(e.status)
+        )
+        if (activeEx) {
+          existingErrors[norm] = `Ejecución activa (${activeEx.status})`
+          return false
+        }
+        // Filesystem: solo bloquea si completada
+        const result = existChecks[i]
+        if (result.status === 'fulfilled' && result.value?.exists && result.value?.status === 'completed') {
+          existingErrors[result.value.normalized ?? norm] = 'Ya existe y fue completada'
+          return false
+        }
+        return true
+      })
+      if (toDispatch.length === 0) {
+        setJsonErrors(existingErrors)
+        setJsonPending(false)
+        return
+      }
       const results = await Promise.allSettled(
-        parsedJson.entries.map(entry => createExecution({
+        toDispatch.map(entry => createExecution({
           fase:            phase.id,
           variant:         entry.variant.trim(),
           parent:          entry.parent ?? null,
@@ -227,33 +272,61 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
           selected_runner: entry.selected_runner ?? selectedRunner ?? null,
         }))
       )
-      const errors = {}
+      const errors = { ...existingErrors }
       let anySuccess = false
       results.forEach((r, i) => {
-        if (r.status === 'rejected') errors[parsedJson.entries[i].variant] = r.reason?.message ?? 'Error'
+        if (r.status === 'rejected') errors[toDispatch[i].variant] = r.reason?.message ?? 'Error'
         else anySuccess = true
       })
       if (anySuccess) qc.invalidateQueries({ queryKey: ['executions'] })
       setJsonErrors(errors)
       setJsonPending(false)
     } else {
-      const finalVariant = variant.trim() || suggestedVariant
-      if (!finalVariant) return
+      const finalVariant = variant.trim()
+      if (!finalVariant) {
+        setErrorMsg('Introduce una variante')
+        return
+      }
+      const normalized = normalizeVariant(phase.id, finalVariant)
+
+      // 1. Chequeo de cola: bloquea si ya hay una ejecución activa para esta variante
+      const activeExecution = executions?.find(
+        e => e.fase === phase.id && e.variant === normalized && ACTIVE_STATUSES.has(e.status)
+      )
+      if (activeExecution) {
+        setErrorMsg(`"${normalized}" ya tiene una ejecución activa (${activeExecution.status})`)
+        return
+      }
+
+      // 2. Chequeo de filesystem: bloquea solo si completada, permite si falló
+      setIsChecking(true)
+      try {
+        const { exists, status } = await checkVariantExists(phase.id, finalVariant)
+        if (exists && status === 'completed') {
+          setErrorMsg(`La variante "${normalized}" ya existe y fue completada`)
+          return
+        }
+      } catch {
+        // Si falla el check, deja pasar — el backend rechazará si es duplicado
+      } finally {
+        setIsChecking(false)
+      }
+
       setErrorMsg(null)
       let parentValue = parent.trim() || null
       if (parentValue && parentMode === 'multi' && !parentValue.startsWith('[')) {
         parentValue = JSON.stringify(parentValue.split(',').map(s => s.trim()).filter(Boolean))
       }
       mutate({
-        fase: phase.id, variant: finalVariant,
+        fase: phase.id, variant: normalized,
         parent: parentValue,
-        params: { ...suggestedParams, ...paramsRef.current },
+        params: paramsRef.current,
         selected_runner: selectedRunner || null,
       })
     }
   }
 
-  const isSubmitting = tab === 'json' ? jsonPending : isPending
+  const isSubmitting = tab === 'json' ? jsonPending : (isPending || isChecking)
   const jsonCount    = parsedJson.entries.length
   const btnLabel     = isSubmitting ? '···'
     : (tab === 'json' && jsonCount > 0) ? `Ejecutar (${jsonCount})`

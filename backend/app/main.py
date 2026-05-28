@@ -9,7 +9,7 @@ from app.core.db import init_db
 from app.api.routers import config, executions, lineage, variants, services
 from app.api.routers.terminal import rest_router as runners_router, ws_router as terminal_ws_router
 from app.services import lineage_service, repo_sync_service, supabase_sync_service, variants_service
-from app.services.execution_service import ExecutionService
+from app.services.execution_service import ExecutionService, start_gh_poll
 
 
 @asynccontextmanager
@@ -18,15 +18,17 @@ async def lifespan(app: FastAPI):
     await ExecutionService().reconcile_stale()
     repo_sync_service.register_callback(lineage_service.refresh)
     repo_sync_service.register_callback(variants_service.sync_all)
-    sync_task = asyncio.create_task(repo_sync_service.polling_loop())
+    sync_task     = asyncio.create_task(repo_sync_service.polling_loop())
     realtime_task = asyncio.create_task(
         supabase_sync_service.listen_completions(repo_sync_service.force_pull)
     )
+    poll_task  = start_gh_poll()
     dvc_worker = variants_service.start_worker()
     await variants_service.sync_all()
     yield
     sync_task.cancel()
     realtime_task.cancel()
+    poll_task.cancel()
     dvc_worker.cancel()
 
 

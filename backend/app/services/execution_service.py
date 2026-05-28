@@ -1,5 +1,6 @@
 import glob
 import json
+import logging
 import re
 import uuid
 import asyncio
@@ -8,6 +9,9 @@ from pathlib import Path
 
 import aiosqlite
 import yaml
+
+log = logging.getLogger(__name__)
+POLL_GH_SECS = 10
 
 from app.core.config import phases_runner_path, load_app_config, PROJECT_ROOT
 from app.core.db import DB_PATH
@@ -68,9 +72,9 @@ def _get_runner_json(runner_name: str) -> str | None:
         with open(config_path) as f:
             config = yaml.safe_load(f)
         for item in config.get("runners", []):
-            name = next((k for k in item if k not in ('max-parallel', 'labels')), None)
+            name = next((k for k in item if k not in ('max-parallel', 'labels', 'runs-on')), None)
             if name == runner_name:
-                labels = item.get("labels", [])
+                labels = item.get("runs-on", item.get("labels", []))
                 return json.dumps(labels)
     except Exception:
         pass
@@ -83,7 +87,7 @@ def _runner_max_parallel(runner_name: str) -> int:
         with open(config_path) as f:
             config = yaml.safe_load(f)
         for item in config.get("runners", []):
-            name = next((k for k in item if k not in ('max-parallel', 'labels')), None)
+            name = next((k for k in item if k not in ('max-parallel', 'labels', 'runs-on')), None)
             if name == runner_name:
                 return item.get("max-parallel", 1)
     except Exception:
@@ -159,7 +163,7 @@ class ExecutionService:
     async def create(self, body: ExecutionCreate) -> Execution:
         from fastapi import HTTPException
         normalized = _normalize_variant(body.fase, body.variant)
-        blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching')
+        blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
                 f"SELECT status FROM executions WHERE fase=? AND variant=? AND status IN ({','.join('?'*len(blocked_statuses))})",
@@ -361,6 +365,20 @@ class ExecutionService:
         if not ex:
             from fastapi import HTTPException
             raise HTTPException(404, "Not found")
+
+        # Kill the actual running execution before updating the DB status.
+        # For waiting_* states the _dispatch loop already polls the DB and
+        # will exit on its own once we flip the status below.
+        if ex.runner == "Local":
+            from app.services.local_runner_service import kill as kill_local
+            kill_local(execution_id)
+        elif ex.gh_run_id and ex.status.value in ("running", "dispatching"):
+            from app.services.github import cancel_run
+            try:
+                await cancel_run(ex.gh_run_id)
+            except Exception as e:
+                log.warning("Failed to cancel GH run %s: %s", ex.gh_run_id, e)
+
         await self._update_status(execution_id, ExecutionStatus.canceled)
         return await self.get(execution_id)
 
@@ -373,3 +391,91 @@ class ExecutionService:
         updated = await self.get(execution_id)
         asyncio.create_task(self._dispatch(updated))
         return updated
+
+
+# ── GitHub run status sync ────────────────────────────────────────────────────
+
+async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
+    """Update local execution status from a completed GitHub run.
+
+    Matches by gh_run_id so it works even when the trigger fails and
+    the Supabase record has NULL fase/variant. Returns True if matched.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
+            (str(gh_run_id),),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if not row:
+        return False
+    execution_id = row[0]
+    if conclusion == "success":
+        new_status, error_code = ExecutionStatus.success, None
+    elif conclusion in ("cancelled", "skipped"):
+        new_status, error_code = ExecutionStatus.canceled, None
+    else:
+        new_status, error_code = ExecutionStatus.failed, f"GH_{conclusion.upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
+            (new_status.value, error_code, now, execution_id),
+        )
+        await db.commit()
+    _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
+    if new_status in _TERMINAL:
+        from app.services import repo_sync_service
+        asyncio.create_task(repo_sync_service.force_pull())
+    log.info("update_from_gh_run: %s → %s (%s)", gh_run_id, new_status.value, error_code)
+    return True
+
+
+async def _check_run(gh_run_id: str) -> None:
+    from app.services.github import fetch_run_status
+    try:
+        run_info = await fetch_run_status(gh_run_id)
+        if run_info is None or run_info.get("status") != "completed":
+            return
+        conclusion = run_info.get("conclusion") or "failure"
+        await update_from_gh_run(gh_run_id, conclusion)
+    except Exception as exc:
+        log.warning("check_run %s: %s", gh_run_id, exc)
+
+
+async def _poll_gh_running() -> None:
+    """Background task: poll GitHub API every POLL_GH_SECS for running executions.
+    Fallback for when Supabase realtime is unavailable."""
+    while True:
+        await asyncio.sleep(POLL_GH_SECS)
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                # Ejecuciones con run_id conocido → verificar estado en GH
+                async with db.execute(
+                    "SELECT gh_run_id FROM executions WHERE status='running' AND gh_run_id IS NOT NULL"
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                # Ejecuciones sin run_id que llevan >30 min → marcar INTERRUPTED
+                async with db.execute(
+                    """SELECT id FROM executions
+                       WHERE status='running' AND gh_run_id IS NULL
+                       AND updated_at < datetime('now', '-30 minutes')"""
+                ) as cursor:
+                    orphans = await cursor.fetchall()
+            if rows:
+                await asyncio.gather(*(_check_run(r[0]) for r in rows))
+            for (eid,) in orphans:
+                log.warning("poll_gh_running: execution %s sin run_id tras 30 min → INTERRUPTED", eid)
+                now = datetime.now(timezone.utc).isoformat()
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute(
+                        "UPDATE executions SET status='failed', error_code='INTERRUPTED', updated_at=? WHERE id=?",
+                        (now, eid),
+                    )
+                    await db.commit()
+        except Exception as exc:
+            log.warning("poll_gh_running: %s", exc)
+
+
+def start_gh_poll() -> asyncio.Task:
+    return asyncio.create_task(_poll_gh_running())

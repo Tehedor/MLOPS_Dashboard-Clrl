@@ -34,6 +34,11 @@ export const syncVariants = (phase) =>
   fetch(`${BASE}/sync${phase ? `?phase=${phase}` : ''}`, { method: 'POST' })
     .then(r => r.json())
 
+export const checkVariantExists = (phase, variant) =>
+  fetch(`${BASE}/exists?phase=${encodeURIComponent(phase)}&variant=${encodeURIComponent(variant)}`)
+    .then(r => r.json())
+// returns { exists: boolean, normalized: string }
+
 export const getJob = (jobId) =>
   fetch(`${BASE}/jobs/${jobId}`).then(r => r.json())
 

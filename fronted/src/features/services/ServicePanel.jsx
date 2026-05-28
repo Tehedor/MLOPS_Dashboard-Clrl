@@ -12,12 +12,32 @@ async function waitForJob(jobId) {
   }
 }
 
-const DVC_ICON  = { local: '✓', partial: '~', not_local: '✗', error: '!' }
-const DVC_COLOR = {
-  local:     'text-green-500',
-  partial:   'text-yellow-500',
-  not_local: 'text-red-400',
-  error:     'text-red-500',
+const EXEC_ICON  = { completed: '✓', failed: '✗', running: '⟳', pending: '·' }
+const EXEC_COLOR = {
+  completed: 'text-green-500',
+  failed:    'text-red-400',
+  running:   'text-yellow-500',
+  pending:   'text-gray-400',
+}
+const EXEC_TITLE = {
+  completed: 'Ejecución completada',
+  failed:    'Ejecución fallida',
+  running:   'En ejecución',
+  pending:   'Pendiente / no iniciado',
+}
+
+const DVC_DOT   = { local: '●', partial: '◑', not_local: '○', error: '●' }
+const DVC_DOT_COLOR = {
+  local:     'text-green-400',
+  partial:   'text-yellow-400',
+  not_local: 'text-gray-400',
+  error:     'text-red-400',
+}
+const DVC_TITLE = {
+  local:     'Artefactos locales',
+  partial:   'Descarga parcial',
+  not_local: 'No descargado',
+  error:     'Error DVC',
 }
 
 function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
@@ -61,6 +81,7 @@ function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
       <div className="overflow-y-auto flex-1">
         {variants.map(row => {
           const localStatus   = row._local?.status ?? 'not_local'
+          const execStatus    = row._execution_status ?? 'pending'
           const isRunningThis = isUp && runningVariant?.variant === row.variant && runningVariant?.phase === phase
 
           return (
@@ -70,9 +91,20 @@ function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
                 isRunningThis ? 'bg-green-50 dark:bg-green-900/10' : ''
               }`}
             >
-              {/* DVC status */}
-              <span className={`text-xs w-3 shrink-0 ${DVC_COLOR[localStatus] ?? 'text-gray-400'}`}>
-                {DVC_ICON[localStatus] ?? '?'}
+              {/* Execution status (main) + DVC local dot (secondary) */}
+              <span className="flex items-center gap-0.5 shrink-0">
+                <span
+                  title={EXEC_TITLE[execStatus] ?? execStatus}
+                  className={`text-xs font-bold leading-none ${EXEC_COLOR[execStatus] ?? 'text-gray-400'}`}
+                >
+                  {EXEC_ICON[execStatus] ?? '·'}
+                </span>
+                <span
+                  title={DVC_TITLE[localStatus] ?? localStatus}
+                  className={`text-[9px] leading-none ${DVC_DOT_COLOR[localStatus] ?? 'text-gray-400'}`}
+                >
+                  {DVC_DOT[localStatus] ?? '○'}
+                </span>
               </span>
 
               {/* Variant name */}

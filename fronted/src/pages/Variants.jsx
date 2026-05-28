@@ -163,6 +163,26 @@ function Spinner() {
   )
 }
 
+const EXEC_STATUS_CONFIG = {
+  completed: { icon: '✓', cls: 'text-green-500 dark:text-green-400', title: 'Ejecución completada' },
+  failed:    { icon: '✗', cls: 'text-red-500 dark:text-red-400',   title: 'Ejecución fallida' },
+  running:   { icon: null, cls: 'text-yellow-500 dark:text-yellow-400', title: 'En ejecución' },
+  pending:   { icon: '·', cls: 'text-gray-400',                    title: 'Pendiente / no iniciado' },
+}
+
+function ExecStatusIcon({ status }) {
+  const cfg = EXEC_STATUS_CONFIG[status] || EXEC_STATUS_CONFIG.pending
+  return (
+    <span
+      title={cfg.title}
+      className={`shrink-0 font-bold leading-none ${cfg.cls}`}
+      style={{ fontSize: '0.75rem' }}
+    >
+      {cfg.icon ?? <Spinner />}
+    </span>
+  )
+}
+
 // ── Column config ─────────────────────────────────────────────────────────────
 
 function buildColumnDefs(phaseCfg) {
@@ -740,8 +760,13 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                       <div className="truncate" title={
                         Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] != null ? String(row[col.key]) : ''
                       }>
-                        {row._parse_error && col.key === 'variant' ? (
-                          <span className="text-red-500 cursor-help">⚠ {row[col.key]}</span>
+                        {col.key === 'variant' ? (
+                          <span className="flex items-center gap-1 min-w-0">
+                            <ExecStatusIcon status={row._execution_status} />
+                            <span className={`truncate ${row._parse_error ? 'text-red-500 cursor-help' : ''}`}>
+                              {row._parse_error ? `⚠ ${row[col.key]}` : row[col.key]}
+                            </span>
+                          </span>
                         ) : (
                           Array.isArray(row[col.key])
                             ? row[col.key].join(', ')

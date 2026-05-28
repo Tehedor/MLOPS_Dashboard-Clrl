@@ -6,8 +6,11 @@ local_log_store (live SSE) without blocking the event loop.
 
 import asyncio
 import os
+import pty
 import re
 import shutil
+import signal
+import termios
 import time
 from pathlib import Path
 
@@ -48,6 +51,32 @@ def _load_phase_workflow(fase: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
+# Active-process registry — used by kill() to terminate a running execution
+# ---------------------------------------------------------------------------
+
+# Maps execution_id → the currently running subprocess for that execution.
+# Only one subprocess is active per execution at a time (steps run serially).
+_ACTIVE_PROCS: dict[str, asyncio.subprocess.Process] = {}
+
+
+def kill(execution_id: str) -> None:
+    """Kill the subprocess tree for a running local execution (SIGTERM → PGID)."""
+    proc = _ACTIVE_PROCS.get(execution_id)
+    if proc is None or proc.returncode is not None:
+        return
+    try:
+        pgid = os.getpgid(proc.pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
 # Async subprocess — streams stdout+stderr line by line to log_store
 # ---------------------------------------------------------------------------
 
@@ -58,23 +87,90 @@ async def _run(
     step: str,
     execution_id: str,
 ) -> int:
-    """Run a shell command, streaming each output line to the log store.
-    Returns the process return code."""
+    """Run a shell command, streaming output to the log store via a PTY.
+
+    Using a PTY (instead of PIPE) makes the subprocess believe it is connected
+    to a real terminal, which disables internal buffering in most programs
+    (Docker, esp-idf tools, serial readers, etc.) and allows us to read partial
+    lines in real time instead of waiting for a newline.
+    """
     log_store.push(execution_id, step, f"$ {cmd}")
+
+    master_fd, slave_fd = pty.openpty()
+
+    # Disable echo so the shell command string isn't echoed back as output
+    try:
+        attrs = termios.tcgetattr(slave_fd)
+        attrs[3] &= ~termios.ECHO
+        termios.tcsetattr(slave_fd, termios.TCSANOW, attrs)
+    except Exception:
+        pass
 
     proc = await asyncio.create_subprocess_shell(
         cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,  # merge stderr → single stream
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
         cwd=cwd,
         env=env,
+        start_new_session=True,  # own process group → safe killpg on cancel
     )
+    os.close(slave_fd)  # parent only needs the master end
+    _ACTIVE_PROCS[execution_id] = proc
 
-    async for raw in proc.stdout:
-        line = raw.decode(errors="replace").rstrip("\n")
-        log_store.push(execution_id, step, line)
+    loop = asyncio.get_running_loop()
+    buf: bytes = b""
+    read_done = asyncio.Event()
+
+    def _on_readable() -> None:
+        nonlocal buf
+        try:
+            data = os.read(master_fd, 4096)
+            if not data:
+                raise OSError("eof")
+            buf += data
+            # Flush complete lines first
+            while b"\n" in buf:
+                nl = buf.index(b"\n")
+                line = buf[:nl].rstrip(b"\r").decode(errors="replace")
+                buf = buf[nl + 1:]
+                log_store.push(execution_id, step, line)
+            # Also flush any partial content without \n immediately so that
+            # progress chars like '*' (written without newline) appear in
+            # real time rather than accumulating until the next \n or EOF.
+            if buf:
+                line = buf.rstrip(b"\r").decode(errors="replace")
+                buf = b""
+                log_store.push(execution_id, step, line)
+        except OSError:
+            # EIO: all slaves closed → process has exited and PTY is gone
+            loop.remove_reader(master_fd)
+            if buf:
+                line = buf.rstrip(b"\r\n").decode(errors="replace")
+                if line:
+                    log_store.push(execution_id, step, line)
+            read_done.set()
+
+    loop.add_reader(master_fd, _on_readable)
 
     await proc.wait()
+
+    try:
+        await asyncio.wait_for(read_done.wait(), timeout=2.0)
+    except asyncio.TimeoutError:
+        loop.remove_reader(master_fd)
+        if buf:
+            line = buf.rstrip(b"\r\n").decode(errors="replace")
+            if line:
+                log_store.push(execution_id, step, line)
+
+    _ACTIVE_PROCS.pop(execution_id, None)
+
+    try:
+        os.close(master_fd)
+    except OSError:
+        pass
+
     rc = proc.returncode
     marker = "✓ OK" if rc == 0 else f"✗ FAILED (rc={rc})"
     log_store.push(execution_id, step, marker)
@@ -301,6 +397,10 @@ async def run_local_phase(ex) -> bool:
         "SKIP_GIT_PUBLISH":    "1",
         "SKIP_LINEAGE":        "1",
         "VARIANT_ROOT":        f"executions/{fase}/{variant_id}",
+        # Force Python subprocesses to flush stdout/stderr immediately so that
+        # progress chars (e.g. '*') appear in the log stream without waiting
+        # for a newline or buffer-full event.
+        "PYTHONUNBUFFERED":    "1",
     }
 
     log_store.push(execution_id, "init", f"[local-runner] {fase}/{variant_id} — workspace: {workspace}")

@@ -50,8 +50,13 @@ async def _connect(callback) -> None:
             data = msg.get("payload", {}).get("data", {})
             record = data.get("new", data.get("record", {}))
             if record.get("conclusion") is not None:
-                log.info("supabase_sync: run %s completed → force pull", record.get("run_id"))
+                run_id    = record.get("run_id")
+                conclusion = record.get("conclusion")
+                log.info("supabase_sync: run %s completed (%s) → update + force pull", run_id, conclusion)
                 asyncio.create_task(callback())
+                if run_id and conclusion:
+                    from app.services.execution_service import update_from_gh_run
+                    asyncio.create_task(update_from_gh_run(str(run_id), conclusion))
 
 
 async def listen_completions(callback) -> None:

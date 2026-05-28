@@ -65,20 +65,35 @@ def _normalize_params(params: dict) -> dict:
     return {_PARAM_KEY_REMAP.get(k, k.upper()): v for k, v in params.items()}
 
 
+def _parse_ts(ts: str) -> datetime:
+    """Parse GitHub ISO timestamp (Z suffix or +00:00) to timezone-aware datetime."""
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
 async def _find_run_after(created_after: str) -> str | None:
     """Return the run_id of the most recent repository_dispatch run created after the given ISO ts."""
     if not settings.github_token:
         return None
+    try:
+        ca_dt = _parse_ts(created_after)
+    except ValueError:
+        return None
     headers = {**_HEADERS, "Authorization": f"Bearer {settings.github_token}"}
-    params  = {"event": "repository_dispatch", "per_page": "5"}
+    params  = {"event": "repository_dispatch", "per_page": "10"}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(_RUNS_URL, headers=headers, params=params)
         if resp.status_code != 200:
             return None
         for run in resp.json().get("workflow_runs", []):
-            if run.get("created_at", "") >= created_after:
-                return str(run["id"])
+            run_ts = run.get("created_at", "")
+            if not run_ts:
+                continue
+            try:
+                if _parse_ts(run_ts) >= ca_dt:
+                    return str(run["id"])
+            except ValueError:
+                continue
     except Exception:
         pass
     return None
@@ -117,9 +132,13 @@ async def dispatch_phase(fase: str, variant: str, parent: str | None, params: di
         resp = await client.post(_DISPATCH_URL, json=payload, headers=headers)
         resp.raise_for_status()
 
-    # Give GH ~2 s to register the new run, then fetch its id
-    await asyncio.sleep(2)
-    return await _find_run_after(dispatch_ts)
+    # GH tarda unos segundos en registrar el run; reintentar con backoff
+    for delay in (3, 5, 8, 12):
+        await asyncio.sleep(delay)
+        run_id = await _find_run_after(dispatch_ts)
+        if run_id:
+            return run_id
+    return None
 
 
 async def fetch_run_status(gh_run_id: str) -> dict | None:
@@ -137,6 +156,20 @@ async def fetch_run_status(gh_run_id: str) -> dict | None:
         return {"status": data.get("status"), "conclusion": data.get("conclusion")}
     except Exception:
         return None
+
+
+async def cancel_run(gh_run_id: str) -> bool:
+    """Cancel a GitHub Actions run via the API. Returns True if accepted."""
+    if not settings.github_token or not settings.github_repo:
+        return False
+    headers = {**_HEADERS, "Authorization": f"Bearer {settings.github_token}"}
+    url = f"https://api.github.com/repos/{settings.github_repo}/actions/runs/{gh_run_id}/cancel"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, headers=headers)
+        return resp.status_code in (202, 204)
+    except Exception:
+        return False
 
 
 async def fetch_run_logs(gh_run_id: str) -> list[dict]:

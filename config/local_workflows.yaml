@@ -7,6 +7,9 @@
 #   {checkout_branch}  — rama de checkout (ej. test2)
 #   {params_json}      — JSON con los params (ej. '{"lr": 0.01}')
 #   {workspace}        — ruta absoluta al clon local del runner
+#   {parent_id}        — variante padre directa (fases 2–7)
+#   {catalog_id}       — variante catálogo de f02 (solo f04)
+#   {parents_ids}      — JSON list de variantes padre (solo f08, ej. '["v7_0001"]')
 #
 # Cada step tiene:
 #   name          — label para logs/UI
@@ -68,7 +71,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f01_explore/{parent_id}/outputs"
+      - "executions/f01_explore/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant2"
         type: make
@@ -112,7 +115,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f02_events/{parent_id}/outputs"
+      - "executions/f02_events/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant3"
         type: make
@@ -156,7 +159,8 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f03_windows/{parent_id}/outputs"
+      - "executions/f02_events/{catalog_id}/*.dvc"
+      - "executions/f03_windows/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant4"
         type: make
@@ -200,7 +204,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f04_targets/{parent_id}/outputs"
+      - "executions/f04_targets/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant5"
         type: make
@@ -212,7 +216,7 @@ fases:
 
       - name: "Ejecutar script5"
         type: make
-        cmd: "make script5 VARIANT={variant_id}"
+        cmd: "make script5-a VARIANT={variant_id}"
         step_id: script
         publish_pr: true
         commit_paths:
@@ -244,7 +248,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f05_modeling/{parent_id}/outputs"
+      - "executions/f05_modeling/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant6"
         type: make
@@ -256,7 +260,7 @@ fases:
 
       - name: "Ejecutar script6"
         type: make
-        cmd: "make script6 VARIANT={variant_id}"
+        cmd: "make script6-a VARIANT={variant_id}"
         step_id: script
         publish_pr: true
         commit_paths:
@@ -288,7 +292,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f05_modeling/{parent_id}/outputs"
+      - "executions/f06_quant/{parent_id}/*.dvc"
     steps:
       - name: "Ejecutar variant7"
         type: make
@@ -332,11 +336,11 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f07_modval/{parent_id}/outputs"
+      - "executions/f07_validate/{parents_ids}/*.dvc"
     steps:
       - name: "Ejecutar variant8"
         type: make
-        cmd: "make variant8 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        cmd: "make variant8 VARIANT={variant_id} PARENTS={parents_ids} {make_params}"
         step_id: variant
         publish_pr: true
         commit_paths:
