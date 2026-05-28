@@ -29,6 +29,7 @@ RUNNER_NAME   ?= MLOPSRunner1
 RUNNER_LABELS ?= "self-hosted-tehelab,mlops,tfm"
 RUNNER_VER    ?= 2.334.0
 RUNNER_HASH   ?= 048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271
+GH_REPO       ?= $(patsubst https://github.com/%,%,$(GITHUB_URL))
 
 # ==============================================================================
 # RUTAS DINÁMICAS (No tocar)
@@ -44,7 +45,7 @@ export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
         install-runner start-runner stop-runner status-runner clean-runner \
-        logs-runner logs-live-runner logs-live daemon-reload
+        logs-runner logs-live-runner watch-workflow open-workflow logs-live daemon-reload
 
 help:
 	@echo "🛠️ Panel de Control MLOps (TTYD + CF Tunnel + GitHub Runner)"
@@ -64,6 +65,11 @@ help:
 	@echo "  make install-sys-deps     - Solo paquetes apt (git, gh, curl...)"
 	@echo "  make install-python-deps  - Solo venv en \$$HOME/.venv + requirements.txt"
 	@echo "  make configure-venv-path  - Expone el venv al runner (profile.d + systemd)"
+	@echo ""
+	@echo "GITHUB ACTIONS:"
+	@echo "  make watch-workflow       - Sigue en vivo el último workflow run"
+	@echo "  make watch-workflow RUN_ID=123456789 - Sigue un run concreto"
+	@echo "  make open-workflow        - Abre en navegador el último workflow run"
 
 # ==============================================================================
 # 0. DEPENDENCIAS DEL ENTORNO (Sistema + Python)
@@ -293,6 +299,34 @@ logs-live-runner:
 		echo "🔴 Logs EN VIVO del Runner [$$SVC] (Ctrl+C para salir)..."; \
 		sudo journalctl -u $$SVC -f; \
 	else echo "❌ Servicio del Runner no encontrado."; fi
+
+watch-workflow:
+	@echo "🔴 Siguiendo workflow en vivo en $(GH_REPO)..."
+	@if [ -n "$(RUN_ID)" ]; then \
+		gh run watch "$(RUN_ID)" --repo "$(GH_REPO)" --exit-status; \
+	else \
+		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
+			echo "❌ No hay workflow runs en $(GH_REPO)."; \
+			exit 1; \
+		fi; \
+		echo "▶️  Run detectado: $$LATEST_RUN"; \
+		gh run watch "$$LATEST_RUN" --repo "$(GH_REPO)" --exit-status; \
+	fi
+
+open-workflow:
+	@echo "🌐 Abriendo último workflow run en GitHub..."
+	@if [ -n "$(RUN_ID)" ]; then \
+		gh run view "$(RUN_ID)" --repo "$(GH_REPO)" --web; \
+	else \
+		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
+			echo "❌ No hay workflow runs en $(GH_REPO)."; \
+			exit 1; \
+		fi; \
+		echo "▶️  Run detectado: $$LATEST_RUN"; \
+		gh run view "$$LATEST_RUN" --repo "$(GH_REPO)" --web; \
+	fi
 
 clean-runner: stop-runner
 	@echo "🗑️  Limpiando configuración del Runner..."

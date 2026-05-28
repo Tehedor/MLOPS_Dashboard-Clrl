@@ -140,53 +140,6 @@ Soporta `container:` en workflows y `docker build`.
 **Usar este modo si tus workflows tienen `container: image:`.**
 
 ```bash
-# Fichero values para runner-24gb
-cat > runner-24gb-values.yaml << EOF
-githubConfigUrl: "${GITHUB_CONFIG_URL}"
-githubConfigSecret:
-  github_token: "${GITHUB_PAT}"
-maxRunners: 1
-minRunners: 0
-containerMode:
-  type: "dind"
-template:
-  spec:
-    containers:
-      - name: runner
-        image: ghcr.io/actions/actions-runner:latest
-        command: ["/home/runner/run.sh"]
-        resources:
-          requests:
-            cpu: "4"
-            memory: "24Gi"
-          limits:
-            cpu: "8"
-            memory: "24Gi"
-EOF
-
-# Fichero values para runner-8gb
-cat > runner-8gb-values.yaml << EOF
-githubConfigUrl: "${GITHUB_CONFIG_URL}"
-githubConfigSecret:
-  github_token: "${GITHUB_PAT}"
-maxRunners: 5
-minRunners: 0
-containerMode:
-  type: "dind"
-template:
-  spec:
-    containers:
-      - name: runner
-        image: ghcr.io/actions/actions-runner:latest
-        command: ["/home/runner/run.sh"]
-        resources:
-          requests:
-            cpu: "2"
-            memory: "8Gi"
-          limits:
-            cpu: "4"
-            memory: "8Gi"
-EOF
 ```
 
 ```bash 
