@@ -42,7 +42,7 @@ export default function ParamsEditor({ faseId, suggestions = {}, onChange, exter
         {defs.length === 0 ? (
           <p className="text-xs text-gray-600 dark:text-gray-500 italic">Sin parámetros definidos</p>
         ) : (
-          defs.map(def => (
+          [...defs].sort((a, b) => (b.required ? 1 : 0) - (a.required ? 1 : 0)).map(def => (
             <ParamField
               key={def.id}
               def={def}

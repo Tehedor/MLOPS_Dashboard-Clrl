@@ -1,9 +1,33 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { retryExecution, createExecution } from '../../api/executions'
-import appConfig from '@appConfig'
 import StatusBadge from './StatusBadge'
 import ParamsChips from './ParamsChips'
+
+function pipelineChipStyle(color) {
+  if (!color) return {}
+  return { backgroundColor: color + '22', borderColor: color + '88', color }
+}
+
+function PipelineChip({ project, fallback }) {
+  const label = project?.label ?? fallback
+  const color = project?.color
+  if (color) {
+    return (
+      <span
+        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-mono border"
+        style={pipelineChipStyle(color)}
+      >
+        {label}
+      </span>
+    )
+  }
+  return (
+    <span className="shrink-0 bg-indigo-100 border border-indigo-300 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300 font-mono">
+      {label}
+    </span>
+  )
+}
 
 function fmtDuration(startIso, endIso) {
   const ms = new Date(endIso) - new Date(startIso)
@@ -21,7 +45,7 @@ function parseParams(raw) {
   try { return JSON.parse(raw ?? '{}') } catch { return {} }
 }
 
-export default function HistoryPanel({ executions, filterVariant, filterFase, selectedId, onSelect, highlightFaseVariant, onLoadInCard }) {
+export default function HistoryPanel({ executions, filterVariant, filterFase, filterPipeline, selectedId, onSelect, highlightFaseVariant, onLoadInCard, pipelineProjects = {} }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -32,6 +56,7 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, se
 
   const rerun = useMutation({
     mutationFn: (ex) => createExecution({
+      pipeline_id: ex.pipeline_id,
       fase: ex.fase,
       variant: ex.variant,
       parent: ex.parent || null,
@@ -43,8 +68,9 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, se
 
   const items = executions
     .filter(e => HISTORY_STATES.has(e.status))
-    .filter(e => !filterVariant || e.variant.includes(filterVariant))
-    .filter(e => !filterFase    || e.fase === filterFase)
+    .filter(e => !filterVariant  || e.variant.includes(filterVariant))
+    .filter(e => !filterFase     || e.fase === filterFase)
+    .filter(e => !filterPipeline || e.pipeline_id === filterPipeline)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
   if (items.length === 0) {
@@ -68,8 +94,11 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, se
           }`}
         >
           <div className="flex items-center justify-between mb-1 min-w-0 gap-2">
-            <div className="flex items-center gap-8 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <span className="text-xs font-medium text-gray-900 dark:text-white truncate">{ex.fase}</span>
+              {ex.pipeline_id && (
+                <PipelineChip project={pipelineProjects[ex.pipeline_id]} fallback={ex.pipeline_id} />
+              )}
               {ex.runner && (
                 <span className="shrink-0 bg-gray-200 border border-gray-300 text-gray-700 text-xs px-1.5 py-0.5 rounded dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400">
                   {ex.runner}
@@ -104,7 +133,7 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, se
               </div>
               {ex.gh_run_id && (
                 <a
-                  href={`https://github.com/${appConfig.github_actions_repository}/actions/runs/${ex.gh_run_id}`}
+                  href={`https://github.com/${pipelineProjects[ex.pipeline_id]?.repo ?? ''}/actions/runs/${ex.gh_run_id}`}
                   target="_blank" rel="noreferrer"
                   onClick={e => e.stopPropagation()}
                   className="text-xs text-indigo-500 hover:underline font-mono self-start"

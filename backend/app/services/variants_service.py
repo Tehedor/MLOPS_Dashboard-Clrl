@@ -10,7 +10,7 @@ from typing import Optional
 import aiosqlite
 import yaml
 
-from app.core.config import load_app_config, PROJECT_ROOT, settings
+from app.core.config import load_app_config, PROJECT_ROOT, settings, get_pipeline_project, load_pipelines_config
 from app.core.db import DB_PATH
 
 log = logging.getLogger(__name__)
@@ -29,24 +29,23 @@ def _load_table_config() -> dict:
         return yaml.safe_load(f) or {}
 
 
-def _executions_root() -> Path:
-    app_cfg = load_app_config()
-    p = Path(app_cfg.get("actions_repo_path_executions", "external/repo_actions/executions"))
+def _executions_root(pipeline_id: str) -> Path:
+    proj = get_pipeline_project(pipeline_id)
+    p = Path(proj.get("actions_repo_path_executions", "external/repo_actions/executions"))
     if not p.is_absolute():
         p = PROJECT_ROOT / p
     return p
 
 
-def _repo_root() -> Path:
-    app_cfg = load_app_config()
-    p = Path(app_cfg.get("actions_repo_local_path", "external/repo_actions"))
+def _repo_root(pipeline_id: str) -> Path:
+    proj = get_pipeline_project(pipeline_id)
+    p = Path(proj.get("actions_repo_local_path", "external/repo_actions"))
     if not p.is_absolute():
         p = PROJECT_ROOT / p
     return p
 
 
 def _deep_get(d: dict, path: str):
-    """Dot-notation access into a nested dict."""
     cur = d
     for part in path.split("."):
         if not isinstance(cur, dict):
@@ -68,24 +67,22 @@ def _sources(phase_cfg: dict) -> list:
 
 # ── Discovery ─────────────────────────────────────────────────────────────────
 
-def discover_phases() -> list[str]:
-    root = _executions_root()
+def discover_phases(pipeline_id: str) -> list[str]:
+    root = _executions_root(pipeline_id)
     if not root.exists():
         return []
     return sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
-def discover_variants(phase_id: str) -> list[str]:
-    root = _executions_root() / phase_id
+def discover_variants(phase_id: str, pipeline_id: str) -> list[str]:
+    root = _executions_root(pipeline_id) / phase_id
     if not root.exists():
         return []
     return sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
 
 
-def get_variant_info(phase_id: str, variant_id: str) -> dict | None:
-    """Returns execution status for a variant read from filesystem metadata.yaml.
-    Returns None if the variant folder does not exist."""
-    variant_path = _executions_root() / phase_id / variant_id
+def get_variant_info(phase_id: str, variant_id: str, pipeline_id: str) -> dict | None:
+    variant_path = _executions_root(pipeline_id) / phase_id / variant_id
     if not variant_path.exists():
         return None
     meta_path = variant_path / "metadata.yaml"
@@ -156,8 +153,8 @@ def _read_yaml(variant_path: Path, candidates: tuple) -> tuple[dict, Optional[st
     return {}, None
 
 
-def _parse_variant(phase_id: str, variant_id: str) -> dict:
-    variant_path = _executions_root() / phase_id / variant_id
+def _parse_variant(phase_id: str, variant_id: str, pipeline_id: str) -> dict:
+    variant_path = _executions_root(pipeline_id) / phase_id / variant_id
     params_data, params_err = _read_yaml(variant_path, _PARAMS_NAMES)
     outputs_data, outputs_err = _read_yaml(variant_path, _OUTPUTS_NAMES)
 
@@ -166,7 +163,8 @@ def _parse_variant(phase_id: str, variant_id: str) -> dict:
 
     local = _local_status(variant_path)
     return {
-        "id": f"{phase_id}/{variant_id}",
+        "id": f"{pipeline_id}/{phase_id}/{variant_id}",
+        "pipeline_id": pipeline_id,
         "phase": phase_id,
         "variant": variant_id,
         **local,
@@ -181,10 +179,10 @@ def _parse_variant(phase_id: str, variant_id: str) -> dict:
 
 _UPSERT = """
 INSERT INTO execution_variants
-  (id, phase, variant, local_status, local_files_present,
+  (id, pipeline_id, phase, variant, local_status, local_files_present,
    local_files_expected, local_size_bytes, params_json,
    outputs_json, parse_error, updated_at)
-VALUES (:id, :phase, :variant, :local_status, :local_files_present,
+VALUES (:id, :pipeline_id, :phase, :variant, :local_status, :local_files_present,
         :local_files_expected, :local_size_bytes, :params_json,
         :outputs_json, :parse_error, :updated_at)
 ON CONFLICT(id) DO UPDATE SET
@@ -199,16 +197,16 @@ ON CONFLICT(id) DO UPDATE SET
 """
 
 
-async def sync_variant(phase_id: str, variant_id: str) -> None:
-    row = _parse_variant(phase_id, variant_id)
+async def sync_variant(phase_id: str, variant_id: str, pipeline_id: str) -> None:
+    row = _parse_variant(phase_id, variant_id, pipeline_id)
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(_UPSERT, row)
         await db.commit()
 
 
-async def sync_phase(phase_id: str) -> int:
-    variants = discover_variants(phase_id)
-    rows = [_parse_variant(phase_id, v) for v in variants]
+async def sync_phase(phase_id: str, pipeline_id: str) -> int:
+    variants = discover_variants(phase_id, pipeline_id)
+    rows = [_parse_variant(phase_id, v, pipeline_id) for v in variants]
     async with aiosqlite.connect(DB_PATH) as db:
         for row in rows:
             await db.execute(_UPSERT, row)
@@ -216,9 +214,22 @@ async def sync_phase(phase_id: str) -> int:
     return len(rows)
 
 
-async def sync_all() -> dict:
-    phases = discover_phases()
-    return {ph: await sync_phase(ph) for ph in phases}
+async def sync_all(pipeline_id: str | None = None) -> dict:
+    """Sync all phases for one or all pipeline-projects."""
+    if pipeline_id:
+        projects = {pipeline_id: None}
+    else:
+        projects = load_pipelines_config()
+    result = {}
+    for pid in projects:
+        try:
+            phases = discover_phases(pid)
+            for ph in phases:
+                count = await sync_phase(ph, pid)
+                result[f"{pid}/{ph}"] = count
+        except Exception as exc:
+            log.warning("sync_all error [%s]: %s", pid, exc)
+    return result
 
 
 # ── Query ─────────────────────────────────────────────────────────────────────
@@ -234,7 +245,7 @@ def _id_count(ph_cfg: Optional[dict]) -> dict[str, int]:
     return count
 
 
-def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int]) -> dict:
+def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int], pipeline_id: str) -> dict:
     params_data = json.loads(rd.get("params_json") or "{}")
     outputs_data = json.loads(rd.get("outputs_json") or "{}")
     cells: dict = {"variant": rd["variant"]}
@@ -253,7 +264,7 @@ def _build_cells(rd: dict, ph_cfg: Optional[dict], idc: dict[str, int]) -> dict:
         "files_expected": rd["local_files_expected"],
         "size_bytes": rd["local_size_bytes"],
     }
-    variant_path = _executions_root() / rd["phase"] / rd["variant"]
+    variant_path = _executions_root(pipeline_id) / rd["phase"] / rd["variant"]
     cells["_html_reports"] = [
         {"name": f.name, "url": f"/executions/{rd['phase']}/{rd['variant']}/{f.name}"}
         for f in sorted(variant_path.glob("*.html"))
@@ -300,6 +311,7 @@ def _cell_matches(cells: dict, col_filters: dict[str, str]) -> bool:
 
 async def get_rows(
     phase: str,
+    pipeline_id: str,
     limit: int = 50,
     offset: int = 0,
     q: str = "",
@@ -316,8 +328,8 @@ async def get_rows(
     ph_cfg = _phase_cfg(table_config, phase)
     idc = _id_count(ph_cfg)
 
-    where = "WHERE phase = ?"
-    params: list = [phase]
+    where = "WHERE pipeline_id = ? AND phase = ?"
+    params: list = [pipeline_id, phase]
     if q:
         where += " AND variant LIKE ?"
         params.append(f"%{q}%")
@@ -328,12 +340,11 @@ async def get_rows(
         db.row_factory = aiosqlite.Row
 
         if active_filters:
-            # Fetch all rows for the phase, filter in Python, then paginate
             raw_all = await db.execute_fetchall(
                 f"SELECT * FROM execution_variants {where} ORDER BY {sort_by} {sort_dir}",
                 params,
             )
-            all_cells = [_build_cells(dict(r), ph_cfg, idc) for r in raw_all]
+            all_cells = [_build_cells(dict(r), ph_cfg, idc, pipeline_id) for r in raw_all]
             filtered = [c for c in all_cells if _cell_matches(c, active_filters)]
             total = len(filtered)
             rows = filtered[offset: offset + limit]
@@ -347,7 +358,7 @@ async def get_rows(
                 f"ORDER BY {sort_by} {sort_dir} LIMIT ? OFFSET ?",
                 params + [limit, offset],
             )
-            rows = [_build_cells(dict(r), ph_cfg, idc) for r in raw]
+            rows = [_build_cells(dict(r), ph_cfg, idc, pipeline_id) for r in raw]
 
     return {"total": total, "rows": rows}
 
@@ -366,25 +377,25 @@ def get_job(job_id: str) -> Optional[dict]:
     return _jobs.get(job_id)
 
 
-async def enqueue_pull(phase: str, variant: str) -> str:
+async def enqueue_pull(phase: str, variant: str, pipeline_id: str) -> str:
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"id": job_id, "type": "pull", "phase": phase,
-                     "variant": variant, "status": "queued"}
+                     "variant": variant, "pipeline_id": pipeline_id, "status": "queued"}
     await _job_queue.put(job_id)
     return job_id
 
 
-async def enqueue_delete(phase: str, variant: str) -> str:
+async def enqueue_delete(phase: str, variant: str, pipeline_id: str) -> str:
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"id": job_id, "type": "delete", "phase": phase,
-                     "variant": variant, "status": "queued"}
+                     "variant": variant, "pipeline_id": pipeline_id, "status": "queued"}
     await _job_queue.put(job_id)
     return job_id
 
 
-async def _run_pull(phase: str, variant: str) -> None:
-    repo = _repo_root()
-    variant_path = _executions_root() / phase / variant
+async def _run_pull(phase: str, variant: str, pipeline_id: str) -> None:
+    repo = _repo_root(pipeline_id)
+    variant_path = _executions_root(pipeline_id) / phase / variant
     dvc_files = list(variant_path.glob("*.dvc"))
     if not dvc_files:
         raise RuntimeError("No .dvc files found")
@@ -419,8 +430,8 @@ async def _run_pull(phase: str, variant: str) -> None:
         raise RuntimeError(stderr.decode()[:500])
 
 
-async def _run_delete(phase: str, variant: str) -> None:
-    variant_path = _executions_root() / phase / variant
+async def _run_delete(phase: str, variant: str, pipeline_id: str) -> None:
+    variant_path = _executions_root(pipeline_id) / phase / variant
     for dvc_file in variant_path.glob("*.dvc"):
         try:
             data = yaml.safe_load(dvc_file.read_text()) or {}
@@ -441,18 +452,19 @@ async def _worker() -> None:
         if not job:
             continue
         job["status"] = "running"
+        pipeline_id = job["pipeline_id"]
         try:
             if job["type"] == "pull":
-                await _run_pull(job["phase"], job["variant"])
+                await _run_pull(job["phase"], job["variant"], pipeline_id)
             elif job["type"] == "delete":
-                await _run_delete(job["phase"], job["variant"])
+                await _run_delete(job["phase"], job["variant"], pipeline_id)
             job["status"] = "done"
         except Exception as e:
             job["status"] = "failed"
             job["error"] = str(e)
             log.error("DVC job %s failed: %s", job_id, e)
         finally:
-            await sync_variant(job["phase"], job["variant"])
+            await sync_variant(job["phase"], job["variant"], pipeline_id)
 
 
 def start_worker() -> asyncio.Task:

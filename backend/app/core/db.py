@@ -6,6 +6,7 @@ DB_PATH = settings.database_url
 _CREATE_EXECUTIONS = """
 CREATE TABLE IF NOT EXISTS executions (
     id          TEXT PRIMARY KEY,
+    pipeline_id TEXT NOT NULL DEFAULT '',
     fase        TEXT NOT NULL,
     variant     TEXT NOT NULL,
     parent      TEXT,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS executions (
 _CREATE_VARIANTS = """
 CREATE TABLE IF NOT EXISTS execution_variants (
     id                   TEXT PRIMARY KEY,
+    pipeline_id          TEXT NOT NULL DEFAULT '',
     phase                TEXT NOT NULL,
     variant              TEXT NOT NULL,
     local_status         TEXT NOT NULL DEFAULT 'not_local',
@@ -33,17 +35,24 @@ CREATE TABLE IF NOT EXISTS execution_variants (
     parse_error          TEXT,
     updated_at           TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_ev_phase   ON execution_variants (phase);
-CREATE INDEX IF NOT EXISTS idx_ev_variant ON execution_variants (variant);
+CREATE INDEX IF NOT EXISTS idx_ev_pipeline ON execution_variants (pipeline_id);
+CREATE INDEX IF NOT EXISTS idx_ev_phase    ON execution_variants (phase);
+CREATE INDEX IF NOT EXISTS idx_ev_variant  ON execution_variants (variant);
 """
-
 
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
+        # Detect if executions table needs schema migration (missing pipeline_id column).
+        # User accepted data loss for this one-time migration.
+        async with db.execute("PRAGMA table_info(executions)") as cursor:
+            cols = {row[1] async for row in cursor}
+        if cols and "pipeline_id" not in cols:
+            await db.execute("DROP TABLE IF EXISTS executions")
+
         await db.execute(_CREATE_EXECUTIONS)
+
+        # execution_variants is rebuilt from disk on startup — always recreate cleanly.
+        await db.execute("DROP TABLE IF EXISTS execution_variants")
         await db.executescript(_CREATE_VARIANTS)
         await db.commit()
-
-
-

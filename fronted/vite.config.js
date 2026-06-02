@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -9,14 +9,31 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const appConfig = parse(readFileSync(resolve(ROOT, 'config.yaml'), 'utf-8'))
 
+// Resolve the traceability schema from the first pipeline-project defined in pipelines.yaml.
+// Mirrors the path derivation logic in backend/app/core/config.py get_pipeline_project().
+let paramsFile = appConfig.params_file
+if (!paramsFile) {
+  const pipelinesPath = resolve(ROOT, 'pipelines.yaml')
+  if (existsSync(pipelinesPath)) {
+    const pipelinesConfig = parse(readFileSync(pipelinesPath, 'utf-8'))
+    const first = Object.values(pipelinesConfig?.pipelines ?? {})[0]
+    if (first?.traceability_path) {
+      paramsFile = first.traceability_path
+    } else if (first?.external_base) {
+      paramsFile = `${first.external_base}/repo_actions/scripts/traceability_schema.yaml`
+    }
+  }
+}
+paramsFile = paramsFile ?? 'external/repo_actions/scripts/traceability_schema.yaml'
+
 export default defineConfig({
   plugins: [react(), yamlPlugin()],
   resolve: {
     alias: {
       '@appConfig':    resolve(ROOT, 'config.yaml'),
-      '@paramsSchema': resolve(ROOT, appConfig.params_file),
+      '@pipelinesConfig': resolve(ROOT, 'pipelines.yaml'),
+      '@paramsSchema': resolve(ROOT, paramsFile),
       '@phasesRunner': resolve(ROOT, appConfig.phases_runner),
-
     },
   },
   server: {

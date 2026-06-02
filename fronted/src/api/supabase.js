@@ -4,8 +4,6 @@ let _client = null
 
 export function initSupabase(url, anonKey) {
   if (url && anonKey) {
-    // El SDK añade /rest/v1 internamente. Si el usuario copió la URL del
-    // Data API endpoint (...supabase.co/rest/v1/) hay que recortar el sufijo.
     const baseUrl = url.replace(/\/rest\/v1\/?$/, '')
     _client = createClient(baseUrl, anonKey)
   }
@@ -34,7 +32,11 @@ function _extractFase(run) {
   return run.workflow_name ?? '?'
 }
 
-export async function fetchRunsAsExecutions(limit = 100) {
+/**
+ * branchMap: { [branch]: pipeline_id }  — built from pipelines.yaml in Vista2
+ * Allows matching Supabase runs (which have head_branch) to pipeline-projects.
+ */
+export async function fetchRunsAsExecutions(limit = 100, branchMap = {}) {
   if (!_client) return []
   const { data, error } = await _client
     .from('workflow_runs')
@@ -44,18 +46,19 @@ export async function fetchRunsAsExecutions(limit = 100) {
     .limit(limit)
   if (error) throw error
   return (data ?? []).map(run => ({
-    id:         String(run.run_id),
-    fase:       _extractFase(run),
-    variant:    run.variant ?? '—',
-    parent:     null,
-    runner:     'GithubActions',
-    params:     '{}',
-    status:     _mapStatus(run),
-    error_code: run.conclusion === 'failure' ? 'gh_failed' : null,
-    gh_run_id:  String(run.run_id),
-    created_at: run.created_at ?? new Date().toISOString(),
-    updated_at: run.updated_at ?? new Date().toISOString(),
-    _source:    'supabase',
+    id:          String(run.run_id),
+    fase:        _extractFase(run),
+    variant:     run.variant ?? '—',
+    parent:      null,
+    runner:      'GithubActions',
+    params:      '{}',
+    status:      _mapStatus(run),
+    error_code:  run.conclusion === 'failure' ? 'gh_failed' : null,
+    gh_run_id:   String(run.run_id),
+    created_at:  run.created_at ?? new Date().toISOString(),
+    updated_at:  run.updated_at ?? new Date().toISOString(),
+    pipeline_id: run.branch ? (branchMap[run.branch] ?? null) : null,
+    _source:     'supabase',
   }))
 }
 

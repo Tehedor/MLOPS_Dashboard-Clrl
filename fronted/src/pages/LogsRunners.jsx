@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchRuns, getSupabase, isConfigured, subscribeRuns } from '../api/supabase'
+import { getPipelineProjects } from '../api/pipeline_projects'
 import RunList from '../features/logs/RunList'
 import LogViewer from '../features/logs/LogViewer'
 
@@ -25,6 +26,7 @@ function _toRunShape(ex) {
     fase:          ex.fase,
     variant:       ex.variant,
     created_at:    ex.created_at,
+    pipeline_id:   ex.pipeline_id ?? null,
     _source:       'local',
   }
 }
@@ -37,6 +39,20 @@ export default function LogsRunners() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [search, setSearch] = useState(() => searchParams.get('run_id') ?? '')
+  const [projects, setProjects] = useState([])
+
+  useEffect(() => {
+    getPipelineProjects().then(setProjects).catch(() => {})
+  }, [])
+
+  const pipelineProjects = useMemo(
+    () => Object.fromEntries(projects.map(p => [p.id, p])),
+    [projects]
+  )
+  const branchMap = useMemo(
+    () => Object.fromEntries(projects.filter(p => p.branch).map(p => [p.branch, p.id])),
+    [projects]
+  )
   const [, forceUpdate] = useState(0)   // solo para forzar re-render cuando cambia la caché
 
   async function fetchGhLogs(runId) {
@@ -113,7 +129,15 @@ export default function LogsRunners() {
     return () => clearInterval(iv)
   }, [])
 
-  const allRuns = [...runs, ...localRuns].sort(
+  const enrichedRuns = useMemo(
+    () => runs.map(r => ({
+      ...r,
+      pipeline_id: r.pipeline_id ?? (r.branch ? branchMap[r.branch] : null) ?? null,
+    })),
+    [runs, branchMap]
+  )
+
+  const allRuns = [...enrichedRuns, ...localRuns].sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
   )
 
@@ -173,6 +197,7 @@ export default function LogsRunners() {
             selectedRunId={selectedRun?.run_id}
             onSelect={setSelectedRun}
             loading={loading}
+            pipelineProjects={pipelineProjects}
           />
         </div>
 

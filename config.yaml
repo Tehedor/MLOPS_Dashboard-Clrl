@@ -1,26 +1,13 @@
-github_actions_repository: "Tehedor/MLOps_actions_v2"
+# Global settings — shared across all pipeline-projects.
+# Per-project settings (repo, branch, paths) live in pipelines.yaml.
+
 repo_sync_interval_seconds: 60
 table_refresh_interval_seconds: 5
-mlflow_tracking_uri: "https://dagshub.com/Tehedor/MLOps_actions_v2.mlflow"
-dagshub_repository: "https://dagshub.com/Tehedor/MLOps_actions_v2"
-actions_branch: "test2"
-actions_repo_local_path: "external/repo_actions"
-actions_repo_path_executions: "external/repo_actions/executions"
-table_config: "config/table_config.yaml"
-# params_file: "config/traceability_schema.yaml"
-params_file: "external/repo_actions/scripts/traceability_schema.yaml"
-# params_file: "config/traceability_schema.yaml"
 phases_runner: "config/fases_execution_runners.yaml"
-
-local_runner_workspace: "external/repo_local_runner"
 local_workflows: "config/local_workflows.yaml"
-# 0 = usa el Python del sistema (igual que el contenedor Docker de GH Actions)
-# 1 = crea/usa un venv en el workspace (necesario si el sistema no tiene las deps)
 local_runner_use_venv: "1"
-
 services_external_ctrl: "config/services_external_ctrl.yaml"
-
-analisis_files_path: "external/repo_actions/analisis_files"
+table_config: "config/table_config.yaml"
 
 
 TERMINAL_RUNNERS:

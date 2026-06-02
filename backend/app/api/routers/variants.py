@@ -12,6 +12,7 @@ router = APIRouter()
 class DvcPayload(BaseModel):
     phase: str
     variant: str
+    pipeline_id: str
 
 
 @router.get("/sync-interval")
@@ -25,15 +26,19 @@ async def sync_interval():
 
 
 @router.get("/phases")
-async def get_phases():
-    return variants_service.discover_phases()
+async def get_phases(pipeline_id: str = Query(...)):
+    return variants_service.discover_phases(pipeline_id)
 
 
 @router.get("/exists")
-async def variant_exists(phase: str = Query(...), variant: str = Query(...)):
+async def variant_exists(
+    phase: str = Query(...),
+    variant: str = Query(...),
+    pipeline_id: str = Query(...),
+):
     from app.services.execution_service import _normalize_variant
     normalized = _normalize_variant(phase, variant)
-    info = variants_service.get_variant_info(phase, normalized)
+    info = variants_service.get_variant_info(phase, normalized, pipeline_id)
     return {
         "exists": info is not None,
         "normalized": normalized,
@@ -52,6 +57,7 @@ async def get_table_config(phase_id: str):
 @router.get("/rows")
 async def get_rows(
     phase: str = Query(...),
+    pipeline_id: str = Query(...),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     q: str = Query(""),
@@ -60,28 +66,28 @@ async def get_rows(
     col_filters: str = Query(""),
 ):
     filters = json.loads(col_filters) if col_filters else {}
-    return await variants_service.get_rows(phase, limit, offset, q, sort_by, sort_dir, filters)
+    return await variants_service.get_rows(phase, pipeline_id, limit, offset, q, sort_by, sort_dir, filters)
 
 
 @router.post("/local/pull")
 async def pull(payload: DvcPayload):
-    job_id = await variants_service.enqueue_pull(payload.phase, payload.variant)
+    job_id = await variants_service.enqueue_pull(payload.phase, payload.variant, payload.pipeline_id)
     return {"job_id": job_id, "status": "queued"}
 
 
 @router.post("/local/delete")
 async def delete(payload: DvcPayload):
-    job_id = await variants_service.enqueue_delete(payload.phase, payload.variant)
+    job_id = await variants_service.enqueue_delete(payload.phase, payload.variant, payload.pipeline_id)
     return {"job_id": job_id, "status": "queued"}
 
 
 @router.post("/sync")
-async def sync(phase: str | None = None):
-    pull_result = await repo_sync_service.check_and_pull()
+async def sync(pipeline_id: str = Query(...), phase: str | None = None):
+    pull_result = await repo_sync_service.check_and_pull(pipeline_id)
     if phase:
-        count = await variants_service.sync_phase(phase)
+        count = await variants_service.sync_phase(phase, pipeline_id)
         return {"pulled": pull_result["pulled"], "synced": {phase: count}}
-    return {"pulled": pull_result["pulled"], "synced": await variants_service.sync_all()}
+    return {"pulled": pull_result["pulled"], "synced": await variants_service.sync_all(pipeline_id)}
 
 
 @router.get("/jobs/{job_id}")
@@ -92,11 +98,11 @@ async def get_job(job_id: str):
     return job
 
 
-@router.get("/report/{phase}/{variant}/{filename}")
-async def get_report(phase: str, variant: str, filename: str):
+@router.get("/report/{pipeline_id}/{phase}/{variant}/{filename}")
+async def get_report(pipeline_id: str, phase: str, variant: str, filename: str):
     if not filename.endswith(".html"):
         raise HTTPException(status_code=400, detail="Only HTML files are supported")
-    exec_root = variants_service._executions_root()
+    exec_root = variants_service._executions_root(pipeline_id)
     path = exec_root / phase / variant / filename
     try:
         path.resolve().relative_to(exec_root.resolve())

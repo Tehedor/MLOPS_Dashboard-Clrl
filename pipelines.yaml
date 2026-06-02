@@ -1,0 +1,56 @@
+# Pipeline-project registry.
+# Each entry defines one pipeline-project identified by a short slug.
+# Global settings (runners, phases config, terminal, queue) stay in config.yaml.
+#
+# Convention: declare `external_base` and all paths are derived automatically:
+#   <external_base>/repo_actions/              → cloned GitHub repo (results, lineage)
+#   <external_base>/repo_actions/executions/   → execution artifacts
+#   <external_base>/repo_actions/analisis_files/
+#   <external_base>/repo_actions/scripts/traceability_schema.yaml
+#   <external_base>/repo_local_runner/         → local runner workspace
+#
+# traceability_path: explicit path to the traceability schema for this pipeline.
+#   Defaults to <external_base>/repo_actions/scripts/traceability_schema.yaml.
+#   Override here to point to a different file (e.g. for debugging or a shared schema).
+#
+# init_marker: path relative to actions_repo_local_path that signals the pipeline
+#              is already initialized (skip "Configurar pipeline" button if it exists).
+#              Accepts a file or directory. Default: ".mlops4ofp"
+
+pipelines:
+  testPipelineEpoch:
+    label: "Test Pipeline Epoch"
+    color: "#6366f1"
+    repo: "Tehedor/MLOps_actions_v2"
+    branch: "test2"
+    external_base: "external/testPipelineEpoch"
+    # traceability_path: "external/testPipelineEpoch/repo_actions/scripts/traceability_schema.yaml"
+    traceability_path: "config/traceability_schema9.yaml"
+    init_marker: ".mlops4ofp"
+    command_start: "make setup SETUP_CFG=setup/remote2.yaml"
+    mlflow_tracking_uri: "https://dagshub.com/Tehedor/MLOps_actions_v2.mlflow"
+    dagshub_repository: "https://dagshub.com/Tehedor/MLOps_actions_v2"
+
+  testPipelineEpoch_v3:
+    label: "Test Pipeline Epoch v3"
+    color: "#10b981"
+    repo: "Tehedor/MLOps_actions_v2"
+    branch: "test3"
+    external_base: "external/testPipelineEpoch_v3"
+    traceability_path: "external/testPipelineEpoch_v3/repo_actions/scripts/traceability_schema.yaml"
+    init_marker: ".mlops4ofp"
+    command_start: "make setup SETUP_CFG=setup/remote2.yaml"
+    mlflow_tracking_uri: "https://dagshub.com/Tehedor/MLOps_actions_v2.mlflow"
+    dagshub_repository: "https://dagshub.com/Tehedor/MLOps_actions_v2"
+
+  testPipelineEpoch_v4:
+    label: "Test Pipeline Epoch v4"
+    color: "#f59e0b"
+    repo: "Tehedor/MLOps_actions_v2"
+    branch: "test4"
+    external_base: "external/testPipelineEpoch_v4"
+    traceability_path: "external/testPipelineEpoch_v4/repo_actions/scripts/traceability_schema.yaml"
+    init_marker: ".mlops4ofp"
+    command_start: "make setup SETUP_CFG=setup/remote2.yaml"
+    mlflow_tracking_uri: "https://dagshub.com/Tehedor/MLOps_actions_v2.mlflow"
+    dagshub_repository: "https://dagshub.com/Tehedor/MLOps_actions_v2"

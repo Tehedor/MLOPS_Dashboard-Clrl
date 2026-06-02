@@ -2,23 +2,17 @@ const BASE = '/api/executions'
 
 export async function getPhases() {
   try {
-    console.log('Fetching phases from:', `${BASE}/phases`)
     const res = await fetch(`${BASE}/phases`)
-    if (!res.ok) {
-      console.error('Failed to fetch phases:', res.status, res.statusText)
-      return []
-    }
-    const data = await res.json()
-    console.log('Phases loaded:', data)
-    return data
-  } catch (err) {
-    console.error('Error fetching phases:', err)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
     return []
   }
 }
 
-export async function getExecutions() {
-  const res = await fetch(BASE)
+export async function getExecutions(pipelineId) {
+  const url = pipelineId ? `${BASE}?pipeline_id=${encodeURIComponent(pipelineId)}` : BASE
+  const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to fetch executions')
   return res.json()
 }

@@ -120,23 +120,24 @@ function parseJsonInput(raw, faseId) {
   return { entries, error: entries.length === 0 ? 'Sin variantes válidas' : null, warnings }
 }
 
-function TabBtn({ label, active, onClick }) {
+function TabBtn({ label, active, onClick, color }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`px-3 py-1 text-xs font-medium border-b-2 transition-colors ${
         active
-          ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
+          ? 'border-current'
           : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
       }`}
+      style={active ? { color, borderColor: color } : undefined}
     >
       {label}
     </button>
   )
 }
 
-export default function PhaseCard({ phase, executions, preload, onPreloadConsumed }) {
+export default function PhaseCard({ phase, executions, preload, onPreloadConsumed, pipelineId, color }) {
   const qc = useQueryClient()
 
   const parentDef  = PHASE_PARENT_VARIANT[phase.id]
@@ -207,8 +208,9 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
   }, [jsonInput, tab])
 
   const { data: variantOptions = [] } = useQuery({
-    queryKey: ['variants-picker', phase.id],
-    queryFn:  () => getRows({ phase: phase.id, limit: 200, sort_by: 'variant', sort_dir: 'asc' }),
+    queryKey: ['variants-picker', phase.id, pipelineId],
+    queryFn:  () => getRows({ phase: phase.id, pipeline_id: pipelineId, limit: 200, sort_by: 'variant', sort_dir: 'asc' }),
+    enabled: !!pipelineId,
     staleTime: 60_000,
     select: data => {
       const arr = Array.isArray(data) ? data : (data?.rows ?? [])
@@ -237,7 +239,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
       setJsonErrors({})
       // Check cola activa + filesystem para cada variante
       const existChecks = await Promise.allSettled(
-        parsedJson.entries.map(e => checkVariantExists(phase.id, e.variant.trim()))
+        parsedJson.entries.map(e => checkVariantExists(phase.id, e.variant.trim(), pipelineId))
       )
       const existingErrors = {}
       const toDispatch = parsedJson.entries.filter((entry, i) => {
@@ -265,6 +267,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
       }
       const results = await Promise.allSettled(
         toDispatch.map(entry => createExecution({
+          pipeline_id:     pipelineId,
           fase:            phase.id,
           variant:         entry.variant.trim(),
           parent:          entry.parent ?? null,
@@ -301,7 +304,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
       // 2. Chequeo de filesystem: bloquea solo si completada, permite si falló
       setIsChecking(true)
       try {
-        const { exists, status } = await checkVariantExists(phase.id, finalVariant)
+        const { exists, status } = await checkVariantExists(phase.id, finalVariant, pipelineId)
         if (exists && status === 'completed') {
           setErrorMsg(`La variante "${normalized}" ya existe y fue completada`)
           return
@@ -318,6 +321,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
         parentValue = JSON.stringify(parentValue.split(',').map(s => s.trim()).filter(Boolean))
       }
       mutate({
+        pipeline_id: pipelineId,
         fase: phase.id, variant: normalized,
         parent: parentValue,
         params: paramsRef.current,
@@ -340,7 +344,10 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
     >
       {/* Título superpuesto */}
       <div className="absolute -top-px left-0 right-0 flex items-center gap-1.5 px-3">
-        <span className="bg-indigo-600 text-white text-xs font-semibold px-2 py-0.5 rounded-b">
+        <span
+          className="text-white text-xs font-semibold px-2 py-0.5 rounded-b"
+          style={{ backgroundColor: color ?? '#6366f1' }}
+        >
           {phase.label}
         </span>
         {phase.availableRunners?.length > 1 ? (
@@ -363,8 +370,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
 
       {/* Tab bar */}
       <div className="flex items-center pt-6 px-3 border-b border-gray-200 dark:border-gray-800">
-        <TabBtn label="Single" active={tab === 'single'} onClick={() => { setTab('single'); setErrorMsg(null) }} />
-        <TabBtn label="Multi JSON" active={tab === 'json'} onClick={() => { setTab('json'); setJsonErrors({}) }} />
+        <TabBtn label="Single" active={tab === 'single'} onClick={() => { setTab('single'); setErrorMsg(null) }} color={color} />
+        <TabBtn label="Multi JSON" active={tab === 'json'} onClick={() => { setTab('json'); setJsonErrors({}) }} color={color} />
       </div>
 
       {/* ── Tab: Single ── */}
@@ -427,8 +434,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
             <button
               type="submit"
               disabled={isPending}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded px-2 transition-colors flex items-center justify-center"
-              style={{ writingMode: 'vertical-rl', minHeight: '72px' }}
+              className="disabled:opacity-50 text-white text-xs font-semibold rounded px-2 transition-opacity flex items-center justify-center"
+              style={{ backgroundColor: color ?? '#6366f1', writingMode: 'vertical-rl', minHeight: '72px' }}
             >
               {isPending ? '···' : 'Ejecutar'}
             </button>
@@ -469,8 +476,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
             <button
               type="submit"
               disabled={btnDisabled}
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded px-2 transition-colors flex items-center justify-center"
-              style={{ writingMode: 'vertical-rl', minHeight: '72px' }}
+              className="disabled:opacity-50 text-white text-xs font-semibold rounded px-2 transition-opacity flex items-center justify-center"
+              style={{ backgroundColor: color ?? '#6366f1', writingMode: 'vertical-rl', minHeight: '72px' }}
             >
               {btnLabel}
             </button>

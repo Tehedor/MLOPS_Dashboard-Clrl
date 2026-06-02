@@ -13,7 +13,7 @@ import yaml
 log = logging.getLogger(__name__)
 POLL_GH_SECS = 10
 
-from app.core.config import phases_runner_path, load_app_config, PROJECT_ROOT
+from app.core.config import phases_runner_path, load_app_config, PROJECT_ROOT, get_pipeline_project
 from app.core.db import DB_PATH
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
@@ -26,7 +26,6 @@ POLL_RUNNER_SECS = 15
 
 
 def _normalize_variant(fase: str, variant: str) -> str:
-    """Convierte '2129' → 'v1_2129' usando el dígito de fase de fase_id."""
     if re.match(r'^v\d_\d{4}$', variant):
         return variant
     m = re.match(r'^v?(\d{1,4})$', variant.strip())
@@ -64,7 +63,6 @@ def _get_fase_config() -> dict:
 
 
 def _get_runner_json(runner_name: str) -> str | None:
-    """Devuelve el runner_json para fromJSON(inputs.runner) de GHA."""
     if runner_name.strip().startswith('['):
         return runner_name.strip()
     config_path = phases_runner_path()
@@ -95,25 +93,24 @@ def _runner_max_parallel(runner_name: str) -> int:
     return 1
 
 
-def _executions_base_path() -> Path:
-    cfg = load_app_config()
-    p = Path(cfg.get("actions_repo_path_executions", "external/repo_actions/executions"))
+def _executions_base_path(pipeline_id: str) -> Path:
+    proj = get_pipeline_project(pipeline_id)
+    p = Path(proj.get("actions_repo_path_executions", "external/repo_actions/executions"))
     return p if p.is_absolute() else PROJECT_ROOT / p
 
 
-def _parent_fase_dir(parent_variant: str) -> Path | None:
-    """'v1_5001' → Path(.../executions/f01_explore)"""
+def _parent_fase_dir(parent_variant: str, pipeline_id: str) -> Path | None:
     m = re.match(r'^v(\d+)_', parent_variant)
     if not m:
         return None
     digit = int(m.group(1))
-    base = _executions_base_path()
+    base = _executions_base_path(pipeline_id)
     matches = glob.glob(str(base / f"f{digit:02d}_*"))
     return Path(matches[0]) if matches else None
 
 
-def _single_parent_exists(parent: str) -> bool:
-    fase_dir = _parent_fase_dir(parent)
+def _single_parent_exists(parent: str, pipeline_id: str) -> bool:
+    fase_dir = _parent_fase_dir(parent, pipeline_id)
     if not fase_dir:
         return False
     metadata_path = fase_dir / parent / "metadata.yaml"
@@ -136,23 +133,26 @@ def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
             parents = json.loads(parent)
         except Exception:
             return False
-        return all(_single_parent_exists(str(p)) for p in parents)
-    return _single_parent_exists(parent)
+        return all(_single_parent_exists(str(p), ex.pipeline_id) for p in parents)
+    return _single_parent_exists(parent, ex.pipeline_id)
 
 
 def _row_to_execution(row) -> Execution:
+    # Column order: id, pipeline_id, fase, variant, parent, runner, params,
+    #               status, error_code, gh_run_id, created_at, updated_at
     return Execution(
         id=row[0],
-        fase=row[1],
-        variant=row[2],
-        parent=row[3],
-        runner=row[4],
-        params=json.loads(row[5]),
-        status=ExecutionStatus(row[6]),
-        error_code=row[7],
-        gh_run_id=row[8],
-        created_at=row[9],
-        updated_at=row[10],
+        pipeline_id=row[1],
+        fase=row[2],
+        variant=row[3],
+        parent=row[4],
+        runner=row[5],
+        params=json.loads(row[6]),
+        status=ExecutionStatus(row[7]),
+        error_code=row[8],
+        gh_run_id=row[9],
+        created_at=row[10],
+        updated_at=row[11],
     )
 
 
@@ -162,20 +162,31 @@ class ExecutionService:
 
     async def create(self, body: ExecutionCreate) -> Execution:
         from fastapi import HTTPException
+        try:
+            get_pipeline_project(body.pipeline_id)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
         normalized = _normalize_variant(body.fase, body.variant)
         blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
-                f"SELECT status FROM executions WHERE fase=? AND variant=? AND status IN ({','.join('?'*len(blocked_statuses))})",
-                (body.fase, normalized, *blocked_statuses),
+                f"SELECT status FROM executions WHERE pipeline_id=? AND fase=? AND variant=? "
+                f"AND status IN ({','.join('?'*len(blocked_statuses))})",
+                (body.pipeline_id, body.fase, normalized, *blocked_statuses),
             ) as cursor:
                 existing = await cursor.fetchone()
         if existing:
-            raise HTTPException(409, f"{body.fase}/{normalized} ya tiene un despacho en curso (estado: {existing[0]}).")
+            raise HTTPException(
+                409,
+                f"{body.pipeline_id}/{body.fase}/{normalized} ya tiene un despacho en curso "
+                f"(estado: {existing[0]}).",
+            )
 
         now = datetime.now(timezone.utc).isoformat()
         ex = Execution(
             id=str(uuid.uuid4()),
+            pipeline_id=body.pipeline_id,
             fase=body.fase,
             variant=normalized,
             parent=body.parent,
@@ -187,9 +198,9 @@ class ExecutionService:
         )
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    ex.id, ex.fase, ex.variant, ex.parent, ex.runner,
+                    ex.id, ex.pipeline_id, ex.fase, ex.variant, ex.parent, ex.runner,
                     json.dumps(ex.params), ex.status.value, ex.error_code,
                     ex.gh_run_id, ex.created_at, ex.updated_at,
                 ),
@@ -213,7 +224,7 @@ class ExecutionService:
         fase_cfg = _get_fase_config().get(ex.fase, {})
         parent_required = fase_cfg.get("parent_required", False)
 
-        # 1. Esperar parent
+        # 1. Wait for parent
         if not _parent_exists(ex, parent_required):
             await self._update_status(ex.id, ExecutionStatus.waiting_parent)
             while True:
@@ -224,7 +235,7 @@ class ExecutionService:
                 if _parent_exists(ex, parent_required):
                     break
 
-        # 2. Esperar slot de runner
+        # 2. Wait for runner slot
         if not await self._runner_has_slot(ex.runner):
             await self._update_status(ex.id, ExecutionStatus.waiting_runner)
             while True:
@@ -235,22 +246,25 @@ class ExecutionService:
                 if await self._runner_has_slot(ex.runner):
                     break
 
-        # 3. Gate de pausa — esperar si la cola está pausada
+        # 3. Pause gate
         while self._paused:
             await asyncio.sleep(5)
             current = await self.get(ex.id)
             if current is None or current.status == ExecutionStatus.canceled:
                 return
 
-        # 4. Despachar
+        # 4. Dispatch
         if ex.runner == "Local":
             await self._dispatch_local(ex)
             return
         try:
             await self._update_status(ex.id, ExecutionStatus.dispatching)
-            gh_fase     = fase_cfg.get("gh_fase", ex.fase)
+            proj = get_pipeline_project(ex.pipeline_id)
+            repo = proj["repo"]
+            branch = proj.get("branch")
+            gh_fase = fase_cfg.get("gh_fase", ex.fase)
             runner_json = _get_runner_json(ex.runner)
-            gh_run_id   = await dispatch_phase(gh_fase, ex.variant, ex.parent, ex.params, runner_json)
+            gh_run_id = await dispatch_phase(repo, gh_fase, ex.variant, ex.parent, ex.params, runner_json, branch=branch)
             if gh_run_id:
                 await self._set_gh_run_id(ex.id, gh_run_id)
             await self._update_status(ex.id, ExecutionStatus.running)
@@ -294,15 +308,36 @@ class ExecutionService:
             await db.commit()
         _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
         if status in _TERMINAL:
-            from app.services import repo_sync_service
+            from app.services import repo_sync_service, lineage_registry_service
             asyncio.create_task(repo_sync_service.force_pull())
+            # Trigger incremental lineage registry sync for the affected pipeline
+            async with aiosqlite.connect(DB_PATH) as _db:
+                _db.row_factory = aiosqlite.Row
+                async with _db.execute(
+                    "SELECT pipeline_id FROM executions WHERE id=?", (execution_id,)
+                ) as _cur:
+                    _row = await _cur.fetchone()
+            if _row and _row["pipeline_id"]:
+                _pid = _row["pipeline_id"]
+                asyncio.create_task(
+                    asyncio.get_running_loop().run_in_executor(
+                        None, lineage_registry_service.sync, _pid
+                    )
+                )
 
-    async def list_all(self) -> list[Execution]:
+    async def list_all(self, pipeline_id: str | None = None) -> list[Execution]:
         async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                "SELECT * FROM executions ORDER BY created_at DESC"
-            ) as cursor:
-                rows = await cursor.fetchall()
+            if pipeline_id:
+                async with db.execute(
+                    "SELECT * FROM executions WHERE pipeline_id=? ORDER BY created_at DESC",
+                    (pipeline_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+            else:
+                async with db.execute(
+                    "SELECT * FROM executions ORDER BY created_at DESC"
+                ) as cursor:
+                    rows = await cursor.fetchall()
         return [_row_to_execution(r) for r in rows]
 
     async def get(self, execution_id: str) -> Execution | None:
@@ -314,27 +349,32 @@ class ExecutionService:
         return _row_to_execution(row) if row else None
 
     async def reconcile_stale(self) -> None:
-        """Al arrancar, sincroniza registros activos contra la GH API y reactiva los waiting."""
+        """On startup: sync active records against GH API and reactivate waiting tasks."""
         from app.services.github import fetch_run_status
 
-        # Sincronizar contra GH los que estaban en vuelo
         stale = ('running', 'dispatching', 'queued')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
-                f"SELECT id, gh_run_id FROM executions WHERE status IN ({','.join('?'*len(stale))})",
+                f"SELECT id, pipeline_id, gh_run_id FROM executions WHERE status IN ({','.join('?'*len(stale))})",
                 stale,
             ) as cursor:
                 rows = await cursor.fetchall()
 
-        for execution_id, gh_run_id in rows:
+        for execution_id, pipeline_id, gh_run_id in rows:
             if not gh_run_id:
                 await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
                 continue
-            run_info = await fetch_run_status(gh_run_id)
+            try:
+                proj = get_pipeline_project(pipeline_id)
+                repo = proj["repo"]
+            except ValueError:
+                await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
+                continue
+            run_info = await fetch_run_status(repo, gh_run_id)
             if run_info is None:
                 await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
                 continue
-            gh_status     = run_info.get("status")
+            gh_status = run_info.get("status")
             gh_conclusion = run_info.get("conclusion")
             if gh_status == "completed":
                 if gh_conclusion == "success":
@@ -347,7 +387,6 @@ class ExecutionService:
                         f"GH_{(gh_conclusion or 'unknown').upper()}"
                     )
 
-        # Reactivar los waiting_* cuya tarea asyncio se perdió al reiniciar
         waiting = ('waiting_parent', 'waiting_runner')
         async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute(
@@ -366,16 +405,14 @@ class ExecutionService:
             from fastapi import HTTPException
             raise HTTPException(404, "Not found")
 
-        # Kill the actual running execution before updating the DB status.
-        # For waiting_* states the _dispatch loop already polls the DB and
-        # will exit on its own once we flip the status below.
         if ex.runner == "Local":
             from app.services.local_runner_service import kill as kill_local
             kill_local(execution_id)
         elif ex.gh_run_id and ex.status.value in ("running", "dispatching"):
             from app.services.github import cancel_run
             try:
-                await cancel_run(ex.gh_run_id)
+                proj = get_pipeline_project(ex.pipeline_id)
+                await cancel_run(proj["repo"], ex.gh_run_id)
             except Exception as e:
                 log.warning("Failed to cancel GH run %s: %s", ex.gh_run_id, e)
 
@@ -396,11 +433,7 @@ class ExecutionService:
 # ── GitHub run status sync ────────────────────────────────────────────────────
 
 async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
-    """Update local execution status from a completed GitHub run.
-
-    Matches by gh_run_id so it works even when the trigger fails and
-    the Supabase record has NULL fase/variant. Returns True if matched.
-    """
+    """Update local execution status from a completed GitHub run (matched by gh_run_id)."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT id FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
@@ -431,10 +464,12 @@ async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     return True
 
 
-async def _check_run(gh_run_id: str) -> None:
+async def _check_run(gh_run_id: str, pipeline_id: str) -> None:
     from app.services.github import fetch_run_status
     try:
-        run_info = await fetch_run_status(gh_run_id)
+        proj = get_pipeline_project(pipeline_id)
+        repo = proj["repo"]
+        run_info = await fetch_run_status(repo, gh_run_id)
         if run_info is None or run_info.get("status") != "completed":
             return
         conclusion = run_info.get("conclusion") or "failure"
@@ -444,18 +479,16 @@ async def _check_run(gh_run_id: str) -> None:
 
 
 async def _poll_gh_running() -> None:
-    """Background task: poll GitHub API every POLL_GH_SECS for running executions.
-    Fallback for when Supabase realtime is unavailable."""
+    """Background task: poll GitHub API every POLL_GH_SECS for running executions."""
     while True:
         await asyncio.sleep(POLL_GH_SECS)
         try:
             async with aiosqlite.connect(DB_PATH) as db:
-                # Ejecuciones con run_id conocido → verificar estado en GH
                 async with db.execute(
-                    "SELECT gh_run_id FROM executions WHERE status='running' AND gh_run_id IS NOT NULL"
+                    "SELECT gh_run_id, pipeline_id FROM executions "
+                    "WHERE status='running' AND gh_run_id IS NOT NULL"
                 ) as cursor:
                     rows = await cursor.fetchall()
-                # Ejecuciones sin run_id que llevan >30 min → marcar INTERRUPTED
                 async with db.execute(
                     """SELECT id FROM executions
                        WHERE status='running' AND gh_run_id IS NULL
@@ -463,7 +496,7 @@ async def _poll_gh_running() -> None:
                 ) as cursor:
                     orphans = await cursor.fetchall()
             if rows:
-                await asyncio.gather(*(_check_run(r[0]) for r in rows))
+                await asyncio.gather(*(_check_run(r[0], r[1]) for r in rows))
             for (eid,) in orphans:
                 log.warning("poll_gh_running: execution %s sin run_id tras 30 min → INTERRUPTED", eid)
                 now = datetime.now(timezone.utc).isoformat()

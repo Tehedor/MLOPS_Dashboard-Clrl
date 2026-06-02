@@ -3,10 +3,10 @@ import asyncio
 from typing import AsyncGenerator
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from app.core.config import phases_runner_path
+from app.core.config import phases_runner_path, get_pipeline_project
 from app.schemas.execution import Execution, ExecutionCreate
 from app.services.execution_service import ExecutionService
 from app.services.github import fetch_run_logs
@@ -22,7 +22,6 @@ def _fase_label(fase_id: str) -> str:
 
 
 def _parse_runner_map(config: dict) -> dict:
-    """Devuelve {runner_name: runner_json} para fromJSON(inputs.runner) de GHA."""
     result = {}
     for item in config.get("runners", []):
         name = next((k for k in item if k not in ('max-parallel', 'labels', 'runs-on')), None)
@@ -34,7 +33,6 @@ def _parse_runner_map(config: dict) -> dict:
 
 
 def _split_runner_field(runner_str: str) -> list[str]:
-    """Split CSV de runners respetando arrays JSON literales como ["a","b"]."""
     result, current, depth = [], [], 0
     for ch in runner_str:
         if ch == '[':
@@ -57,9 +55,8 @@ def _split_runner_field(runner_str: str) -> list[str]:
 
 
 def _runner_json(name: str, runner_map: dict) -> str:
-    """Devuelve el runner_json para un nombre de runner o un array JSON literal."""
     if name.strip().startswith('['):
-        return name.strip()  # ya es un JSON array válido para fromJSON()
+        return name.strip()
     return runner_map.get(name, json.dumps(name))
 
 
@@ -111,8 +108,8 @@ async def create_execution(body: ExecutionCreate):
 
 
 @router.get("", response_model=list[Execution])
-async def list_executions():
-    return await _service.list_all()
+async def list_executions(pipeline_id: str | None = Query(None)):
+    return await _service.list_all(pipeline_id=pipeline_id)
 
 
 @router.get("/stream")
@@ -155,8 +152,13 @@ async def retry_execution(execution_id: str):
 
 
 @router.get("/gh-logs/{gh_run_id}")
-async def get_gh_logs(gh_run_id: str):
-    logs = await fetch_run_logs(gh_run_id)
+async def get_gh_logs(gh_run_id: str, pipeline_id: str = Query(...)):
+    try:
+        proj = get_pipeline_project(pipeline_id)
+        repo = proj["repo"]
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    logs = await fetch_run_logs(repo, gh_run_id)
     if not logs:
         raise HTTPException(404, "No logs found or GitHub token not configured")
     return logs
@@ -180,17 +182,14 @@ async def stream_local_logs(execution_id: str):
     past = get_logs(execution_id)
 
     async def generator() -> AsyncGenerator[str, None]:
-        # Replay buffered lines
         for entry in past:
             yield f"data: {json.dumps(entry)}\n\n"
-        # If execution already finished, close immediately
         if already_done:
             unsubscribe(execution_id, q)
             if not past:
                 yield f"data: {json.dumps({'step': 'info', 'line': '[sin logs — el backend fue reiniciado o la ejecución falló antes de arrancar]'})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
             return
-        # Live stream until sentinel
         try:
             while True:
                 item = await q.get()

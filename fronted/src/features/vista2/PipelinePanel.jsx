@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { cancelExecution, retryExecution, getQueueStatus, pauseQueue, resumeQueue } from '../../api/executions'
-import appConfig from '@appConfig'
 import StatusBadge from './StatusBadge'
 import ParamsChips from './ParamsChips'
 
@@ -95,6 +94,31 @@ function LocalLogViewer({ executionId, active }) {
   )
 }
 
+function pipelineChipStyle(color) {
+  if (!color) return {}
+  return { backgroundColor: color + '22', borderColor: color + '88', color }
+}
+
+function PipelineChip({ project, fallback }) {
+  const label = project?.label ?? fallback
+  const color = project?.color
+  if (color) {
+    return (
+      <span
+        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded font-mono border"
+        style={pipelineChipStyle(color)}
+      >
+        {label}
+      </span>
+    )
+  }
+  return (
+    <span className="shrink-0 bg-indigo-100 border border-indigo-300 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300 font-mono">
+      {label}
+    </span>
+  )
+}
+
 function fmtDuration(startIso, endIso) {
   const ms = new Date(endIso) - new Date(startIso)
   if (isNaN(ms) || ms < 0) return null
@@ -107,7 +131,7 @@ function fmtDuration(startIso, endIso) {
 
 const ACTIVE_STATES = new Set(['queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running'])
 
-export default function PipelinePanel({ executions, filterVariant, filterFase, selectedId, onSelect }) {
+export default function PipelinePanel({ executions, filterVariant, filterFase, filterPipeline, selectedId, onSelect, pipelineProjects = {} }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -134,8 +158,9 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, s
 
   const items = executions
     .filter(e => ACTIVE_STATES.has(e.status))
-    .filter(e => !filterVariant || e.variant.includes(filterVariant))
-    .filter(e => !filterFase    || e.fase === filterFase)
+    .filter(e => !filterVariant  || e.variant.includes(filterVariant))
+    .filter(e => !filterFase     || e.fase === filterFase)
+    .filter(e => !filterPipeline || e.pipeline_id === filterPipeline)
 
   const selected = executions.find(e => e.id === selectedId)
 
@@ -185,8 +210,11 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, s
           }`}
         >
           <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-8 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <span className="text-xs font-medium text-gray-900 dark:text-white truncate">{ex.fase}</span>
+              {ex.pipeline_id && (
+                <PipelineChip project={pipelineProjects[ex.pipeline_id]} fallback={ex.pipeline_id} />
+              )}
               {ex.runner && (
                 <span className="shrink-0 bg-gray-200 border border-gray-300 text-gray-700 text-xs px-1.5 py-0.5 rounded dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400">
                   {ex.runner}
@@ -208,7 +236,7 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, s
             <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-700 flex flex-col gap-2">
               {ex.gh_run_id && (
                 <a
-                  href={`https://github.com/${appConfig.github_actions_repository}/actions/runs/${ex.gh_run_id}`}
+                  href={`https://github.com/${pipelineProjects[ex.pipeline_id]?.repo ?? ''}/actions/runs/${ex.gh_run_id}`}
                   target="_blank" rel="noreferrer"
                   onClick={e => e.stopPropagation()}
                   className="text-xs text-indigo-500 hover:underline font-mono self-start"
@@ -217,12 +245,24 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, s
                 </a>
               )}
               <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={e => { e.stopPropagation(); cancel.mutate(ex.id) }}
-                  className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded px-2 py-1 transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
-                >
-                  Cancelar
-                </button>
+                {(() => {
+                  const isCancelling = cancel.isPending && cancel.variables === ex.id
+                  return (
+                    <button
+                      onClick={e => { e.stopPropagation(); cancel.mutate(ex.id) }}
+                      disabled={isCancelling}
+                      className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded px-2 py-1 transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      {isCancelling && (
+                        <svg className="animate-spin h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+                        </svg>
+                      )}
+                      Cancelar
+                    </button>
+                  )
+                })()}
                 {ex.gh_run_id && (
                   <button
                     onClick={e => { e.stopPropagation(); navigate(`/vista3?run_id=${ex.gh_run_id}`) }}

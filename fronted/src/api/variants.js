@@ -1,7 +1,7 @@
 const BASE = '/api/variants'
 
-export const getPhases = () =>
-  fetch(`${BASE}/phases`).then(r => r.json())
+export const getPhases = (pipelineId) =>
+  fetch(`${BASE}/phases?pipeline_id=${encodeURIComponent(pipelineId)}`).then(r => r.json())
 
 export const getTableConfig = (phase) =>
   fetch(`${BASE}/table-config/${phase}`).then(r => {
@@ -9,35 +9,36 @@ export const getTableConfig = (phase) =>
     return r.json()
   })
 
-export const getRows = ({ phase, limit = 50, offset = 0, q = '', sort_by = 'variant', sort_dir = 'asc', col_filters = {} }) => {
-  const p = new URLSearchParams({ phase, limit, offset, q, sort_by, sort_dir })
+export const getRows = ({ phase, pipeline_id, limit = 50, offset = 0, q = '', sort_by = 'variant', sort_dir = 'asc', col_filters = {} }) => {
+  const p = new URLSearchParams({ phase, pipeline_id, limit, offset, q, sort_by, sort_dir })
   const activeFilters = Object.fromEntries(Object.entries(col_filters).filter(([, v]) => v))
   if (Object.keys(activeFilters).length > 0) p.set('col_filters', JSON.stringify(activeFilters))
   return fetch(`${BASE}/rows?${p}`).then(r => r.json())
 }
 
-export const pullVariant = (phase, variant) =>
+export const pullVariant = (phase, variant, pipeline_id) =>
   fetch(`${BASE}/local/pull`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phase, variant }),
+    body: JSON.stringify({ phase, variant, pipeline_id }),
   }).then(r => r.json())
 
-export const deleteVariant = (phase, variant) =>
+export const deleteVariant = (phase, variant, pipeline_id) =>
   fetch(`${BASE}/local/delete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phase, variant }),
+    body: JSON.stringify({ phase, variant, pipeline_id }),
   }).then(r => r.json())
 
-export const syncVariants = (phase) =>
-  fetch(`${BASE}/sync${phase ? `?phase=${phase}` : ''}`, { method: 'POST' })
-    .then(r => r.json())
+export const syncVariants = (pipeline_id, phase) => {
+  const params = new URLSearchParams({ pipeline_id })
+  if (phase) params.set('phase', phase)
+  return fetch(`${BASE}/sync?${params}`, { method: 'POST' }).then(r => r.json())
+}
 
-export const checkVariantExists = (phase, variant) =>
-  fetch(`${BASE}/exists?phase=${encodeURIComponent(phase)}&variant=${encodeURIComponent(variant)}`)
+export const checkVariantExists = (phase, variant, pipeline_id) =>
+  fetch(`${BASE}/exists?phase=${encodeURIComponent(phase)}&variant=${encodeURIComponent(variant)}&pipeline_id=${encodeURIComponent(pipeline_id)}`)
     .then(r => r.json())
-// returns { exists: boolean, normalized: string }
 
 export const getJob = (jobId) =>
   fetch(`${BASE}/jobs/${jobId}`).then(r => r.json())

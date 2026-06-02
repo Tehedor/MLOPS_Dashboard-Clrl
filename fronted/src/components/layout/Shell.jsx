@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import appConfig from '@appConfig'
+import pipelinesConfig from '@pipelinesConfig'
+
+// Pick the first pipeline-project for global header links (DagsHub, MLflow, GitHub)
+const _firstProject = Object.values(pipelinesConfig?.pipelines ?? {})[0] ?? {}
 
 const VIEWS = [
   { to: '/vista1', label: 'Dashboard' },
@@ -68,7 +71,7 @@ export default function Shell({ children }) {
           <span className="sr-only">{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
         </button>
         <a
-          href={`${appConfig.dagshub_repository}`}
+          href={_firstProject.dagshub_repository ?? '#'}
           target="_blank"
           rel="noreferrer"
           className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
@@ -76,7 +79,7 @@ export default function Shell({ children }) {
           DagsHub →
         </a>
         <a
-          href={`${appConfig.mlflow_tracking_uri}`}
+          href={_firstProject.mlflow_tracking_uri ?? '#'}
           target="_blank"
           rel="noreferrer"
           className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
@@ -84,7 +87,7 @@ export default function Shell({ children }) {
           MLFlow →
         </a>
         <a
-          href={`https://github.com/${appConfig.github_actions_repository}`}
+          href={_firstProject.repo ? `https://github.com/${_firstProject.repo}` : '#'}
           target="_blank"
           rel="noreferrer"
           className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"

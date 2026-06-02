@@ -131,7 +131,7 @@ function parseBatch(raw, phaseIds) {
   return { entries, errors, warnings }
 }
 
-export default function BatchPanel({ phases, executions, onWarnings }) {
+export default function BatchPanel({ phases, executions, onWarnings, pipelineId, color }) {
   const qc       = useQueryClient()
   const phaseIds = useMemo(() => new Set(phases.map(p => p.id)), [phases])
 
@@ -179,7 +179,7 @@ export default function BatchPanel({ phases, executions, onWarnings }) {
     setSubmitResults(null)
 
     const settled = await Promise.allSettled(
-      parsed.entries.map(entry => createExecution(entry))
+      parsed.entries.map(entry => createExecution({ pipeline_id: pipelineId, ...entry }))
     )
 
     const ok     = []
@@ -224,7 +224,8 @@ export default function BatchPanel({ phases, executions, onWarnings }) {
           <button
             type="submit"
             disabled={isPending || hasErrors || count === 0}
-            className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded px-3 py-1 transition-colors"
+            className="text-xs disabled:opacity-50 text-white font-semibold rounded px-3 py-1 transition-opacity"
+            style={{ backgroundColor: color ?? '#6366f1' }}
           >
             {isPending ? '···' : `Ejecutar (${count})`}
           </button>

@@ -4,6 +4,7 @@ import {
   getPhases, getTableConfig, getRows,
   pullVariant, deleteVariant, syncVariants, getJob, getSyncInterval,
 } from '../api/variants'
+import { getPipelineProjects } from '../api/pipeline_projects'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ function FileIcon() {
   )
 }
 
-function LocalCell({ row, phase, onAction, selected, onToggleRow }) {
+function LocalCell({ row, phase, pipelineId, onAction, selected, onToggleRow }) {
   const local = row._local || {}
   const htmlReports = row._html_reports || []
   const [jobId, setJobId] = useState(null)
@@ -52,13 +53,13 @@ function LocalCell({ row, phase, onAction, selected, onToggleRow }) {
   const busy = jobStatus === 'queued' || jobStatus === 'running'
 
   const handlePull = async () => {
-    const res = await pullVariant(phase, row.variant)
+    const res = await pullVariant(phase, row.variant, pipelineId)
     startPoll(res.job_id)
   }
 
   const handleDelete = async () => {
     setShowConfirm(false)
-    const res = await deleteVariant(phase, row.variant)
+    const res = await deleteVariant(phase, row.variant, pipelineId)
     startPoll(res.job_id)
   }
 
@@ -391,7 +392,7 @@ function ResizeHandle({ colKey, getWidth, colElemsRef, tableRef, headerDivRefs, 
 const LS_KEY = (phase) => `variants_hidden_cols_${phase}`
 const LS_WIDTHS_KEY = (phase) => `variants_col_widths_${phase}`
 
-function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
+function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   const qc = useQueryClient()
   const [q, setQ] = useState('')
   const [sortBy, setSortBy] = useState('variant')
@@ -451,20 +452,21 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
   }, [hiddenCols, phase])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['variant-rows', phase, q, sortBy, sortDir, offset, debouncedFilters],
-    queryFn: () => getRows({ phase, limit: LIMIT, offset, q, sort_by: sortBy, sort_dir: sortDir, col_filters: debouncedFilters }),
+    queryKey: ['variant-rows', pipelineId, phase, q, sortBy, sortDir, offset, debouncedFilters],
+    queryFn: () => getRows({ phase, pipeline_id: pipelineId, limit: LIMIT, offset, q, sort_by: sortBy, sort_dir: sortDir, col_filters: debouncedFilters }),
     keepPreviousData: true,
     refetchInterval: refetchIntervalMs,
+    enabled: !!pipelineId,
   })
 
   const syncMut = useMutation({
-    mutationFn: () => syncVariants(phase),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['variant-rows', phase] }),
+    mutationFn: () => syncVariants(pipelineId, phase),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['variant-rows', pipelineId, phase] }),
   })
 
   const refreshRows = useCallback(() => {
-    qc.invalidateQueries({ queryKey: ['variant-rows', phase] })
-  }, [qc, phase])
+    qc.invalidateQueries({ queryKey: ['variant-rows', pipelineId, phase] })
+  }, [qc, pipelineId, phase])
 
   const setFilter = useCallback((key, value) => {
     setColFilters(prev => {
@@ -525,7 +527,7 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
     const jobMap = new Map()
     await Promise.all(targets.map(async row => {
       try {
-        const { job_id } = await pullVariant(phase, row.variant)
+        const { job_id } = await pullVariant(phase, row.variant, pipelineId)
         jobMap.set(row.variant, job_id)
       } catch {
         jobMap.delete(row.variant)
@@ -552,7 +554,7 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
     const jobMap = new Map()
     await Promise.all(targets.map(async row => {
       try {
-        const { job_id } = await deleteVariant(phase, row.variant)
+        const { job_id } = await deleteVariant(phase, row.variant, pipelineId)
         jobMap.set(row.variant, job_id)
       } catch {
         setBulkProgress(p => p && { ...p, done: p.done + 1 })
@@ -776,7 +778,7 @@ function PhaseTable({ phase, refetchIntervalMs = 60_000 }) {
                     </td>
                   ))}
                   <td className="px-2 py-1">
-                    <LocalCell row={row} phase={phase} onAction={refreshRows} selected={selected} onToggleRow={toggleRow} />
+                    <LocalCell row={row} phase={phase} pipelineId={pipelineId} onAction={refreshRows} selected={selected} onToggleRow={toggleRow} />
                   </td>
                 </tr>
               ))}
@@ -832,53 +834,98 @@ export default function Variants() {
   })
   const tableRefreshMs = (intervals.table_refresh_seconds ?? 15) * 1000
 
+  // ── Pipeline selector ──────────────────────────────────────────────────────
+  const { data: projects = [] } = useQuery({
+    queryKey: ['pipeline-projects'],
+    queryFn: getPipelineProjects,
+    staleTime: Infinity,
+  })
+
+  const [pipelineId, setPipelineId] = useState(
+    () => localStorage.getItem('variants_pipeline') ?? null
+  )
+
+  useEffect(() => {
+    if (!pipelineId && projects.length > 0) setPipelineId(projects[0].id)
+  }, [projects, pipelineId])
+
+  useEffect(() => {
+    if (pipelineId) localStorage.setItem('variants_pipeline', pipelineId)
+  }, [pipelineId])
+
+  // ── Phases for active pipeline ─────────────────────────────────────────────
   const { data: phases = [], isLoading } = useQuery({
-    queryKey: ['variant-phases'],
-    queryFn: getPhases,
+    queryKey: ['variant-phases', pipelineId],
+    queryFn: () => getPhases(pipelineId),
     refetchInterval: tableRefreshMs,
+    enabled: !!pipelineId,
   })
 
   const [activePhase, setActivePhase] = useState(null)
 
   useEffect(() => {
-    if (phases.length && !activePhase) setActivePhase(phases[0])
-  }, [phases])
+    setActivePhase(null)
+  }, [pipelineId])
 
-  if (isLoading) {
+  useEffect(() => {
+    if (phases.length && !activePhase) setActivePhase(phases[0])
+  }, [phases, activePhase])
+
+  if (!pipelineId && projects.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-gray-400">
-        <Spinner /> <span className="ml-2">Cargando fases…</span>
+        <Spinner /> <span className="ml-2">Cargando proyectos…</span>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-full">
-      {/* Phase tabs */}
+      {/* Pipeline selector + phase tabs row */}
       <div className="flex items-center gap-0.5 px-3 pt-2 border-b border-gray-200 dark:border-gray-800 shrink-0 overflow-x-auto">
-        {phases.map(phase => (
-          <button
-            key={phase}
-            onClick={() => setActivePhase(phase)}
-            className={`px-3 py-1.5 text-xs rounded-t font-medium whitespace-nowrap transition-colors ${
-              activePhase === phase
-                ? 'bg-white dark:bg-gray-900 border border-b-white dark:border-gray-700 dark:border-b-gray-900 text-gray-900 dark:text-gray-100 -mb-px'
-                : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-            }`}
+
+        {/* Pipeline dropdown — only shown when more than one project */}
+        {projects.length > 1 && (
+          <select
+            value={pipelineId ?? ''}
+            onChange={e => setPipelineId(e.target.value)}
+            className="mr-3 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 shrink-0"
           >
-            {phase}
-          </button>
-        ))}
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        )}
+
+        {isLoading ? (
+          <span className="flex items-center gap-1 text-xs text-gray-400 italic">
+            <Spinner /> Cargando fases…
+          </span>
+        ) : (
+          phases.map(phase => (
+            <button
+              key={phase}
+              onClick={() => setActivePhase(phase)}
+              className={`px-3 py-1.5 text-xs rounded-t font-medium whitespace-nowrap transition-colors ${
+                activePhase === phase
+                  ? 'bg-white dark:bg-gray-900 border border-b-white dark:border-gray-700 dark:border-b-gray-900 text-gray-900 dark:text-gray-100 -mb-px'
+                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+              }`}
+            >
+              {phase}
+            </button>
+          ))
+        )}
       </div>
 
       {/* Table area — min-h-0 prevents flex child from growing beyond bounds
           without clipping absolutely-positioned overlays (the column menu) */}
       <div className="flex-1 min-h-0">
-        {activePhase ? (
-          <PhaseTable key={activePhase} phase={activePhase} refetchIntervalMs={tableRefreshMs} />
+        {activePhase && pipelineId ? (
+          <PhaseTable key={`${pipelineId}:${activePhase}`} phase={activePhase} pipelineId={pipelineId} refetchIntervalMs={tableRefreshMs} />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-gray-400">
-            Selecciona una fase
+            {pipelineId ? 'Selecciona una fase' : 'Selecciona un pipeline-project'}
           </div>
         )}
       </div>

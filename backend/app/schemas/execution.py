@@ -15,6 +15,7 @@ class ExecutionStatus(str, Enum):
 
 
 class ExecutionCreate(BaseModel):
+    pipeline_id: str
     fase: str
     variant: str
     parent: str | None = None
@@ -24,6 +25,7 @@ class ExecutionCreate(BaseModel):
 
 class Execution(BaseModel):
     id: str
+    pipeline_id: str
     fase: str
     variant: str
     parent: str | None

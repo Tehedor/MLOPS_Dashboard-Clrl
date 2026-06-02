@@ -49,6 +49,6 @@ fases:
     gh_fase: "f07_modval"
     parent_required: true
   - fase: f08_sysval
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
+    runner: "ESP32-self-hosted, Local"
     gh_fase: "f08_sysval"
     parent_required: true
