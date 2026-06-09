@@ -1,0 +1,621 @@
+#f01_explore  (v1_0003 — cleaning strict, nan_values ampliado)
+
+{
+  "variant": "v1_0003",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "strict",
+    "nan_values": [-999999, -1, 0],
+    "error_values": {},
+    "first_line": null,
+    "max_lines": null
+  },
+  "selected_runner": "GithubActions"
+}
+
+
+#f01_explore  (v1_0004 — cleaning none, con first_line/max_lines para subconjunto)
+
+{
+  "variant": "v1_0004",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "none",
+    "nan_values": [-999999],
+    "error_values": {},
+    "first_line": 0,
+    "max_lines": 50000
+  },
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events  (v2_0003 — strategy levels, bands [5,95], parent v1_0003)
+
+{
+  "variant": "v2_0003",
+  "params": {
+    "strategy": "levels",
+    "bands": [5, 95],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events  (v2_0004 — strategy transitions, bands [10,90], nan_mode keep, parent v1_0003)
+
+{
+  "variant": "v2_0004",
+  "params": {
+    "strategy": "transitions",
+    "bands": [10, 90],
+    "nan_mode": "keep"
+  },
+  "parent": "v1_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events  (v2_0005 — strategy both, bands [20,80], parent v1_0004)
+
+{
+  "variant": "v2_0005",
+  "params": {
+    "strategy": "both",
+    "bands": [20, 80],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows  (v3_0003 — OW=600 LT=100 PW=100 synchro, parent v2_0003)
+
+{
+  "variant": "v3_0003",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows  (v3_0004 — OW=300 LT=50 PW=100 asynOW, parent v2_0003)
+
+{
+  "variant": "v3_0004",
+  "params": {
+    "OW": 300,
+    "LT": 50,
+    "PW": 100,
+    "window_strategy": "asynOW",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows  (v3_0005 — OW=900 LT=100 PW=150 synchro nan_mode keep, parent v2_0004)
+
+{
+  "variant": "v3_0005",
+  "params": {
+    "OW": 900,
+    "LT": 100,
+    "PW": 150,
+    "window_strategy": "synchro",
+    "nan_mode": "keep"
+  },
+  "parent": "v2_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows  (v3_0006 — OW=600 LT=0 PW=200 withinPW, parent v2_0005)
+
+{
+  "variant": "v3_0006",
+  "params": {
+    "OW": 600,
+    "LT": 0,
+    "PW": 200,
+    "window_strategy": "withinPW",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0002 — battery_overheat OR, parent v3_0003)
+
+{
+  "variant": "v4_0002",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": [
+      "Battery_Active_Power_0_10-to-90_100",
+      "Battery_Active_Power_10_90-to-90_100"
+    ]
+  },
+  "parent": "v3_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0003 — battery_overheat OR, parent v3_0004)
+
+{
+  "variant": "v4_0003",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": [
+      "Battery_Active_Power_0_10-to-90_100",
+      "Battery_Active_Power_10_90-to-90_100"
+    ]
+  },
+  "parent": "v3_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0004 — thermal_fault OR, single event type, parent v3_0005)
+
+{
+  "variant": "v4_0004",
+  "params": {
+    "prediction_name": "thermal_fault",
+    "target_operator": "OR",
+    "target_event_types": [
+      "Battery_Active_Power_0_10-to-90_100"
+    ]
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0005 — power_surge OR, alto umbral, parent v3_0005)
+
+{
+  "variant": "v4_0005",
+  "params": {
+    "prediction_name": "power_surge",
+    "target_operator": "OR",
+    "target_event_types": [
+      "Battery_Active_Power_10_90-to-90_100"
+    ]
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0006 — battery_stress OR, ambos eventos, parent v3_0006)
+
+{
+  "variant": "v4_0006",
+  "params": {
+    "prediction_name": "battery_stress",
+    "target_operator": "OR",
+    "target_event_types": [
+      "Battery_Active_Power_0_10-to-90_100",
+      "Battery_Active_Power_10_90-to-90_100"
+    ]
+  },
+  "parent": "v3_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0003 — cnn1d baseline, rare_events, parent v4_0002)
+
+{
+  "variant": "v5_0003",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": null,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0004 — dense_bow más trials, imbalance none, parent v4_0002)
+
+{
+  "variant": "v5_0004",
+  "params": {
+    "model_family": "dense_bow",
+    "automl": {"enabled": true, "max_trials": 10, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [64, 128, 256], "learning_rate": [0.001, 0.0005, 0.0001], "n_layers": [1, 2, 3], "units": [32, 64, 128], "dropout": [0.0, 0.1, 0.3]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 15, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": null,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "none",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0005 — cnn1d más capas y filtros grandes, parent v4_0003)
+
+{
+  "variant": "v5_0005",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 8, "seed": 123},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [2, 3], "units": [128, 256], "dropout": [0.1, 0.3]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64, 128], "filters": [128, 256], "kernel_size": [3, 7]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": 123,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0006 — sequence_embedding, parent v4_0004)
+
+{
+  "variant": "v5_0006",
+  "params": {
+    "model_family": "sequence_embedding",
+    "automl": {"enabled": true, "max_trials": 8, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [32, 64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": null,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0007 — cnn1d kernel grande más epochs, parent v4_0005)
+
+{
+  "variant": "v5_0007",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 7},
+    "search_space": {
+      "common": {"batch_size": [256, 512], "learning_rate": [0.0005, 0.0001], "n_layers": [2, 3], "units": [128, 256], "dropout": [0.1, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128, 256], "kernel_size": [5, 7]}
+    },
+    "training": {"epochs": 20, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": 7,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0008 — dense_bow imbalance auto dedup neg_only, parent v4_0006)
+
+{
+  "variant": "v5_0008",
+  "params": {
+    "model_family": "dense_bow",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": 20000},
+    "deduplication_mode": "neg_only",
+    "seed": null,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "auto",
+    "imbalance_max_majority_samples": 5000
+  },
+  "parent": "v4_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0002 — configuración estándar, parent v5_0003)
+
+{
+  "variant": "v6_0002",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 327680
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 512,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": false
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "recall",
+      "grid_points": 101
+    },
+    "eedu": {"version": "1.0", "layout": "default"}
+  },
+  "parent": "v5_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0003 — menos muestras calibración, maximizar precision, parent v5_0004)
+
+{
+  "variant": "v6_0003",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 327680
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 256,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": false
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "precision",
+      "grid_points": 101
+    },
+    "eedu": {"version": "1.0", "layout": "default"}
+  },
+  "parent": "v5_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0004 — memoria reducida 256KB, más calibración, parent v5_0005)
+
+{
+  "variant": "v6_0004",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 262144
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 1024,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": false
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "recall",
+      "grid_points": 101
+    },
+    "eedu": {"version": "1.0", "layout": "default"}
+  },
+  "parent": "v5_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0005 — grid fino 201 puntos, keep_float_fallback, parent v5_0006)
+
+{
+  "variant": "v6_0005",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 327680
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 512,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": true
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "recall",
+      "grid_points": 201
+    },
+    "eedu": {"version": "1.0", "layout": "default"}
+  },
+  "parent": "v5_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0006 — memoria ampliada 512KB, parent v5_0007)
+
+{
+  "variant": "v6_0006",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 524288
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 512,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": false
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "recall",
+      "grid_points": 101
+    },
+    "eedu": {"version": "1.0", "layout": "compact"}
+  },
+  "parent": "v5_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f07_modval  (v7_0004 — MTI 100ms baseline, parent v6_0002)
+
+{
+  "variant": "v7_0004",
+  "params": {
+    "time_scale": 0.01,
+    "MTI_MS": 100,
+    "ITmax": null,
+    "max_rows": null,
+    "platform": "esp32"
+  },
+  "parent": "v6_0002",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f07_modval  (v7_0005 — MTI 50ms más agresivo, parent v6_0003)
+
+{
+  "variant": "v7_0005",
+  "params": {
+    "time_scale": 0.01,
+    "MTI_MS": 50,
+    "ITmax": null,
+    "max_rows": null,
+    "platform": "esp32"
+  },
+  "parent": "v6_0003",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f07_modval  (v7_0006 — time_scale reducido 0.005, max_rows 5000, parent v6_0004)
+
+{
+  "variant": "v7_0006",
+  "params": {
+    "time_scale": 0.005,
+    "MTI_MS": 100,
+    "ITmax": null,
+    "max_rows": 5000,
+    "platform": "esp32"
+  },
+  "parent": "v6_0004",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f07_modval  (v7_0007 — MTI 200ms conservador, parent v6_0005)
+
+{
+  "variant": "v7_0007",
+  "params": {
+    "time_scale": 0.01,
+    "MTI_MS": 200,
+    "ITmax": null,
+    "max_rows": null,
+    "platform": "esp32"
+  },
+  "parent": "v6_0005",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f08_sysval  (v8_0002 — selección manual de los 4 modval de batch02)
+
+{
+  "variant": "v8_0002",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "Tu": null,
+    "OW": null,
+    "LT": null,
+    "PW": null,
+    "event_type_count": null,
+    "MTI_MS": 100,
+    "max_rows": null,
+    "platform": "esp32",
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null
+  },
+  "parent": ["v7_0004", "v7_0005", "v7_0006", "v7_0007"],
+  "selected_runner": "ESP32-self-hosted"
+}

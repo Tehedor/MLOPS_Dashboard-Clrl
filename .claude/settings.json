@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from app.core.config import load_app_config, load_pipelines_config, fase_runners_path, resolve_pipeline_config_path; print\\('config.py OK'\\)\")"
+    ]
+  }
+}

@@ -1,0 +1,162 @@
+#f01_explore  (v1_0019 — un mes de datos ~43200 filas, cleaning basic, 2 componentes)
+
+{
+  "variant": "v1_0019",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "basic",
+    "nan_values": [-999999],
+    "error_values": {},
+    "first_line": 0,
+    "max_lines": 43200
+  },
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events  (v2_0019 — transitions, bands [10,90], parent v1_0019)
+
+{
+  "variant": "v2_0019",
+  "params": {
+    "strategy": "transitions",
+    "bands": [10, 90],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows  (v3_0019 — OW=600 LT=100 PW=100 synchro, parent v2_0019)
+
+{
+  "variant": "v3_0019",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets  (v4_0019 — battery_overheat OR, 2 componentes, parent v3_0019)
+
+{
+  "variant": "v4_0019",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": [
+      "FC_Active_Power_0_10-to-90_100",
+      "FC_Active_Power_10_90-to-90_100"
+    ]
+  },
+  "parent": "v3_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling  (v5_0019 — cnn1d baseline, rare_events, parent v4_0019)
+
+{
+  "variant": "v5_0019",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "deduplication_mode": null,
+    "seed": null,
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null
+  },
+  "parent": "v4_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant  (v6_0019 — configuración estándar, parent v5_0019)
+
+{
+  "variant": "v6_0019",
+  "params": {
+    "deployment": {
+      "target": "esp32",
+      "runtime": "esp-tflite-micro",
+      "runtime_version": "1.3.3",
+      "require_int8": true,
+      "memory_limit_bytes": 327680
+    },
+    "quantization": {
+      "tflite_optimization": "DEFAULT",
+      "representative_dataset": "val",
+      "calibration_samples": 512,
+      "symmetric_int8": true,
+      "per_channel": true,
+      "keep_float_fallback": false
+    },
+    "thresholding": {
+      "strategy": "recalibrate_on_quantized",
+      "maximize_metric": "recall",
+      "grid_points": 101
+    },
+    "eedu": {"version": "1.0", "layout": "default"}
+  },
+  "parent": "v5_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f07_modval  (v7_0056 — MTI 100ms baseline, parent v6_0019)
+
+{
+  "variant": "v7_0056",
+  "params": {
+    "time_scale_factor": 0.01,
+    "MTI_MS": 100,
+    "ITmax": null,
+    "max_rows": null,
+    "platform": "esp32"
+  },
+  "parent": "v6_0019",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f08_sysval  (v8_0003 — selección manual, 1 padre de batch03)
+
+{
+  "variant": "v8_0003",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "Tu": null,
+    "OW": null,
+    "LT": null,
+    "PW": null,
+    "event_type_count": null,
+    "MTI_MS": 100,
+    "max_rows": null,
+    "platform": "esp32",
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null
+  },
+  "parent": ["v7_0056"],
+  "selected_runner": "ESP32-self-hosted"
+}
