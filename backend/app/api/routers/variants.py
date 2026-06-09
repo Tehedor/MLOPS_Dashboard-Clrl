@@ -22,6 +22,7 @@ async def sync_interval():
     return {
         "repo_sync_seconds": repo_sync_service.get_interval(),
         "table_refresh_seconds": int(cfg.get("table_refresh_interval_seconds", 15)),
+        "service_memory_limit_default": cfg.get("service_memory_limit_default", "4g"),
     }
 
 
@@ -47,8 +48,8 @@ async def variant_exists(
 
 
 @router.get("/table-config/{phase_id}")
-async def get_table_config(phase_id: str):
-    cfg = variants_service.get_table_config_for_phase(phase_id)
+async def get_table_config(phase_id: str, pipeline_id: str = Query(...)):
+    cfg = variants_service.get_table_config_for_phase(phase_id, pipeline_id)
     if cfg is None:
         raise HTTPException(status_code=404, detail="Phase not found in table_config")
     return cfg

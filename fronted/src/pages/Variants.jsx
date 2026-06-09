@@ -5,6 +5,7 @@ import {
   pullVariant, deleteVariant, syncVariants, getJob, getSyncInterval,
 } from '../api/variants'
 import { getPipelineProjects } from '../api/pipeline_projects'
+import PipelineSelect from '../components/PipelineSelect'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -431,8 +432,9 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   }, [colFilters])
 
   const { data: phaseCfg, isError: cfgError } = useQuery({
-    queryKey: ['variant-cfg', phase],
-    queryFn: () => getTableConfig(phase),
+    queryKey: ['variant-cfg', pipelineId, phase],
+    queryFn: () => getTableConfig(phase, pipelineId),
+    enabled: !!pipelineId,
     retry: false,
   })
 
@@ -886,15 +888,14 @@ export default function Variants() {
 
         {/* Pipeline dropdown — only shown when more than one project */}
         {projects.length > 1 && (
-          <select
-            value={pipelineId ?? ''}
-            onChange={e => setPipelineId(e.target.value)}
-            className="mr-3 bg-white border border-gray-300 rounded px-2 py-1 text-xs text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 shrink-0"
-          >
-            {projects.map(p => (
-              <option key={p.id} value={p.id}>{p.label}</option>
-            ))}
-          </select>
+          <div className="mr-3 w-48 shrink-0">
+            <PipelineSelect
+              value={pipelineId ?? ''}
+              onChange={setPipelineId}
+              projects={projects}
+              showAll={false}
+            />
+          </div>
         )}
 
         {isLoading ? (

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from app.core.config import load_app_config, settings, PROJECT_ROOT, get_pipeline_project
+from app.core.config import load_app_config, settings, PROJECT_ROOT, get_pipeline_project, get_pipeline_token, resolve_pipeline_config_path
 from app.services import local_log_store as log_store
 
 
@@ -24,10 +24,8 @@ from app.services import local_log_store as log_store
 # Config helpers
 # ---------------------------------------------------------------------------
 
-def _local_workflows_path() -> Path:
-    cfg = load_app_config()
-    p = Path(str(cfg.get("local_workflows", "config/local_workflows.yaml")))
-    return p if p.is_absolute() else PROJECT_ROOT / p
+def _local_workflows_path(pipeline_id: str) -> Path:
+    return resolve_pipeline_config_path(pipeline_id, "local_workflows", "config/local_workflows.yaml")
 
 
 def _workspace_path(pipeline_id: str) -> Path:
@@ -42,8 +40,8 @@ def _checkout_branch(pipeline_id: str) -> str:
     return proj.get("branch", "main")
 
 
-def _load_phase_workflow(fase: str) -> dict | None:
-    path = _local_workflows_path()
+def _load_phase_workflow(fase: str, pipeline_id: str) -> dict | None:
+    path = _local_workflows_path(pipeline_id)
     with open(path) as f:
         data = yaml.safe_load(f)
     for entry in data.get("fases", []):
@@ -178,13 +176,13 @@ def _interpolate(template: str, ctx: dict) -> str:
 
 
 def _make_params_str(params: dict) -> str:
-    from app.services.github import _PARAM_KEY_REMAP
+    import shlex
+    from app.services.github import normalize_make_params
     parts = []
-    for k, v in params.items():
+    for k, v in normalize_make_params(params).items():
         if v is None or str(v).strip() == "":
             continue
-        mk = _PARAM_KEY_REMAP.get(k, k.upper())
-        parts.append(f'{mk}="{v}"')
+        parts.append(f'{k}={shlex.quote(str(v))}')
     return " ".join(parts)
 
 
@@ -192,8 +190,8 @@ def _make_params_str(params: dict) -> str:
 # Workspace setup
 # ---------------------------------------------------------------------------
 
-async def _setup_workspace(workspace: Path, branch: str, repo: str, env: dict, execution_id: str) -> bool:
-    token = settings.github_token
+async def _setup_workspace(workspace: Path, branch: str, repo: str, env: dict, execution_id: str, token: str = "") -> bool:
+    token = token or settings.github_token
     repo_url = f"https://x-access-token:{token}@github.com/{repo}.git"
     step = "workspace-setup"
 
@@ -348,7 +346,7 @@ async def run_local_phase(ex) -> bool:
     params = ex.params or {}
     pipeline_id = ex.pipeline_id
 
-    workflow = _load_phase_workflow(fase)
+    workflow = _load_phase_workflow(fase, pipeline_id)
     if workflow is None:
         log_store.push(execution_id, "init", f"[error] No workflow defined for fase '{fase}'")
         log_store.close(execution_id)
@@ -371,8 +369,8 @@ async def run_local_phase(ex) -> bool:
     use_venv = str(load_app_config().get("local_runner_use_venv", "0"))
     env = {
         **os.environ,
-        "GH_TOKEN":          settings.github_token,
-        "GITHUB_TOKEN":      settings.github_token,
+        "GH_TOKEN":          get_pipeline_token(pipeline_id),
+        "GITHUB_TOKEN":      get_pipeline_token(pipeline_id),
         "GITHUB_REPOSITORY": repo,
         "DAGSHUB_USER":      settings.dagshub_user,
         "DAGSHUB_TOKEN":     settings.dagshub_token,
@@ -385,7 +383,7 @@ async def run_local_phase(ex) -> bool:
 
     log_store.push(execution_id, "init", f"[local-runner] {fase}/{variant_id} — workspace: {workspace}")
 
-    if not await _setup_workspace(workspace, branch, repo, env, execution_id):
+    if not await _setup_workspace(workspace, branch, repo, env, execution_id, get_pipeline_token(pipeline_id)):
         log_store.push(execution_id, "init", "[error] workspace setup failed")
         log_store.close(execution_id)
         return False

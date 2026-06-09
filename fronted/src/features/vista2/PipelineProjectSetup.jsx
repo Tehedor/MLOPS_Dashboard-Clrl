@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getBranchStatus, createBranch, startSetup, subscribeSetupLogs } from '../../api/setup'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getBranchStatus, getSetupStatus, startSetup, subscribeSetupLogs } from '../../api/setup'
 
 // ── Log viewer ────────────────────────────────────────────────────────────────
 
@@ -64,19 +64,11 @@ const DEFAULT_CMD = 'make setup SETUP_CFG=setup/remote2.yaml'
 export default function PipelineProjectSetup({ pipelineId, pipeline = null }) {
   const qc = useQueryClient()
 
-  const [baseBranch,   setBaseBranch]   = useState('main')
   const [setupLogs,    setSetupLogs]    = useState([])
   const [setupStatus,  setSetupStatus]  = useState('idle')  // idle|running|done|failed
   const [showLogs,     setShowLogs]     = useState(false)
 
   const commandStart = pipeline?.command_start ?? DEFAULT_CMD
-
-  // Reset when pipeline changes
-  useEffect(() => {
-    setSetupLogs([])
-    setSetupStatus('idle')
-    setShowLogs(false)
-  }, [pipelineId])
 
   // ── Branch status ──────────────────────────────────────────────────────────
 
@@ -88,22 +80,45 @@ export default function PipelineProjectSetup({ pipelineId, pipeline = null }) {
     refetchOnWindowFocus: false,
   })
 
-  // ── Cycle 1: create branch ─────────────────────────────────────────────────
-
-  const [createError, setCreateError] = useState(null)
-  const createMut = useMutation({
-    mutationFn: () => createBranch(pipelineId, baseBranch),
-    onSuccess: () => {
-      setCreateError(null)
-      refetchBranch()
-      qc.invalidateQueries({ queryKey: ['branch-status', pipelineId] })
-    },
-    onError: (err) => setCreateError(err.message),
-  })
-
-  // ── Cycle 2: setup ─────────────────────────────────────────────────────────
+  // ── Setup ──────────────────────────────────────────────────────────────────
 
   const setupCloserRef = useRef(null)
+  const refetchBranchRef = useRef(refetchBranch)
+  useEffect(() => { refetchBranchRef.current = refetchBranch }, [refetchBranch])
+
+  // On pipeline change: close existing SSE, then restore backend state
+  useEffect(() => {
+    if (setupCloserRef.current) { setupCloserRef.current(); setupCloserRef.current = null }
+    setSetupLogs([])
+    setSetupStatus('idle')
+    setShowLogs(false)
+    if (!pipelineId) return
+
+    getSetupStatus(pipelineId).then(({ status, logs }) => {
+      if (!status || status === 'idle') return
+      if (status === 'running') {
+        // Re-attach to SSE — backend replays past logs then streams new ones
+        setSetupStatus('running')
+        setShowLogs(true)
+        setupCloserRef.current = subscribeSetupLogs(
+          pipelineId,
+          (line) => setSetupLogs(prev => [...prev, line]),
+          (finalStatus) => {
+            setSetupStatus(finalStatus ?? 'done')
+            qc.invalidateQueries({ queryKey: ['branch-status', pipelineId] })
+            refetchBranchRef.current?.()
+          },
+        )
+      } else {
+        // done / failed — restore logs, no SSE needed
+        setSetupLogs(logs ?? [])
+        setSetupStatus(status)
+        setShowLogs(true)
+      }
+    }).catch(() => {})
+
+    return () => { if (setupCloserRef.current) { setupCloserRef.current(); setupCloserRef.current = null } }
+  }, [pipelineId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleStartSetup() {
     setSetupLogs([])
@@ -119,14 +134,10 @@ export default function PipelineProjectSetup({ pipelineId, pipeline = null }) {
       (finalStatus) => {
         setSetupStatus(finalStatus ?? 'done')
         qc.invalidateQueries({ queryKey: ['branch-status', pipelineId] })
-        refetchBranch()
+        refetchBranchRef.current?.()
       },
     )
   }
-
-  useEffect(() => {
-    return () => { setupCloserRef.current?.() }
-  }, [pipelineId])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -140,8 +151,8 @@ export default function PipelineProjectSetup({ pipelineId, pipeline = null }) {
   const branch        = branchStatus?.branch ?? '…'
   const setupRunning  = setupStatus === 'running'
 
-  // When fully initialized and no setup in progress: show nothing
-  if (branchExists && initialized && setupStatus === 'idle') return null
+  // Hide when fully initialized: idle (never ran) or done (just completed successfully)
+  if (initialized && (setupStatus === 'idle' || setupStatus === 'done')) return null
 
   const showSetupUI = !initialized || setupStatus === 'running' || setupStatus === 'done' || setupStatus === 'failed'
 
@@ -167,40 +178,8 @@ export default function PipelineProjectSetup({ pipelineId, pipeline = null }) {
 
       <div className="px-3 py-2 flex flex-col gap-2">
 
-        {/* ── Cycle 1: crear branch ── */}
-        {!branchLoading && !branchExists && (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              La branch <span className="font-mono text-gray-700 dark:text-gray-300">{branch}</span> no existe en el repositorio.
-            </p>
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-gray-500 dark:text-gray-400 shrink-0">Base:</label>
-              <input
-                className="flex-1 bg-gray-100 border border-gray-300 rounded px-2 py-1 text-xs font-mono text-gray-900 focus:outline-none focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                value={baseBranch}
-                onChange={e => setBaseBranch(e.target.value)}
-                placeholder="main"
-              />
-              <button
-                type="button"
-                disabled={createMut.isPending || !baseBranch.trim()}
-                onClick={() => { setCreateError(null); createMut.mutate() }}
-                className="shrink-0 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded px-3 py-1.5 transition-colors"
-              >
-                {createMut.isPending ? 'Creando…' : 'Crear branch'}
-              </button>
-            </div>
-            {createError && (
-              <p className="text-xs text-red-400">{createError}</p>
-            )}
-            {createMut.isSuccess && (
-              <p className="text-xs text-green-500">Branch creada correctamente.</p>
-            )}
-          </div>
-        )}
-
-        {/* ── Cycle 2: configurar/arrancar pipeline ── */}
-        {!branchLoading && branchExists && showSetupUI && (
+        {/* ── Arrancar pipeline ── */}
+        {!branchLoading && showSetupUI && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <button

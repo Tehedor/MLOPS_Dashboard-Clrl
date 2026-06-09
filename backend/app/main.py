@@ -7,8 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.db import init_db
 from app.api.routers import config, executions, lineage, variants, services, pipeline_projects
 from app.api.routers.terminal import rest_router as runners_router, ws_router as terminal_ws_router
-from app.services import lineage_service, repo_sync_service, supabase_sync_service, variants_service
+from app.services import lineage_service, lineage_registry_service, repo_sync_service, supabase_sync_service, variants_service
 from app.services.execution_service import ExecutionService, start_gh_poll
+
+
+async def _sync_lineage_registry(pipeline_id: str) -> None:
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, lineage_registry_service.sync, pipeline_id)
 
 
 @asynccontextmanager
@@ -18,6 +23,7 @@ async def lifespan(app: FastAPI):
 
     # Callbacks receive pipeline_id when a project repo is updated
     repo_sync_service.register_callback(lineage_service.refresh)
+    repo_sync_service.register_callback(_sync_lineage_registry)
     repo_sync_service.register_callback(variants_service.sync_all)
 
     sync_task = asyncio.create_task(repo_sync_service.polling_loop())

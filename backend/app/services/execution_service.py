@@ -11,15 +11,18 @@ import aiosqlite
 import yaml
 
 log = logging.getLogger(__name__)
-POLL_GH_SECS = 10
+POLL_GH_SECS    = 10
+POLL_WAITING_SECS = 30   # re-check waiting_runner / waiting_parent every N seconds
 
-from app.core.config import phases_runner_path, load_app_config, PROJECT_ROOT, get_pipeline_project
+from app.core.config import phases_runner_path, fase_runners_path, load_app_config, PROJECT_ROOT, get_pipeline_project, get_pipeline_token
 from app.core.db import DB_PATH
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
 
 
-_FASE_CONFIG_CACHE: dict | None = None
+_FASE_CONFIG_CACHE: dict[str, dict] = {}
+_ACTIVE_DISPATCHES: set[str] = set()  # guards against duplicate concurrent _dispatch tasks
+_PAUSED: bool = False
 
 POLL_PARENT_SECS = 30
 POLL_RUNNER_SECS = 15
@@ -37,8 +40,8 @@ def _normalize_variant(fase: str, variant: str) -> str:
     return variant
 
 
-def _load_phases_config() -> dict:
-    config_path = phases_runner_path()
+def _load_phases_config(pipeline_id: str) -> dict:
+    config_path = fase_runners_path(pipeline_id)
     try:
         with open(config_path) as f:
             config = yaml.safe_load(f)
@@ -51,15 +54,14 @@ def _load_phases_config() -> dict:
             for f in config.get("fases", [])
         }
     except Exception as e:
-        print(f"Warning: Failed to load phases config: {e}")
+        print(f"Warning: Failed to load phases config for {pipeline_id}: {e}")
         return {}
 
 
-def _get_fase_config() -> dict:
-    global _FASE_CONFIG_CACHE
-    if _FASE_CONFIG_CACHE is None:
-        _FASE_CONFIG_CACHE = _load_phases_config()
-    return _FASE_CONFIG_CACHE
+def _get_fase_config(pipeline_id: str) -> dict:
+    if pipeline_id not in _FASE_CONFIG_CACHE:
+        _FASE_CONFIG_CACHE[pipeline_id] = _load_phases_config(pipeline_id)
+    return _FASE_CONFIG_CACHE[pipeline_id]
 
 
 def _get_runner_json(runner_name: str) -> str | None:
@@ -156,9 +158,16 @@ def _row_to_execution(row) -> Execution:
     )
 
 
+def is_paused() -> bool:
+    return _PAUSED
+
+
+def set_paused(value: bool) -> None:
+    global _PAUSED
+    _PAUSED = value
+
+
 class ExecutionService:
-    def __init__(self):
-        self._paused: bool = False
 
     async def create(self, body: ExecutionCreate) -> Execution:
         from fastapi import HTTPException
@@ -190,7 +199,7 @@ class ExecutionService:
             fase=body.fase,
             variant=normalized,
             parent=body.parent,
-            runner=body.selected_runner or _get_fase_config().get(body.fase, {}).get("runner", "GithubActions"),
+            runner=body.selected_runner or _get_fase_config(body.pipeline_id).get(body.fase, {}).get("runner", "GithubActions"),
             params=body.params,
             status=ExecutionStatus.queued,
             created_at=now,
@@ -209,19 +218,36 @@ class ExecutionService:
         asyncio.create_task(self._dispatch(ex))
         return ex
 
-    async def _runner_has_slot(self, runner_name: str) -> bool:
+    async def _runner_has_slot(self, runner_name: str, exclude_id: str | None = None) -> bool:
         max_parallel = _runner_max_parallel(runner_name)
         active = ('running', 'dispatching', 'waiting_runner')
         async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                f"SELECT COUNT(*) FROM executions WHERE runner=? AND status IN ({','.join('?'*len(active))})",
-                (runner_name, *active),
-            ) as cursor:
-                row = await cursor.fetchone()
+            if exclude_id:
+                async with db.execute(
+                    f"SELECT COUNT(*) FROM executions WHERE runner=? AND id != ? AND status IN ({','.join('?'*len(active))})",
+                    (runner_name, exclude_id, *active),
+                ) as cursor:
+                    row = await cursor.fetchone()
+            else:
+                async with db.execute(
+                    f"SELECT COUNT(*) FROM executions WHERE runner=? AND status IN ({','.join('?'*len(active))})",
+                    (runner_name, *active),
+                ) as cursor:
+                    row = await cursor.fetchone()
         return (row[0] if row else 0) < max_parallel
 
     async def _dispatch(self, ex: Execution) -> None:
-        fase_cfg = _get_fase_config().get(ex.fase, {})
+        if ex.id in _ACTIVE_DISPATCHES:
+            log.debug("_dispatch: execution %s already active, skipping duplicate", ex.id)
+            return
+        _ACTIVE_DISPATCHES.add(ex.id)
+        try:
+            await self._dispatch_inner(ex)
+        finally:
+            _ACTIVE_DISPATCHES.discard(ex.id)
+
+    async def _dispatch_inner(self, ex: Execution) -> None:
+        fase_cfg = _get_fase_config(ex.pipeline_id).get(ex.fase, {})
         parent_required = fase_cfg.get("parent_required", False)
 
         # 1. Wait for parent
@@ -235,19 +261,19 @@ class ExecutionService:
                 if _parent_exists(ex, parent_required):
                     break
 
-        # 2. Wait for runner slot
-        if not await self._runner_has_slot(ex.runner):
+        # 2. Wait for runner slot (exclude self so waiting_runner doesn't block itself)
+        if not await self._runner_has_slot(ex.runner, exclude_id=ex.id):
             await self._update_status(ex.id, ExecutionStatus.waiting_runner)
             while True:
                 await asyncio.sleep(POLL_RUNNER_SECS)
                 current = await self.get(ex.id)
                 if current is None or current.status == ExecutionStatus.canceled:
                     return
-                if await self._runner_has_slot(ex.runner):
+                if await self._runner_has_slot(ex.runner, exclude_id=ex.id):
                     break
 
         # 3. Pause gate
-        while self._paused:
+        while _PAUSED:
             await asyncio.sleep(5)
             current = await self.get(ex.id)
             if current is None or current.status == ExecutionStatus.canceled:
@@ -264,7 +290,7 @@ class ExecutionService:
             branch = proj.get("branch")
             gh_fase = fase_cfg.get("gh_fase", ex.fase)
             runner_json = _get_runner_json(ex.runner)
-            gh_run_id = await dispatch_phase(repo, gh_fase, ex.variant, ex.parent, ex.params, runner_json, branch=branch)
+            gh_run_id = await dispatch_phase(repo, gh_fase, ex.variant, ex.parent, ex.params, runner_json, branch=branch, token=get_pipeline_token(ex.pipeline_id))
             if gh_run_id:
                 await self._set_gh_run_id(ex.id, gh_run_id)
             await self._update_status(ex.id, ExecutionStatus.running)
@@ -319,7 +345,7 @@ class ExecutionService:
                     _row = await _cur.fetchone()
             if _row and _row["pipeline_id"]:
                 _pid = _row["pipeline_id"]
-                asyncio.create_task(
+                asyncio.ensure_future(
                     asyncio.get_running_loop().run_in_executor(
                         None, lineage_registry_service.sync, _pid
                     )
@@ -370,7 +396,7 @@ class ExecutionService:
             except ValueError:
                 await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
                 continue
-            run_info = await fetch_run_status(repo, gh_run_id)
+            run_info = await fetch_run_status(repo, gh_run_id, token=get_pipeline_token(pipeline_id))
             if run_info is None:
                 await self._update_status(execution_id, ExecutionStatus.failed, "INTERRUPTED")
                 continue
@@ -412,7 +438,7 @@ class ExecutionService:
             from app.services.github import cancel_run
             try:
                 proj = get_pipeline_project(ex.pipeline_id)
-                await cancel_run(proj["repo"], ex.gh_run_id)
+                await cancel_run(proj["repo"], ex.gh_run_id, token=get_pipeline_token(ex.pipeline_id))
             except Exception as e:
                 log.warning("Failed to cancel GH run %s: %s", ex.gh_run_id, e)
 
@@ -469,7 +495,7 @@ async def _check_run(gh_run_id: str, pipeline_id: str) -> None:
     try:
         proj = get_pipeline_project(pipeline_id)
         repo = proj["repo"]
-        run_info = await fetch_run_status(repo, gh_run_id)
+        run_info = await fetch_run_status(repo, gh_run_id, token=get_pipeline_token(pipeline_id))
         if run_info is None or run_info.get("status") != "completed":
             return
         conclusion = run_info.get("conclusion") or "failure"
@@ -479,9 +505,15 @@ async def _check_run(gh_run_id: str, pipeline_id: str) -> None:
 
 
 async def _poll_gh_running() -> None:
-    """Background task: poll GitHub API every POLL_GH_SECS for running executions."""
+    """Background task: poll GitHub API every POLL_GH_SECS for running executions.
+    Also re-dispatches waiting_runner / waiting_parent every POLL_WAITING_SECS."""
+    _waiting_interval = max(1, round(POLL_WAITING_SECS / POLL_GH_SECS))
+    _tick = 0
+    svc = ExecutionService()
+
     while True:
         await asyncio.sleep(POLL_GH_SECS)
+        _tick += 1
         try:
             async with aiosqlite.connect(DB_PATH) as db:
                 async with db.execute(
@@ -506,6 +538,22 @@ async def _poll_gh_running() -> None:
                         (now, eid),
                     )
                     await db.commit()
+
+            # Periodically retry stuck waiting_runner / waiting_parent
+            if _tick % _waiting_interval == 0:
+                waiting_statuses = ('waiting_parent', 'waiting_runner')
+                async with aiosqlite.connect(DB_PATH) as db:
+                    async with db.execute(
+                        f"SELECT * FROM executions WHERE status IN ({','.join('?'*len(waiting_statuses))})",
+                        waiting_statuses,
+                    ) as cursor:
+                        waiting_rows = await cursor.fetchall()
+                if waiting_rows:
+                    log.info("poll_gh_running: re-dispatching %d waiting execution(s)", len(waiting_rows))
+                    for row in waiting_rows:
+                        ex = _row_to_execution(row)
+                        asyncio.create_task(svc._dispatch(ex))
+
         except Exception as exc:
             log.warning("poll_gh_running: %s", exc)
 

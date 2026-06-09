@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchRuns, getSupabase, isConfigured, subscribeRuns } from '../api/supabase'
 import { getPipelineProjects } from '../api/pipeline_projects'
+import PipelineSelect from '../components/PipelineSelect'
 import RunList from '../features/logs/RunList'
 import LogViewer from '../features/logs/LogViewer'
 
@@ -16,10 +17,16 @@ function _mapLocalStatus(s) {
 }
 
 function _toRunShape(ex) {
-  const status = _mapLocalStatus(ex.status)
+  const status      = _mapLocalStatus(ex.status)
+  const hasGhRunId  = !!ex.gh_run_id
+  const isGhRunner  = ex.runner && ex.runner !== 'Local'
+  // _source: 'gh' only when GH run ID is confirmed; 'pending' = GH runner but not yet dispatched
+  const source = hasGhRunId ? 'gh' : (isGhRunner ? 'pending' : 'local')
   return {
-    run_id:        ex.id,
-    workflow_name: `Local: ${ex.fase}/${ex.variant}`,
+    run_id:        hasGhRunId ? ex.gh_run_id : ex.id,
+    workflow_name: isGhRunner
+      ? `${ex.runner}: ${ex.fase}/${ex.variant}`
+      : `Local: ${ex.fase}/${ex.variant}`,
     branch:        null,
     status,
     conclusion:    ['success', 'failure', 'cancelled'].includes(status) ? status : null,
@@ -27,7 +34,10 @@ function _toRunShape(ex) {
     variant:       ex.variant,
     created_at:    ex.created_at,
     pipeline_id:   ex.pipeline_id ?? null,
-    _source:       'local',
+    gh_run_id:     ex.gh_run_id ?? null,
+    runner:        ex.runner ?? null,
+    _source:       source,
+    _exec_id:      ex.id,
   }
 }
 
@@ -38,6 +48,7 @@ export default function LogsRunners() {
   const [selectedRun, setSelectedRun] = useState(null)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [pipelineFilter, setPipelineFilter] = useState('')
   const [search, setSearch] = useState(() => searchParams.get('run_id') ?? '')
   const [projects, setProjects] = useState([])
 
@@ -55,12 +66,12 @@ export default function LogsRunners() {
   )
   const [, forceUpdate] = useState(0)   // solo para forzar re-render cuando cambia la caché
 
-  async function fetchGhLogs(runId) {
-    if (!runId || _ghLoadingSet.has(runId)) return
+  async function fetchGhLogs(runId, pipelineId) {
+    if (!runId || !pipelineId || _ghLoadingSet.has(runId)) return
     _ghLoadingSet.add(runId)
     forceUpdate(n => n + 1)
     try {
-      const resp = await fetch(`/api/executions/gh-logs/${runId}`)
+      const resp = await fetch(`/api/executions/gh-logs/${runId}?pipeline_id=${encodeURIComponent(pipelineId)}`)
       if (!resp.ok) throw new Error(resp.statusText)
       _ghLogsCache[runId] = await resp.json()
     } catch (e) {
@@ -137,12 +148,16 @@ export default function LogsRunners() {
     [runs, branchMap]
   )
 
-  const allRuns = [...enrichedRuns, ...localRuns].sort(
+  // Merge: Supabase entries win over local duplicates (same gh run_id)
+  const ghRunIds = new Set(enrichedRuns.map(r => r.run_id))
+  const dedupedLocal = localRuns.filter(r => !ghRunIds.has(r.run_id))
+  const allRuns = [...enrichedRuns, ...dedupedLocal].sort(
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
   )
 
   const filtered = allRuns.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
+    if (pipelineFilter && r.pipeline_id !== pipelineFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -159,15 +174,29 @@ export default function LogsRunners() {
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-950">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0 bg-white dark:bg-gray-950">
         <input
           type="search"
           placeholder="Buscar por workflow, rama, fase…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-2 py-1 w-52 outline-none focus:ring-1 focus:ring-blue-500"
+          className="text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-2 py-1 w-48 outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
         />
-        <div className="flex gap-1">
+
+        {/* Pipeline filter */}
+        {projects.length > 1 && (
+          <div className="w-40 shrink-0">
+            <PipelineSelect
+              value={pipelineFilter}
+              onChange={setPipelineFilter}
+              projects={projects}
+              showAll={true}
+            />
+          </div>
+        )}
+
+        {/* Status filter */}
+        <div className="flex gap-1 flex-wrap">
           {ALL_STATUSES.map((s) => (
             <button
               key={s}
@@ -183,7 +212,8 @@ export default function LogsRunners() {
             </button>
           ))}
         </div>
-        <span className="ml-auto text-[10px] text-gray-400 dark:text-gray-600">
+
+        <span className="ml-auto text-[10px] text-gray-400 dark:text-gray-600 shrink-0">
           {filtered.length} run{filtered.length !== 1 ? 's' : ''}
         </span>
       </div>

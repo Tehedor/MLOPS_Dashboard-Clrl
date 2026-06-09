@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createExecution } from '../../api/executions'
-import { PHASE_PARAMS } from './phaseParams'
+import { paramsForPhase } from './phaseParams'
 
 function phaseNum(phaseId) {
   return parseInt(phaseId.match(/^f(\d+)/)?.[1] ?? '1')
@@ -34,8 +34,8 @@ function parseRawParams(raw) {
   try { return JSON.parse(raw) } catch { return {} }
 }
 
-function buildPhaseParams(faseId, params) {
-  const defs = PHASE_PARAMS[faseId] ?? []
+function buildPhaseParams(faseId, params, phaseParams) {
+  const defs = paramsForPhase(phaseParams, faseId)
   if (defs.length === 0) return params && Object.keys(params).length > 0 ? params : {}
   const result = {}
   for (const def of defs) {
@@ -58,10 +58,10 @@ function buildPhaseParams(faseId, params) {
   return result
 }
 
-function buildTemplate(phases, executions) {
+function buildTemplate(phases, executions, phaseParams) {
   return phases.map(phase => {
     const latestEx  = executions?.filter(e => e.fase === phase.id)[0]
-    const params    = buildPhaseParams(phase.id, parseRawParams(latestEx?.params))
+    const params    = buildPhaseParams(phase.id, parseRawParams(latestEx?.params), phaseParams)
     const existing  = executions?.filter(e => e.fase === phase.id).map(e => e.variant).filter(Boolean) ?? []
     const entry     = { variant: nextVariant(phase.id, existing), params }
     if (phase.parentRequired) entry.parent = suggestParent(phase.id, executions ?? [])
@@ -70,7 +70,7 @@ function buildTemplate(phases, executions) {
   }).join('\n\n\n')
 }
 
-function parseBatch(raw, phaseIds) {
+function parseBatch(raw, phaseIds, phaseParams) {
   const sections = []
   let currentPhase = null
   let currentLines = []
@@ -96,9 +96,10 @@ function parseBatch(raw, phaseIds) {
       errors.push(`Fase desconocida: "${phase}"`)
       continue
     }
-    const defs        = PHASE_PARAMS[phase] ?? []
+    const defs        = paramsForPhase(phaseParams, phase)
     const requiredIds = new Set(defs.filter(d => d.required).map(d => d.id))
-    const blocks      = content.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean)
+    const normalized  = content.replace(/}[ \t]*,?[ \t]*\n[ \t]*{/g, '}\n\n{')
+    const blocks      = normalized.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean)
     for (const block of blocks) {
       try {
         const obj = JSON.parse(block)
@@ -115,10 +116,11 @@ function parseBatch(raw, phaseIds) {
             warnings.push(`#${phase} "${label}" obligatorio vacío en ${obj.variant.trim()}`)
           }
         }
+        const rawParent = obj.parent ?? null
         entries.push({
           fase:            phase,
           variant:         obj.variant.trim(),
-          parent:          obj.parent ?? null,
+          parent:          Array.isArray(rawParent) ? JSON.stringify(rawParent) : rawParent,
           params:          cleanParams,
           selected_runner: obj.selected_runner ?? null,
         })
@@ -131,9 +133,10 @@ function parseBatch(raw, phaseIds) {
   return { entries, errors, warnings }
 }
 
-export default function BatchPanel({ phases, executions, onWarnings, pipelineId, color }) {
+export default function BatchPanel({ phases, executions, onWarnings, pipelineId, color, phaseParams }) {
   const qc       = useQueryClient()
   const phaseIds = useMemo(() => new Set(phases.map(p => p.id)), [phases])
+  const storageKey = `v2_${pipelineId ?? 'default'}_batch_input`
 
   const templateKey = useMemo(
     () => phases.map(p => `${p.id}:${executions?.filter(e => e.fase === p.id)[0]?.id ?? ''}`).join('|'),
@@ -141,22 +144,32 @@ export default function BatchPanel({ phases, executions, onWarnings, pipelineId,
   )
 
   const [input,         setInput]         = useState(() =>
-    localStorage.getItem('v2_batch_input') ?? buildTemplate(phases, executions)
+    localStorage.getItem(storageKey) ?? buildTemplate(phases, executions, phaseParams)
   )
   const [submitResults, setSubmitResults] = useState(null)
   const [isPending,     setIsPending]     = useState(false)
   const textareaRef = useRef(null)
-  const userEdited  = useRef(!!localStorage.getItem('v2_batch_input'))
+  const userEdited  = useRef(!!localStorage.getItem(storageKey))
 
-  useEffect(() => { localStorage.setItem('v2_batch_input', input) }, [input])
+  useEffect(() => {
+    if (userEdited.current) localStorage.setItem(storageKey, input)
+  }, [input, storageKey])
+
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    userEdited.current = !!saved
+    setInput(saved ?? buildTemplate(phases, executions, phaseParams))
+  }, [storageKey, phaseParams])
 
   useEffect(() => {
     if (userEdited.current) return
-    setInput(buildTemplate(phases, executions))
-  }, [templateKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    setInput(buildTemplate(phases, executions, phaseParams))
+  }, [templateKey, phaseParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleReset() {
-    setInput(buildTemplate(phases, executions))
+    userEdited.current = false
+    localStorage.removeItem(storageKey)
+    setInput(buildTemplate(phases, executions, phaseParams))
   }
 
   useEffect(() => {
@@ -166,7 +179,7 @@ export default function BatchPanel({ phases, executions, onWarnings, pipelineId,
     el.style.height = el.scrollHeight + 'px'
   }, [input])
 
-  const parsed    = useMemo(() => parseBatch(input, phaseIds), [input, phaseIds])
+  const parsed    = useMemo(() => parseBatch(input, phaseIds, phaseParams), [input, phaseIds, phaseParams])
   const hasErrors = parsed.errors.length > 0
   const count     = parsed.entries.length
 

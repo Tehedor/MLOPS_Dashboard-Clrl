@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getExecutions, getPhases } from '../api/executions'
+import { getExecutions, getPhases, getPhaseParams } from '../api/executions'
 import { getPipelineProjects } from '../api/pipeline_projects'
 import { fetchRunsAsExecutions, subscribeRuns, isConfigured } from '../api/supabase'
 import { transformPhases } from '../utils/phases'
-import { PHASE_PARAMS } from '../features/vista2/phaseParams'
+import { emptyPhaseParams, paramsForPhase } from '../features/vista2/phaseParams'
 import PhaseCard from '../features/vista2/PhaseCard'
 import BatchPanel from '../features/vista2/BatchPanel'
 import PipelinePanel from '../features/vista2/PipelinePanel'
@@ -175,12 +175,21 @@ export default function Vista2() {
     : null
 
   const { data: rawPhases = [] } = useQuery({
-    queryKey: ['phases'],
-    queryFn:  getPhases,
-    staleTime: Infinity,
+    queryKey: ['phases', activePipelineId],
+    queryFn:  () => getPhases(activePipelineId),
+    enabled:  !!activePipelineId,
+    staleTime: 5 * 60_000,
     retry: 1,
   })
   const phases = transformPhases(rawPhases)
+
+  const { data: phaseParams = emptyPhaseParams() } = useQuery({
+    queryKey: ['phase-params', activePipelineId],
+    queryFn:  () => getPhaseParams(activePipelineId),
+    enabled:  !!activePipelineId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 
   useSSE('/api/executions/stream', (ex) => {
     qc.setQueryData(['executions'], (old = []) => {
@@ -271,18 +280,19 @@ export default function Vista2() {
               <div className="flex flex-col gap-5 p-4">
                 {phases.map(phase => (
                   <PhaseCard
-                    key={phase.id}
+                    key={`${activePipelineId}:${phase.id}`}
                     phase={phase}
                     executions={pipelineExecutions}
                     preload={preloadMap[phase.id] ?? null}
                     onPreloadConsumed={() => handlePreloadConsumed(phase.id)}
                     pipelineId={activePipelineId}
                     color={pipelineProjects[activePipelineId]?.color}
+                    phaseParams={phaseParams}
                   />
                 ))}
               </div>
             ) : (
-              <BatchPanel phases={phases} executions={pipelineExecutions} onWarnings={setLeftWarnings} pipelineId={activePipelineId} color={pipelineProjects[activePipelineId]?.color} />
+              <BatchPanel key={activePipelineId} phases={phases} executions={pipelineExecutions} onWarnings={setLeftWarnings} pipelineId={activePipelineId} color={pipelineProjects[activePipelineId]?.color} phaseParams={phaseParams} />
             )}
           </div>
         </div>
@@ -311,7 +321,7 @@ export default function Vista2() {
                   Params obligatorios
                 </p>
                 {phases.map(phase => {
-                  const required = (PHASE_PARAMS[phase.id] ?? []).filter(d => d.required)
+                  const required = paramsForPhase(phaseParams, phase.id).filter(d => d.required)
                   if (!required.length) return null
                   return (
                     <div key={phase.id}>
@@ -441,10 +451,23 @@ export default function Vista2() {
 // ── PipelineTab ───────────────────────────────────────────────────────────────
 
 function PipelineTab({ label, color, active, onClick }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleClick() {
+    if (active) {
+      navigator.clipboard.writeText(label).catch(() => {})
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1000)
+    } else {
+      onClick()
+    }
+  }
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
+      title={active ? 'Clic para copiar nombre' : undefined}
       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors shrink-0 ${
         active
           ? 'bg-white dark:bg-gray-900'
@@ -458,7 +481,7 @@ function PipelineTab({ label, color, active, onClick }) {
           style={{ backgroundColor: color, opacity: active ? 1 : 0.5 }}
         />
       )}
-      {label}
+      {copied ? '✓ copiado' : label}
     </button>
   )
 }

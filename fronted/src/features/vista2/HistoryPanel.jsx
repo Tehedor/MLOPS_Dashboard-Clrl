@@ -1,3 +1,4 @@
+import { useState, useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { retryExecution, createExecution } from '../../api/executions'
@@ -41,6 +42,21 @@ function fmtDuration(startIso, endIso) {
 
 const HISTORY_STATES = new Set(['success', 'failed', 'canceled'])
 
+const STATUS_RANK = { success: 0, failed: 1, canceled: 2 }
+const STATUS_META = {
+  success:  { label: 'Success',  color: 'bg-green-100  text-green-700  border-green-300  dark:bg-green-900/40  dark:text-green-300  dark:border-green-700' },
+  failed:   { label: 'Failed',   color: 'bg-red-100    text-red-700    border-red-300    dark:bg-red-900/40    dark:text-red-300    dark:border-red-700'   },
+  canceled: { label: 'Canceled', color: 'bg-gray-100   text-gray-600   border-gray-300   dark:bg-gray-800      dark:text-gray-400   dark:border-gray-600'  },
+}
+const ALL_STATUSES = Object.keys(STATUS_META)
+
+function phaseNum(fase) {
+  const m = fase?.match(/^f(\d+)/)
+  return m ? parseInt(m[1]) : 99
+}
+
+function cycleDir(set) { set(prev => prev === null ? 'desc' : prev === 'desc' ? 'asc' : null) }
+
 function parseParams(raw) {
   try { return JSON.parse(raw ?? '{}') } catch { return {} }
 }
@@ -66,19 +82,106 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
     onSuccess: () => qc.invalidateQueries({ queryKey: ['executions'] }),
   })
 
+  // ── Status filter + sort (persisted) ─────────────────────────────────────
+  const [visibleStatuses, setVisibleStatuses] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('history_panel_ui') ?? '{}'); return new Set(s.visibleStatuses ?? ALL_STATUSES) } catch { return new Set(ALL_STATUSES) }
+  })
+  const [phaseSort,  setPhaseSort]  = useState(() => { try { return JSON.parse(localStorage.getItem('history_panel_ui') ?? '{}').phaseSort  ?? null  } catch { return null  } })
+  const [statusSort, setStatusSort] = useState(() => { try { return JSON.parse(localStorage.getItem('history_panel_ui') ?? '{}').statusSort ?? null  } catch { return null  } })
+  const [dateSort,   setDateSort]   = useState(() => { try { return JSON.parse(localStorage.getItem('history_panel_ui') ?? '{}').dateSort   ?? 'desc' } catch { return 'desc' } })
+
+  useEffect(() => {
+    localStorage.setItem('history_panel_ui', JSON.stringify({ visibleStatuses: [...visibleStatuses], phaseSort, statusSort, dateSort }))
+  }, [visibleStatuses, phaseSort, statusSort, dateSort])
+
+  const toggleStatus = useCallback((s) => {
+    setVisibleStatuses(prev => {
+      const next = new Set(prev)
+      next.has(s) ? next.delete(s) : next.add(s)
+      return next.size === 0 ? new Set(ALL_STATUSES) : next
+    })
+  }, [])
+
   const items = executions
     .filter(e => HISTORY_STATES.has(e.status))
+    .filter(e => visibleStatuses.has(e.status))
     .filter(e => !filterVariant  || e.variant.includes(filterVariant))
     .filter(e => !filterFase     || e.fase === filterFase)
     .filter(e => !filterPipeline || e.pipeline_id === filterPipeline)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice()
+    .sort((a, b) => {
+      // Status priority
+      if (statusSort) {
+        const cmp = (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99)
+        if (cmp !== 0) return statusSort === 'asc' ? cmp : -cmp
+      }
+      // Phase
+      if (phaseSort) {
+        const cmp = phaseNum(a.fase) - phaseNum(b.fase)
+        if (cmp !== 0) return phaseSort === 'asc' ? cmp : -cmp
+      }
+      // Date
+      if (dateSort) {
+        const cmp = new Date(a.updated_at) - new Date(b.updated_at)
+        if (cmp !== 0) return dateSort === 'asc' ? cmp : -cmp
+      }
+      return 0
+    })
+
+  const filterSortBar = (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+      {/* Status filter chips */}
+      <div className="flex flex-wrap gap-1">
+        {ALL_STATUSES.map(s => {
+          const on = visibleStatuses.has(s)
+          return (
+            <button
+              key={s}
+              onClick={() => toggleStatus(s)}
+              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors ${
+                on ? STATUS_META[s].color : 'bg-transparent text-gray-400 border-gray-300 dark:border-gray-700 dark:text-gray-600 line-through'
+              }`}
+            >
+              {STATUS_META[s].label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Sort controls */}
+      <div className="flex items-center gap-1 ml-auto shrink-0">
+        <span className="text-[10px] text-gray-400 dark:text-gray-600">Orden:</span>
+        {[['Fase', phaseSort, () => cycleDir(setPhaseSort)], ['Estado', statusSort, () => cycleDir(setStatusSort)], ['Fecha', dateSort, () => cycleDir(setDateSort)]].map(([label, dir, fn]) => (
+          <button
+            key={label}
+            onClick={fn}
+            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex items-center gap-0.5 ${
+              dir
+                ? 'bg-indigo-100 text-indigo-700 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700'
+                : 'bg-transparent text-gray-500 border-gray-300 hover:border-gray-400 dark:text-gray-400 dark:border-gray-700'
+            }`}
+          >
+            {label}
+            {dir === 'asc' && ' ↑'}
+            {dir === 'desc' && ' ↓'}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 
   if (items.length === 0) {
-    return <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">Sin histórico</p>
+    return (
+      <div>
+        {filterSortBar}
+        <p className="text-xs text-gray-600 dark:text-gray-500">Sin histórico</p>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {filterSortBar}
       {items.map(ex => {
         const isHighlighted = !!highlightFaseVariant && `${ex.fase}::${ex.variant}` === highlightFaseVariant
         return (

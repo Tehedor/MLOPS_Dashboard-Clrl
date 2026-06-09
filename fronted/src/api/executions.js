@@ -1,12 +1,24 @@
 const BASE = '/api/executions'
 
-export async function getPhases() {
+export async function getPhases(pipelineId) {
   try {
-    const res = await fetch(`${BASE}/phases`)
+    const url = pipelineId ? `${BASE}/phases?pipeline_id=${encodeURIComponent(pipelineId)}` : `${BASE}/phases`
+    const res = await fetch(url)
     if (!res.ok) return []
     return res.json()
   } catch {
     return []
+  }
+}
+
+export async function getPhaseParams(pipelineId) {
+  try {
+    const url = pipelineId ? `${BASE}/phase-params?pipeline_id=${encodeURIComponent(pipelineId)}` : `${BASE}/phase-params`
+    const res = await fetch(url)
+    if (!res.ok) return { phase_params: {}, phase_parent_variant: {} }
+    return res.json()
+  } catch {
+    return { phase_params: {}, phase_parent_variant: {} }
   }
 }
 
@@ -25,7 +37,10 @@ export async function createExecution(data) {
   })
   if (!res.ok) {
     let detail = `Error ${res.status}`
-    try { detail = (await res.json()).detail ?? detail } catch {}
+    try {
+      const raw = (await res.json()).detail ?? detail
+      detail = typeof raw === 'string' ? raw : JSON.stringify(raw)
+    } catch {}
     throw Object.assign(new Error(detail), { status: res.status })
   }
   return res.json()

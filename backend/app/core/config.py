@@ -1,8 +1,25 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+# In pydantic-settings v2 the last file wins on conflict.
+# config/.env is the fallback; root .env is the authoritative override.
+_ENV_FILES = (
+    str(PROJECT_ROOT / "config" / ".env"),
+    str(PROJECT_ROOT / ".env"),
+)
+
+# Populate os.environ so os.environ.get() works for per-pipeline token vars
+# (pydantic-settings only maps declared fields, not arbitrary env vars).
+for _f in _ENV_FILES:
+    if Path(_f).exists():
+        load_dotenv(_f, override=True)
 
 
 class Settings(BaseSettings):
@@ -16,15 +33,13 @@ class Settings(BaseSettings):
     supabase_publishable_key: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = _ENV_FILES
         extra = "ignore"
 
 
 settings = Settings()
-
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-APP_CONFIG_PATH = PROJECT_ROOT / "config.yaml"
-PIPELINES_CONFIG_PATH = PROJECT_ROOT / "pipelines.yaml"
+APP_CONFIG_PATH = PROJECT_ROOT / "config" / "config.yaml"
+PIPELINES_CONFIG_PATH = PROJECT_ROOT / "config" / "pipelines.yaml"
 
 
 @lru_cache(maxsize=1)
@@ -87,3 +102,29 @@ def phases_runner_path() -> Path:
     if candidate.exists():
         return candidate
     return PROJECT_ROOT / "backend" / "config" / "fases_execution_runners.yaml"
+
+
+def resolve_pipeline_config_path(pipeline_id: str, key: str, fallback: str) -> Path:
+    """Resolve a config-file path: checks pipeline project config first, then fallback."""
+    proj = get_pipeline_project(pipeline_id)
+    raw = proj.get(key) or fallback
+    p = Path(str(raw))
+    return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def get_pipeline_token(pipeline_id: str) -> str:
+    """Return the GitHub token for a pipeline.
+
+    Reads the env var named by `github_token_env` in pipelines.yaml.
+    Falls back to the global GITHUB_TOKEN / settings.github_token.
+    """
+    proj = get_pipeline_project(pipeline_id)
+    env_var = proj.get("github_token_env", "GITHUB_TOKEN")
+    return os.environ.get(env_var, settings.github_token)
+
+
+def fase_runners_path(pipeline_id: str) -> Path:
+    """Path to per-pipeline fase→runner assignment yaml."""
+    return resolve_pipeline_config_path(
+        pipeline_id, "fase_runners", "config/fases_execution_runners.yaml"
+    )

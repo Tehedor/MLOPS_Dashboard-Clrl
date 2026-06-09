@@ -6,26 +6,23 @@ from pathlib import Path
 import httpx
 import yaml
 
-from app.core.config import load_app_config, PROJECT_ROOT
+from app.core.config import load_app_config, PROJECT_ROOT, resolve_pipeline_config_path
 
 log = logging.getLogger(__name__)
 
 SERVICES_CWD = PROJECT_ROOT / "services"
 
 
-def _load_services_config() -> dict:
-    app_cfg = load_app_config()
-    path = Path(app_cfg.get("services_external_ctrl", "config/services_external_ctrl.yaml"))
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
+def _load_services_config(pipeline_id: str) -> dict:
+    path = resolve_pipeline_config_path(pipeline_id, "services_external_ctrl", "config/services_external_ctrl.yaml")
     if not path.exists():
         return {}
     with open(path) as f:
         return yaml.safe_load(f) or {}
 
 
-def get_services() -> list[dict]:
-    data = _load_services_config()
+def get_services(pipeline_id: str) -> list[dict]:
+    data = _load_services_config(pipeline_id)
     result = []
     for service_id, cfg in data.get("Services", {}).items():
         if not cfg.get("enabled", True):
@@ -45,8 +42,8 @@ def get_services() -> list[dict]:
     return result
 
 
-def get_service(service_id: str) -> dict | None:
-    data = _load_services_config()
+def get_service(service_id: str, pipeline_id: str) -> dict | None:
+    data = _load_services_config(pipeline_id)
     cfg = data.get("Services", {}).get(service_id)
     if not cfg:
         return None

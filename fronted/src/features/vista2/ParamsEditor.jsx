@@ -1,20 +1,40 @@
 import { useState, useEffect, useRef } from 'react'
-import { PHASE_PARAMS } from './phaseParams'
+import { paramsForPhase } from './phaseParams'
 
-export default function ParamsEditor({ faseId, suggestions = {}, onChange, externalKey = 0, externalParams = null }) {
-  const defs = PHASE_PARAMS[faseId] ?? []
+export default function ParamsEditor({ faseId, pipelineId, phaseParams, suggestions = {}, onChange, externalKey = 0, externalParams = null }) {
+  const defs = paramsForPhase(phaseParams, faseId)
+  const storageKey = `pe_${pipelineId ?? 'default'}_${faseId}_form`
 
   const [formValues, setFormValues] = useState(() => {
     try {
-      const saved = localStorage.getItem(`pe_${faseId}_form`)
+      const saved = localStorage.getItem(storageKey)
       return saved ? JSON.parse(saved) : initForm(defs)
     } catch { return initForm(defs) }
   })
   const mounted = useRef(false)
 
   useEffect(() => {
-    localStorage.setItem(`pe_${faseId}_form`, JSON.stringify(formValues))
-  }, [formValues, faseId])
+    localStorage.setItem(storageKey, JSON.stringify(formValues))
+  }, [formValues, storageKey])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const next = initForm(defs)
+        for (const def of defs) {
+          const savedVal = parsed[def.id]
+          if (savedVal === undefined) continue
+          if (def.type === 'select' && def.required && savedVal === '') continue
+          next[def.id] = savedVal
+        }
+        setFormValues(next)
+        return
+      }
+    } catch {}
+    setFormValues(initForm(defs))
+  }, [storageKey, defs])
 
   // Aplicar preload externo cuando externalKey cambia (ignorar montaje inicial)
   useEffect(() => {
@@ -142,7 +162,10 @@ function ParamField({ def, value, suggestion, onChange }) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function initForm(defs) {
-  return Object.fromEntries(defs.map(d => [d.id, '']))
+  return Object.fromEntries(defs.map(d => {
+    if (d.type === 'select' && d.required && d.options?.length > 0) return [d.id, d.options[0]]
+    return [d.id, '']
+  }))
 }
 
 function paramsToForm(params, defs) {

@@ -24,8 +24,9 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
   const isLocal   = run?._source === 'local'
+  const isPending = run?._source === 'pending'   // GH runner, not yet dispatched
   const isLive    = run?.status === 'in_progress' || run?.status === 'running'
-  const ghRunId   = isLocal ? null : (run?.run_id ?? run?.gh_run_id)
+  const ghRunId   = (isLocal || isPending) ? null : (run?.run_id ?? run?.gh_run_id)
   const ghLogs    = ghRunId ? (ghLogsCache[ghRunId] ?? null) : null
   const ghLoading = ghRunId ? ghLoadingSet.has(ghRunId) : false
 
@@ -45,7 +46,7 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
 
   // Supabase logs for GH runs
   useEffect(() => {
-    if (!run || isLocal) { setLogs([]); return }
+    if (!run || isLocal || isPending) { setLogs([]); return }
 
     setLoading(true)
     setLogs([])
@@ -67,22 +68,22 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
 
   // Auto-fetch GH logs for completed runs (no button needed)
   useEffect(() => {
-    if (!run || isLocal || !ghRunId) return
+    if (!run || isLocal || isPending || !ghRunId) return
     if (run.conclusion && !ghLoadingSet.has(ghRunId) && !ghLogsCache[ghRunId]) {
-      onFetchGhLogs?.(ghRunId)
+      onFetchGhLogs?.(ghRunId, run.pipeline_id)
     }
-  }, [run?.run_id, run?.conclusion, isLocal])
+  }, [run?.run_id, run?.conclusion, isLocal, isPending])
 
   // SSE stream for local runs
   useEffect(() => {
-    if (!run || !isLocal) { setLocalGroups({}); return }
+    if (!run || !isLocal || isPending) { setLocalGroups({}); return }
 
     setLocalGroups({})
     setLoading(true)
     atBottomRef.current = true
     if (containerRef.current) containerRef.current.scrollTop = 0
 
-    const sse = new EventSource(`/api/executions/${run.run_id}/local-logs/stream`)
+    const sse = new EventSource(`/api/executions/${run._exec_id ?? run.run_id}/local-logs/stream`)
 
     sse.onmessage = (e) => {
       const data = JSON.parse(e.data)
@@ -123,6 +124,16 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
     return (
       <div className="flex items-center justify-center h-full text-xs text-gray-400 dark:text-gray-600">
         Selecciona un run para ver sus logs.
+      </div>
+    )
+  }
+
+  if (isPending) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-xs text-gray-400 dark:text-gray-600">
+        <span className="text-yellow-500 text-lg animate-pulse">⟳</span>
+        <span>Esperando dispatch en {run.runner ?? 'GitHub Actions'}…</span>
+        <span className="text-[10px] font-mono text-gray-300 dark:text-gray-700">{run.fase}/{run.variant}</span>
       </div>
     )
   }

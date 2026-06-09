@@ -3,8 +3,8 @@ const BASE = '/api/variants'
 export const getPhases = (pipelineId) =>
   fetch(`${BASE}/phases?pipeline_id=${encodeURIComponent(pipelineId)}`).then(r => r.json())
 
-export const getTableConfig = (phase) =>
-  fetch(`${BASE}/table-config/${phase}`).then(r => {
+export const getTableConfig = (phase, pipelineId) =>
+  fetch(`${BASE}/table-config/${phase}?pipeline_id=${encodeURIComponent(pipelineId)}`).then(r => {
     if (!r.ok) throw new Error(`${r.status}`)
     return r.json()
   })

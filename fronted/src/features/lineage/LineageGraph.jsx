@@ -214,6 +214,7 @@ const ALL_SECTIONS = [
   { id: 'metrics',    label: 'Metrics' },
   { id: 'artifacts',  label: 'Artifacts' },
   { id: 'metadata',   label: 'Metadata' },
+  { id: 'check_log',  label: 'Check Log' },
 ]
 
 const DEFAULT_VISIBLE = new Set(['estado', 'params', 'exports', 'metrics'])
@@ -279,11 +280,13 @@ function SectionSlicer({ visible, onChange }) {
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
 function DetailSection({ title, data }) {
-  if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) return null
+  if (data === null || data === undefined) return null
+  if (typeof data === 'object' && Object.keys(data).length === 0) return null
+  const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
   return (
     <div className="detail-panel__section">
       <div className="detail-panel__section-title">{title}</div>
-      <pre className="detail-panel__pre">{JSON.stringify(data, null, 2)}</pre>
+      <pre className="detail-panel__pre">{content}</pre>
     </div>
   )
 }
@@ -332,6 +335,7 @@ function DetailPanel({ node, onClose }) {
         {visibleSections.has('metrics')   && <DetailSection title="Metrics"    data={node.outputs?.metrics} />}
         {visibleSections.has('artifacts') && <DetailSection title="Artifacts"  data={node.outputs?.artifacts} />}
         {visibleSections.has('metadata')  && <DetailSection title="Metadata"   data={node.metadata} />}
+        {visibleSections.has('check_log') && <DetailSection title="Check Log"  data={node.check_log} />}
       </div>
     </div>
   )

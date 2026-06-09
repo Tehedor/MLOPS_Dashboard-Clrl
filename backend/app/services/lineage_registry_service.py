@@ -18,41 +18,30 @@ from typing import Any
 
 import yaml
 
-from app.core.config import PROJECT_ROOT, get_pipeline_project
+from app.core.config import PROJECT_ROOT, get_pipeline_project, resolve_pipeline_config_path, load_pipelines_config
 
 log = logging.getLogger(__name__)
 
-LINEAGE_CONFIG_PATH = PROJECT_ROOT / "config" / "lineage_config.yaml"
 VARIANT_RE = re.compile(r"^v(?P<phase>\d)_(?P<seq>\d{4})$")
 
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
-def _load_raw_lineage_config() -> dict:
-    if not LINEAGE_CONFIG_PATH.exists():
+def _load_raw_lineage_config(pipeline_id: str) -> dict:
+    path = resolve_pipeline_config_path(pipeline_id, "lineage_config", "")
+    if not str(path).strip("/") or not path.exists():
         return {}
-    with open(LINEAGE_CONFIG_PATH) as f:
+    with open(path) as f:
         return yaml.safe_load(f) or {}
 
 
 def get_lineage_config(pipeline_id: str) -> list[dict]:
-    """Return resolved phase list for a pipeline.
-
-    Supports `inherit: <other_id>` to copy another pipeline's phases.
-    """
-    raw = _load_raw_lineage_config()
-    pipelines = raw.get("pipelines", {})
-
-    cfg = pipelines.get(pipeline_id, {})
-    if not cfg:
+    """Return resolved phase list for a pipeline."""
+    raw = _load_raw_lineage_config(pipeline_id)
+    if not raw:
         return []
 
-    # Resolve inheritance
-    if "inherit" in cfg and "phases" not in cfg:
-        base_id = cfg["inherit"]
-        cfg = pipelines.get(base_id, {})
-
-    return cfg.get("phases", [])
+    return raw.get("phases", [])
 
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
@@ -95,6 +84,14 @@ def _read_yaml(path: Path) -> dict:
             return yaml.safe_load(f) or {}
     except Exception:
         return {}
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        with open(path) as f:
+            return f.read()
+    except Exception:
+        return None
 
 
 def _find_metadata(variant_dir: Path, specs: list[str]) -> dict:
@@ -177,10 +174,11 @@ def sync(pipeline_id: str) -> dict:
 
             variant_id = entry.name
 
-            params  = _read_yaml(entry / "params.yaml")
-            meta    = _find_metadata(entry, phase_cfg.get("metadata", ["metadata.yml"]))
-            outputs = _read_yaml(entry / "outputs.yaml")
-            parents = _extract_parents(params, phase_cfg.get("parent_keys", []))
+            params      = _read_yaml(entry / "params.yaml")
+            meta        = _find_metadata(entry, phase_cfg.get("metadata", ["metadata.yml"]))
+            outputs     = _read_yaml(entry / "outputs.yaml")
+            parents     = _extract_parents(params, phase_cfg.get("parent_keys", []))
+            check_log   = _read_text(entry / "check_results.log")
 
             new_entry = {
                 "fase":                fase,
@@ -194,6 +192,7 @@ def sync(pipeline_id: str) -> dict:
                 "params":              params,
                 "outputs":             outputs,
                 "metadata":            meta,
+                "check_log":           check_log,
             }
 
             key = (fase, variant_id)
@@ -234,10 +233,10 @@ def get_registry(pipeline_id: str) -> dict:
 
 
 def get_all_configs() -> dict:
-    """Return the full lineage config (all pipelines), for the frontend."""
-    raw = _load_raw_lineage_config()
-    pipelines = raw.get("pipelines", {})
+    """Return lineage config for all registered pipelines, for the frontend."""
     resolved = {}
-    for pid, cfg in pipelines.items():
-        resolved[pid] = {"phases": get_lineage_config(pid)}
+    for pid in load_pipelines_config():
+        phases = get_lineage_config(pid)
+        if phases:
+            resolved[pid] = {"phases": phases}
     return resolved

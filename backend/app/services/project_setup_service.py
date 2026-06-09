@@ -8,14 +8,20 @@ import asyncio
 import logging
 import os
 import pty
+import shutil
 import termios
 from pathlib import Path
 
 import httpx
 
-from app.core.config import get_pipeline_project, PROJECT_ROOT, settings
+from app.core.config import get_pipeline_project, get_pipeline_token, PROJECT_ROOT, settings
 
 log = logging.getLogger(__name__)
+
+# ── data_ctrl injection mode ─────────────────────────────────────────────────
+# "symlink" → ln -s (ahorra espacio; el repo externo ve un enlace simbólico absoluto)
+# "copy"    → shutil.copy2 (copia física; independiente del controlador tras el setup)
+DATA_CTRL_MODE: str = "symlink"
 
 # ── Per-pipeline state ────────────────────────────────────────────────────────
 
@@ -67,11 +73,12 @@ def _signal_done(pipeline_id: str) -> None:
 
 # ── GitHub helpers ────────────────────────────────────────────────────────────
 
-def _gh_headers() -> dict:
+def _gh_headers(token: str = "") -> dict:
+    t = token or settings.github_token
     return {
         "Accept": "application/vnd.github.v3+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "Authorization": f"Bearer {settings.github_token}",
+        "Authorization": f"Bearer {t}",
     }
 
 
@@ -95,7 +102,7 @@ async def check_branch_exists(pipeline_id: str) -> dict:
     url = f"https://api.github.com/repos/{repo}/branches/{branch}"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=_gh_headers())
+            resp = await client.get(url, headers=_gh_headers(get_pipeline_token(pipeline_id)))
         if resp.status_code == 200:
             sha = resp.json().get("commit", {}).get("sha")
             return {
@@ -114,11 +121,14 @@ async def create_branch(pipeline_id: str, base_branch: str = "main") -> dict:
     proj   = get_pipeline_project(pipeline_id)
     repo   = proj["repo"]
     branch = proj["branch"]
+    token  = get_pipeline_token(pipeline_id)
+    env_var = proj.get("github_token_env", "GITHUB_TOKEN")
+    log.warning("create_branch [%s] using env_var=%s token=%s", pipeline_id, env_var, (token[:4] + "…" + token[-4:]) if len(token) > 8 else "<empty>")
 
     # Resolve base branch SHA
     base_url = f"https://api.github.com/repos/{repo}/branches/{base_branch}"
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(base_url, headers=_gh_headers())
+        resp = await client.get(base_url, headers=_gh_headers(token))
     if resp.status_code != 200:
         raise ValueError(f"Base branch '{base_branch}' not found in {repo} (status {resp.status_code})")
     base_sha = resp.json()["commit"]["sha"]
@@ -127,8 +137,9 @@ async def create_branch(pipeline_id: str, base_branch: str = "main") -> dict:
     create_url = f"https://api.github.com/repos/{repo}/git/refs"
     payload = {"ref": f"refs/heads/{branch}", "sha": base_sha}
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(create_url, json=payload, headers=_gh_headers())
+        resp = await client.post(create_url, json=payload, headers=_gh_headers(token))
     if resp.status_code not in (200, 201):
+        log.warning("create_branch [%s] POST status=%s body=%s", pipeline_id, resp.status_code, resp.text[:500])
         detail = resp.json().get("message", resp.text[:200])
         raise ValueError(f"GitHub API error creating branch: {detail}")
 
@@ -236,14 +247,19 @@ async def run_setup(pipeline_id: str) -> None:
         push_log(pipeline_id, f"[setup] Repo: {repo}  Branch: {branch}")
         push_log(pipeline_id, f"[setup] Comando: {cmd_start}")
 
-        # Step 1 — clone / pull actions repo
-        push_log(pipeline_id, "[setup] Sincronizando repo_actions con GitHub…")
+        # Step 1 — clone main so command_start can create the feature branch
+        push_log(pipeline_id, "[setup] Clonando repo_actions desde main…")
         from app.services import repo_sync_service
+        clone_url = f"https://github.com/{repo}.git"
+        token = get_pipeline_token(pipeline_id)
+        loop = asyncio.get_running_loop()
         try:
-            await repo_sync_service.check_and_pull(pipeline_id)
-            push_log(pipeline_id, "[setup] repo_actions actualizado.")
+            await loop.run_in_executor(
+                None, repo_sync_service._setup_clone, local_path, clone_url, token
+            )
+            push_log(pipeline_id, "[setup] repo_actions listo en main.")
         except Exception as exc:
-            push_log(pipeline_id, f"[setup] Error al sincronizar repo_actions: {exc}")
+            push_log(pipeline_id, f"[setup] Error al clonar repo_actions: {exc}")
             state["status"] = "failed"
             return
 
@@ -252,34 +268,44 @@ async def run_setup(pipeline_id: str) -> None:
             state["status"] = "failed"
             return
 
-        # Step 1b — clone / pull local_pipeline_path (repo_local_runner) if configured
+        # Step 1b — clone main for local_pipeline_path (repo_local_runner) if configured
         if local_runner_path and local_runner_path != local_path:
-            push_log(pipeline_id, "[setup] Sincronizando repo_local_runner con GitHub…")
+            push_log(pipeline_id, "[setup] Clonando repo_local_runner desde main…")
             try:
-                clone_url = f"https://github.com/{repo}.git"
-                await asyncio.get_running_loop().run_in_executor(
-                    None,
-                    repo_sync_service._ensure_cloned,
-                    local_runner_path,
-                    clone_url,
-                    branch,
+                await loop.run_in_executor(
+                    None, repo_sync_service._setup_clone, local_runner_path, clone_url, token
                 )
-                await asyncio.get_running_loop().run_in_executor(
-                    None,
-                    repo_sync_service._pull,
-                    local_runner_path,
-                    branch,
-                )
-                push_log(pipeline_id, "[setup] repo_local_runner actualizado.")
+                push_log(pipeline_id, "[setup] repo_local_runner listo en main.")
             except Exception as exc:
-                push_log(pipeline_id, f"[setup] Aviso: no se pudo sincronizar repo_local_runner: {exc}")
+                push_log(pipeline_id, f"[setup] Aviso: no se pudo clonar repo_local_runner: {exc}")
 
-        # Step 2 — run command_start
+        # Step 2 — inject data files declared in data_ctrl before running command_start
+        for entry in proj.get("data_ctrl", []):
+            src_rel = entry.get("src", "")
+            dst_rel = entry.get("dst", "")
+            if not src_rel or not dst_rel:
+                continue
+            src_path = (PROJECT_ROOT / src_rel).resolve()
+            dst_path = local_path / dst_rel
+            if not src_path.exists():
+                push_log(pipeline_id, f"[setup] AVISO: data_ctrl src no encontrado: {src_path}")
+                continue
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            if DATA_CTRL_MODE == "symlink":
+                if dst_path.is_symlink() or dst_path.exists():
+                    dst_path.unlink()
+                dst_path.symlink_to(src_path)
+                push_log(pipeline_id, f"[setup] data_ctrl symlink: {src_rel} → {dst_rel}")
+            else:
+                shutil.copy2(src_path, dst_path)
+                push_log(pipeline_id, f"[setup] data_ctrl copiado: {src_rel} → {dst_rel}")
+
+        # Step 3 — run command_start
         push_log(pipeline_id, f"[setup] Ejecutando: {cmd_start}…")
         env = {
             **os.environ,
-            "GH_TOKEN":          settings.github_token,
-            "GITHUB_TOKEN":      settings.github_token,
+            "GH_TOKEN":          get_pipeline_token(pipeline_id),
+            "GITHUB_TOKEN":      get_pipeline_token(pipeline_id),
             "GITHUB_REPOSITORY": repo,
             "DAGSHUB_USER":      settings.dagshub_user,
             "DAGSHUB_TOKEN":     settings.dagshub_token,

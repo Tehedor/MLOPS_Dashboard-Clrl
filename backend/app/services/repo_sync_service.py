@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from app.core.config import PROJECT_ROOT, load_app_config, load_pipelines_config, get_pipeline_project, settings
+from app.core.config import PROJECT_ROOT, load_app_config, load_pipelines_config, get_pipeline_project, get_pipeline_token, settings
 
 log = logging.getLogger(__name__)
 
@@ -74,26 +74,79 @@ def _project_config(pipeline_id: str) -> tuple[str, str, str, Path, str]:
     return owner, name, branch, local_path, clone_url
 
 
-def _clone(local_path: Path, url: str, branch: str) -> None:
+def _authed_url(url: str, token: str = "") -> str:
+    """Inject token into HTTPS URL if available."""
+    t = token or settings.github_token
+    if t and url.startswith("https://github.com/"):
+        return url.replace("https://", f"https://{t}@", 1)
+    return url
+
+
+def _get_remote_name(local_path: Path) -> str:
+    """Read publish_remote_name from .mlops4ofp/setup.yaml, fallback to 'origin'."""
+    setup = local_path / ".mlops4ofp" / "setup.yaml"
+    if setup.exists():
+        try:
+            import yaml
+            data = yaml.safe_load(setup.read_text(encoding="utf-8")) or {}
+            name = data.get("git", {}).get("publish_remote_name", "") or ""
+            if name:
+                return name
+        except Exception:
+            pass
+    return "origin"
+
+
+def _clone(local_path: Path, url: str, branch: str, token: str = "") -> None:
     local_path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["git", "clone", "--branch", branch, "--single-branch", url, str(local_path)],
-        check=True,
+    result = subprocess.run(
+        ["git", "clone", "--branch", branch, "--single-branch", _authed_url(url, token), str(local_path)],
         capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            "git clone",
+            output=result.stdout,
+            stderr=result.stderr,
+        )
     log.info("repo cloned url=%s branch=%s path=%s", url, branch, local_path)
 
 
-def _ensure_cloned(local_path: Path, url: str, branch: str) -> None:
+def _ensure_cloned(local_path: Path, url: str, branch: str, token: str = "") -> None:
     if not (local_path / ".git").exists():
         log.info("repo not found, cloning url=%s", url)
-        _clone(local_path, url, branch)
+        _clone(local_path, url, branch, token)
+    else:
+        remote = _get_remote_name(local_path)
+        authed = _authed_url(url, token)
+        subprocess.run(
+            ["git", "-C", str(local_path), "remote", "set-url", remote, authed],
+            check=True, capture_output=True,
+        )
 
 
-async def _latest_sha(owner: str, repo: str, branch: str) -> str:
+def _setup_clone(local_path: Path, clone_url: str, token: str = "") -> None:
+    """Clone main (or reset to it) so command_start can create the feature branch.
+    Always targets main — the pipeline's working branch is created by command_start."""
+    if not (local_path / ".git").exists():
+        _clone(local_path, clone_url, "main", token)
+    else:
+        remote = _get_remote_name(local_path)
+        authed = _authed_url(clone_url, token)
+        subprocess.run(
+            ["git", "-C", str(local_path), "remote", "set-url", remote, authed],
+            check=True, capture_output=True,
+        )
+        _pull(local_path, "main")
+
+
+async def _latest_sha(owner: str, repo: str, branch: str, token: str = "") -> str:
+    t = token or settings.github_token
     headers = {"Accept": "application/vnd.github.v3+json"}
-    if settings.github_token:
-        headers["Authorization"] = f"Bearer {settings.github_token}"
+    if t:
+        headers["Authorization"] = f"Bearer {t}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(
             f"https://api.github.com/repos/{owner}/{repo}/commits",
@@ -105,12 +158,13 @@ async def _latest_sha(owner: str, repo: str, branch: str) -> str:
 
 
 def _pull(local_path: Path, branch: str) -> None:
+    remote = _get_remote_name(local_path)
     subprocess.run(
-        ["git", "-C", str(local_path), "fetch", "origin", branch],
+        ["git", "-C", str(local_path), "fetch", remote, branch],
         check=True, capture_output=True,
     )
     subprocess.run(
-        ["git", "-C", str(local_path), "reset", "--hard", f"origin/{branch}"],
+        ["git", "-C", str(local_path), "reset", "--hard", f"{remote}/{branch}"],
         check=True, capture_output=True,
     )
 
@@ -118,10 +172,11 @@ def _pull(local_path: Path, branch: str) -> None:
 async def check_and_pull(pipeline_id: str) -> dict:
     """Check latest SHA for one project; pull only if new commit. No callbacks fired."""
     owner, name, branch, local_path, clone_url = _project_config(pipeline_id)
+    token = get_pipeline_token(pipeline_id)
     state = _get_state(pipeline_id)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch)
-    sha = await _latest_sha(owner, name, branch)
+    await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch, token)
+    sha = await _latest_sha(owner, name, branch, token)
     pulled = False
     if sha != state["sha"]:
         await loop.run_in_executor(None, _pull, local_path, branch)
@@ -146,13 +201,23 @@ async def _force_pull_one(pipeline_id: str) -> None:
     except ValueError as exc:
         log.warning("force_pull: %s", exc)
         return
+    token = get_pipeline_token(pipeline_id)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch)
+    await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch, token)
     try:
         await loop.run_in_executor(None, _pull, local_path, branch)
-        sha = await _latest_sha(owner, name, branch)
+        sha = await _latest_sha(owner, name, branch, token)
         state.update(sha=sha, updated_at=datetime.now(timezone.utc).isoformat(), error=None)
         log.info("force_pull [%s] done sha=%s", pipeline_id, sha[:8])
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr or b""
+        detail = (stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)).strip() or str(exc)
+        state["error"] = detail
+        if "Remote branch" in detail and "not found" in detail:
+            log.debug("force_pull skip [%s]: branch not yet initialized", pipeline_id)
+        else:
+            log.warning("force_pull [%s] error: %s", pipeline_id, detail)
+        return
     except Exception as exc:
         state["error"] = str(exc)
         log.warning("force_pull [%s] error: %s", pipeline_id, exc)
@@ -172,9 +237,10 @@ async def polling_loop() -> None:
             state = _get_state(pipeline_id)
             try:
                 owner, name, branch, local_path, clone_url = _project_config(pipeline_id)
+                token = get_pipeline_token(pipeline_id)
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch)
-                sha = await _latest_sha(owner, name, branch)
+                await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch, token)
+                sha = await _latest_sha(owner, name, branch, token)
                 if sha != state["sha"]:
                     await loop.run_in_executor(None, _pull, local_path, branch)
                     state.update(
@@ -188,6 +254,14 @@ async def polling_loop() -> None:
                             await cb(pipeline_id)
                         except Exception as exc:
                             log.warning("repo_sync callback error [%s]: %s", pipeline_id, exc)
+            except subprocess.CalledProcessError as exc:
+                stderr = exc.stderr or b""
+                detail = (stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)).strip() or str(exc)
+                state["error"] = detail
+                if "Remote branch" in detail and "not found" in detail:
+                    log.debug("repo_sync skip [%s]: branch not yet initialized", pipeline_id)
+                else:
+                    log.warning("repo_sync poll error [%s]: %s", pipeline_id, detail)
             except Exception as exc:
                 state["error"] = str(exc)
                 log.warning("repo_sync poll error [%s]: %s", pipeline_id, exc)

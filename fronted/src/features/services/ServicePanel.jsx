@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { pullVariant, getJob, getRows } from '../../api/variants'
 import { runCommand } from '../../api/services'
 
@@ -40,14 +40,15 @@ const DVC_TITLE = {
   error:     'Error DVC',
 }
 
-function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
+function PhaseColumn({ phase, pipelineId, service, isUp, runningVariant, busy, onRun }) {
   const runCmd      = service.commands.find(c => c.command.startsWith('run_'))
   const variantEnvVar = service.variant_env_var ?? 'VARIANT'
   const extraParams = runCmd?.params?.filter(p => p.env_var !== variantEnvVar) ?? []
 
   const { data, isLoading } = useQuery({
-    queryKey: ['service-variants', phase],
-    queryFn: () => getRows({ phase, limit: 500 }),
+    queryKey: ['service-variants', pipelineId, phase],
+    queryFn: () => getRows({ phase, pipeline_id: pipelineId, limit: 500 }),
+    enabled: !!pipelineId,
     staleTime: 30_000,
   })
 
@@ -172,7 +173,8 @@ function PhaseColumn({ phase, service, isUp, runningVariant, busy, onRun }) {
 }
 
 
-export default function ServicePanel({ service, isUp }) {
+export default function ServicePanel({ service, isUp, pipelineId, memoryLimitDefault = '4g' }) {
+  const qc = useQueryClient()
   const { id, port, fases, commands, variant_env_var, variant_format } = service
 
   const runCmd  = commands.find(c => c.command.startsWith('run_'))
@@ -186,6 +188,16 @@ export default function ServicePanel({ service, isUp }) {
   })
   const [actionState, setActionState] = useState('idle')
   const [errorMsg, setErrorMsg]       = useState('')
+
+  // ── Memory limit ──────────────────────────────────────────────────────────
+  const [memoryLimit, setMemoryLimit] = useState(() =>
+    localStorage.getItem(`svc_memory_${id}`) ?? memoryLimitDefault
+  )
+  const [memoryLocked, setMemoryLocked] = useState(true)
+
+  useEffect(() => {
+    localStorage.setItem(`svc_memory_${id}`, memoryLimit)
+  }, [memoryLimit, id])
 
   // Persist running variant across tab switches and page reloads
   useEffect(() => {
@@ -212,9 +224,10 @@ export default function ServicePanel({ service, isUp }) {
     if (variantInfo.local_status !== 'local') {
       setActionState('pulling')
       try {
-        const res = await pullVariant(variantInfo.phase, variantInfo.variant)
+        const res = await pullVariant(variantInfo.phase, variantInfo.variant, pipelineId)
         const err = await waitForJob(res.job_id)
         if (err) { setActionState('error'); setErrorMsg(err); return }
+        qc.invalidateQueries({ queryKey: ['service-variants', pipelineId, variantInfo.phase] })
       } catch (e) { setActionState('error'); setErrorMsg(e.message); return }
     }
 
@@ -224,7 +237,7 @@ export default function ServicePanel({ service, isUp }) {
       const envVar = variant_env_var ?? 'VARIANT'
       const useDirect = variant_format === 'direct'
       const key = useDirect ? variantInfo.variant : (variantInfo.variantKey ?? variantInfo.variant)
-      await runCommand(id, runCmd.command, { [envVar]: key, ...extraEnv })
+      await runCommand(id, pipelineId, runCmd.command, { [envVar]: key, MEMORY_LIMIT: memoryLimit, ...extraEnv })
     } catch (e) { setActionState('error'); setErrorMsg(e.message) }
   }
 
@@ -232,7 +245,7 @@ export default function ServicePanel({ service, isUp }) {
     if (!stopCmd) return
     setActionState('stopping')
     try {
-      await runCommand(id, stopCmd.command, {})
+      await runCommand(id, pipelineId, stopCmd.command, {})
     } catch (e) { setActionState('error'); setErrorMsg(e.message) }
   }
 
@@ -275,6 +288,33 @@ export default function ServicePanel({ service, isUp }) {
           <span className="text-xs text-gray-400">○ Parado</span>
         )}
 
+        {/* RAM limit */}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          <span className="text-[10px] text-gray-400 dark:text-gray-600">RAM:</span>
+          <input
+            type="text"
+            value={memoryLimit}
+            onChange={e => setMemoryLimit(e.target.value)}
+            disabled={memoryLocked}
+            title={memoryLocked ? 'Clic en 🔒 para editar' : `Defecto: ${memoryLimitDefault}`}
+            className={`w-14 text-[11px] text-center font-mono rounded border px-1 py-0.5 transition-colors ${
+              memoryLocked
+                ? 'bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 cursor-not-allowed'
+                : 'bg-white border-indigo-400 text-gray-800 dark:bg-gray-900 dark:border-indigo-500 dark:text-gray-100'
+            }`}
+          />
+          <button
+            onClick={() => {
+              if (!memoryLocked && memoryLimit.trim() === '') setMemoryLimit(memoryLimitDefault)
+              setMemoryLocked(l => !l)
+            }}
+            title={memoryLocked ? 'Desbloquear para editar' : 'Bloquear valor'}
+            className="text-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          >
+            {memoryLocked ? '🔒' : '🔓'}
+          </button>
+        </div>
+
         {errorMsg && (
           <div className="flex items-center gap-1 ml-2">
             <span className="text-xs text-red-500 truncate max-w-xs">{errorMsg}</span>
@@ -294,6 +334,7 @@ export default function ServicePanel({ service, isUp }) {
           <PhaseColumn
             key={phase}
             phase={phase}
+            pipelineId={pipelineId}
             service={service}
             isUp={isUp}
             runningVariant={runningVariant}

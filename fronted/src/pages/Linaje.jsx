@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { getLineageRegistry, syncLineageRegistry, getLineageConfig } from '../api/lineage'
 import { getPipelineProjects } from '../api/pipeline_projects'
+import { getSyncInterval } from '../api/variants'
+import { useSSE } from '../utils/useSSE'
 import PipelineSelect from '../components/PipelineSelect'
 import LineageGraph from '../features/lineage/LineageGraph'
 import '../features/lineage/LineageGraph.css'
@@ -174,6 +176,14 @@ export default function Linaje() {
   const viewMode = VIEW_MODES[viewModeIdx]
   const cycleView = () => setViewModeIdx(i => (i + 1) % VIEW_MODES.length)
 
+  // ── Sync interval (from backend config) ──────────────────────────────────
+  const { data: intervals = {} } = useQuery({
+    queryKey: ['sync-interval'],
+    queryFn: getSyncInterval,
+    staleTime: Infinity,
+  })
+  const repoSyncMs = (intervals.repo_sync_seconds ?? 60) * 1000
+
   // ── Lineage config ────────────────────────────────────────────────────────
   const { data: allConfigs = {} } = useQuery({
     queryKey: ['lineage-config'],
@@ -187,8 +197,17 @@ export default function Linaje() {
     queryKey: ['lineage-registry', pipelineId],
     queryFn: () => getLineageRegistry(pipelineId),
     enabled: !!pipelineId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: repoSyncMs,
+    refetchInterval: repoSyncMs,
+  })
+
+  // ── Invalidar al terminar ejecuciones (SSE) ───────────────────────────────
+  useSSE('/api/executions/stream', (ex) => {
+    if (ex.status === 'success' || ex.status === 'failed') {
+      if (!pipelineId || ex.pipeline_id === pipelineId) {
+        qc.invalidateQueries({ queryKey: ['lineage-registry', pipelineId] })
+      }
+    }
   })
 
   // ── Sync ──────────────────────────────────────────────────────────────────

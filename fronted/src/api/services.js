@@ -1,13 +1,13 @@
 const BASE = '/api/services'
 
-export const getServices = () =>
-  fetch(BASE).then(r => r.json())
+export const getServices = (pipelineId) =>
+  fetch(`${BASE}?pipeline_id=${encodeURIComponent(pipelineId)}`).then(r => r.json())
 
-export const getServiceStatus = (serviceId) =>
-  fetch(`${BASE}/${serviceId}/status`).then(r => r.json())
+export const getServiceStatus = (serviceId, pipelineId) =>
+  fetch(`${BASE}/${serviceId}/status?pipeline_id=${encodeURIComponent(pipelineId)}`).then(r => r.json())
 
-export const runCommand = (serviceId, command, env = {}) =>
-  fetch(`${BASE}/${serviceId}/command`, {
+export const runCommand = (serviceId, pipelineId, command, env = {}) =>
+  fetch(`${BASE}/${serviceId}/command?pipeline_id=${encodeURIComponent(pipelineId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command, env }),

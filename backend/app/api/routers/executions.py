@@ -6,9 +6,9 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from app.core.config import phases_runner_path, get_pipeline_project
+from app.core.config import phases_runner_path, fase_runners_path, get_pipeline_project, get_pipeline_token, resolve_project_path
 from app.schemas.execution import Execution, ExecutionCreate
-from app.services.execution_service import ExecutionService
+from app.services.execution_service import ExecutionService, is_paused, set_paused
 from app.services.github import fetch_run_logs
 
 router = APIRouter()
@@ -60,13 +60,16 @@ def _runner_json(name: str, runner_map: dict) -> str:
     return runner_map.get(name, json.dumps(name))
 
 
-def _load_phases() -> list[dict]:
-    config_path = phases_runner_path()
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-    runner_map = _parse_runner_map(config)
+def _load_phases(pipeline_id: str) -> list[dict]:
+    runners_path = phases_runner_path()
+    fases_path = fase_runners_path(pipeline_id)
+    with open(runners_path) as f:
+        runners_config = yaml.safe_load(f)
+    runner_map = _parse_runner_map(runners_config)
+    with open(fases_path) as f:
+        fases_config = yaml.safe_load(f)
     result = []
-    for fase in config.get("fases", []):
+    for fase in fases_config.get("fases", []):
         entry = dict(fase)
         entry.setdefault('label', _fase_label(entry['fase']))
         runner_names = _split_runner_field(str(entry.get('runner', '')))
@@ -78,25 +81,107 @@ def _load_phases() -> list[dict]:
     return result
 
 
+def _param_type(definition: dict) -> str:
+    if definition.get("allowed"):
+        return "select"
+    match definition.get("type"):
+        case "integer":
+            return "integer"
+        case "float" | "number":
+            return "float"
+        case "boolean":
+            return "boolean"
+        case "list" | "dict":
+            return "json"
+        case _:
+            return "text"
+
+
+def _param_hint(definition: dict) -> str | None:
+    default = definition.get("default")
+    if default is not None:
+        return json.dumps(default) if isinstance(default, (dict, list)) else str(default)
+    if definition.get("type") == "list":
+        return "[]"
+    if definition.get("type") == "dict":
+        return "{}"
+    return None
+
+
+def _load_phase_params(pipeline_id: str) -> dict:
+    schema_path = resolve_project_path(
+        pipeline_id,
+        "traceability_path",
+        "external/repo_actions/scripts/traceability_schema.yaml",
+    )
+    if not schema_path.exists():
+        raise HTTPException(404, f"Traceability schema not found: {schema_path}")
+
+    with open(schema_path) as f:
+        schema = yaml.safe_load(f) or {}
+
+    phases = schema.get("phases", {})
+    phase_params = {}
+    parent_variants = {}
+
+    for phase_id, phase in phases.items():
+        params = phase.get("parameters", {}) or {}
+        phase_params[phase_id] = []
+        for param_id, definition in params.items():
+            if param_id == "parent_variant":
+                continue
+            if definition.get("inherited"):
+                continue
+            entry = {
+                "id": param_id,
+                "label": param_id,
+                "type": _param_type(definition),
+                "required": definition.get("required", False),
+            }
+            if definition.get("allowed"):
+                entry["options"] = definition["allowed"]
+            hint = _param_hint(definition)
+            if hint is not None:
+                entry["hint"] = hint
+            phase_params[phase_id].append(entry)
+
+        parent_variant = params.get("parent_variant")
+        if parent_variant:
+            parent_variants[phase_id] = {
+                "mode": parent_variant.get("mode", "single"),
+                "regex": parent_variant.get("regex"),
+            }
+
+    return {
+        "phase_params": phase_params,
+        "phase_parent_variant": parent_variants,
+    }
+
+
 @router.get("/phases")
-async def get_phases():
-    return _load_phases()
+async def get_phases(pipeline_id: str = Query(...)):
+    return _load_phases(pipeline_id)
+
+
+@router.get("/phase-params")
+async def get_phase_params(pipeline_id: str = Query(...)):
+    return _load_phase_params(pipeline_id)
 
 
 @router.get("/queue/status")
 async def get_queue_status():
-    return {"paused": _service._paused}
+    return {"paused": is_paused()}
 
 
 @router.post("/queue/pause")
 async def pause_queue():
-    _service._paused = True
+    set_paused(True)
     return {"paused": True}
 
 
 @router.post("/queue/resume")
 async def resume_queue():
-    _service._paused = False
+    set_paused(False)
     return {"paused": False}
 
 
@@ -158,7 +243,7 @@ async def get_gh_logs(gh_run_id: str, pipeline_id: str = Query(...)):
         repo = proj["repo"]
     except ValueError as e:
         raise HTTPException(400, str(e))
-    logs = await fetch_run_logs(repo, gh_run_id)
+    logs = await fetch_run_logs(repo, gh_run_id, token=get_pipeline_token(pipeline_id))
     if not logs:
         raise HTTPException(404, "No logs found or GitHub token not configured")
     return logs

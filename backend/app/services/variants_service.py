@@ -10,7 +10,7 @@ from typing import Optional
 import aiosqlite
 import yaml
 
-from app.core.config import load_app_config, PROJECT_ROOT, settings, get_pipeline_project, load_pipelines_config
+from app.core.config import load_app_config, PROJECT_ROOT, settings, get_pipeline_project, load_pipelines_config, resolve_pipeline_config_path
 from app.core.db import DB_PATH
 
 log = logging.getLogger(__name__)
@@ -18,11 +18,8 @@ log = logging.getLogger(__name__)
 
 # ── Config helpers ────────────────────────────────────────────────────────────
 
-def _load_table_config() -> dict:
-    app_cfg = load_app_config()
-    tc_path = Path(app_cfg.get("table_config", "config/table_config.yaml"))
-    if not tc_path.is_absolute():
-        tc_path = PROJECT_ROOT / tc_path
+def _load_table_config(pipeline_id: str) -> dict:
+    tc_path = resolve_pipeline_config_path(pipeline_id, "table_config", "config/table_config.yaml")
     if not tc_path.exists():
         return {}
     with open(tc_path) as f:
@@ -324,7 +321,7 @@ async def get_rows(
     if sort_dir not in ("asc", "desc"):
         sort_dir = "asc"
 
-    table_config = _load_table_config()
+    table_config = _load_table_config(pipeline_id)
     ph_cfg = _phase_cfg(table_config, phase)
     idc = _id_count(ph_cfg)
 
@@ -363,8 +360,8 @@ async def get_rows(
     return {"total": total, "rows": rows}
 
 
-def get_table_config_for_phase(phase_id: str) -> Optional[dict]:
-    return _phase_cfg(_load_table_config(), phase_id)
+def get_table_config_for_phase(phase_id: str, pipeline_id: str) -> Optional[dict]:
+    return _phase_cfg(_load_table_config(pipeline_id), phase_id)
 
 
 # ── DVC job queue ─────────────────────────────────────────────────────────────

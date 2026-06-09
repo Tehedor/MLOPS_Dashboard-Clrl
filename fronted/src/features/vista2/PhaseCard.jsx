@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createExecution } from '../../api/executions'
 import { getRows, checkVariantExists } from '../../api/variants'
-import { PHASE_PARAMS, PHASE_PARENT_VARIANT } from './phaseParams'
+import { paramsForPhase, parentVariantForPhase } from './phaseParams'
 import ParamsEditor from './ParamsEditor'
 
 function phaseNum(phaseId) {
@@ -57,8 +57,8 @@ function parseRawParams(raw) {
   try { return JSON.parse(raw) } catch { return {} }
 }
 
-function buildJsonTemplate(faseId, params, availableRunners) {
-  const defs = PHASE_PARAMS[faseId] ?? []
+function buildJsonTemplate(faseId, params, availableRunners, phaseParams) {
+  const defs = paramsForPhase(phaseParams, faseId)
   let templateParams
   if (defs.length > 0) {
     templateParams = {}
@@ -82,15 +82,15 @@ function buildJsonTemplate(faseId, params, availableRunners) {
   } else {
     templateParams = params && Object.keys(params).length > 0 ? params : {}
   }
-  const pvDef = PHASE_PARENT_VARIANT[faseId]
+  const pvDef = parentVariantForPhase(phaseParams, faseId)
   const obj = { variant: `v${phaseNum(faseId)}_0001`, params: templateParams }
   if (pvDef) obj.parent = pvDef.mode === 'multi' ? [] : ''
   if (availableRunners?.length > 1) obj.selected_runner = availableRunners[0]?.id ?? null
   return JSON.stringify(obj, null, 2)
 }
 
-function parseJsonInput(raw, faseId) {
-  const defs        = PHASE_PARAMS[faseId] ?? []
+function parseJsonInput(raw, faseId, phaseParams) {
+  const defs        = paramsForPhase(phaseParams, faseId)
   const requiredIds = new Set(defs.filter(d => d.required).map(d => d.id))
   const blocks      = raw.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean)
   if (blocks.length === 0) return { entries: [], error: 'Sin entradas', warnings: [] }
@@ -137,19 +137,23 @@ function TabBtn({ label, active, onClick, color }) {
   )
 }
 
-export default function PhaseCard({ phase, executions, preload, onPreloadConsumed, pipelineId, color }) {
+export default function PhaseCard({ phase, executions, preload, onPreloadConsumed, pipelineId, color, phaseParams }) {
   const qc = useQueryClient()
 
-  const parentDef  = PHASE_PARENT_VARIANT[phase.id]
+  const parentDef  = parentVariantForPhase(phaseParams, phase.id)
   const parentMode = parentDef?.mode ?? 'single'
   const showParent = !!(phase.parentRequired || parentDef)
 
   // Calcular params sugeridos antes de los estados (necesario para el template inicial)
   const latestExInit = executions?.filter(e => e.fase === phase.id)[0]
   const initParams   = parseRawParams(latestExInit?.params)
+  const runnersKey   = phase.availableRunners?.map(r => r.id).join('|') ?? ''
 
-  const [variant,        setVariant]        = useState(() => localStorage.getItem(`pc_${phase.id}_variant`) ?? '')
-  const [parent,         setParent]         = useState(() => localStorage.getItem(`pc_${phase.id}_parent`)  ?? '')
+  const variantStorageKey = `pc_${pipelineId ?? 'default'}_${phase.id}_variant`
+  const parentStorageKey  = `pc_${pipelineId ?? 'default'}_${phase.id}_parent`
+
+  const [variant,        setVariant]        = useState(() => localStorage.getItem(variantStorageKey) ?? '')
+  const [parent,         setParent]         = useState(() => localStorage.getItem(parentStorageKey)  ?? '')
   const [selectedRunner, setSelectedRunner] = useState(() => phase.availableRunners?.[0]?.id ?? '')
   const paramsRef = useRef({})
 
@@ -157,7 +161,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
   const [tab, setTab] = useState('single')
 
   // JSON tab
-  const [jsonInput,   setJsonInput]   = useState(() => buildJsonTemplate(phase.id, initParams, phase.availableRunners))
+  const [jsonInput,   setJsonInput]   = useState(() => buildJsonTemplate(phase.id, initParams, phase.availableRunners, phaseParams))
   const [jsonErrors,  setJsonErrors]  = useState({})
   const [jsonPending, setJsonPending] = useState(false)
   const userEditedJson  = useRef(false)
@@ -174,8 +178,15 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
   const [preloadKey,    setPreloadKey]    = useState(0)
   const [preloadParams, setPreloadParams] = useState(null)
 
-  useEffect(() => { localStorage.setItem(`pc_${phase.id}_variant`, variant) }, [variant, phase.id])
-  useEffect(() => { localStorage.setItem(`pc_${phase.id}_parent`,  parent)  }, [parent,  phase.id])
+  useEffect(() => { localStorage.setItem(variantStorageKey, variant) }, [variant, variantStorageKey])
+  useEffect(() => { localStorage.setItem(parentStorageKey,  parent)  }, [parent,  parentStorageKey])
+
+  useEffect(() => {
+    setVariant(localStorage.getItem(variantStorageKey) ?? '')
+    setParent(localStorage.getItem(parentStorageKey) ?? '')
+    userEditedJson.current = false
+    setJsonInput(buildJsonTemplate(phase.id, initParams, phase.availableRunners, phaseParams))
+  }, [variantStorageKey, parentStorageKey, phase.id, runnersKey, phaseParams])
 
   useEffect(() => {
     if (!preload) return
@@ -196,8 +207,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
   const suggestedParamsKey = latestEx ? JSON.stringify(suggestedParams) : ''
   useEffect(() => {
     if (userEditedJson.current) return
-    setJsonInput(buildJsonTemplate(phase.id, suggestedParams, phase.availableRunners))
-  }, [suggestedParamsKey])
+    setJsonInput(buildJsonTemplate(phase.id, suggestedParams, phase.availableRunners, phaseParams))
+  }, [suggestedParamsKey, phaseParams])
 
   // Auto-resize del textarea JSON
   useEffect(() => {
@@ -227,7 +238,7 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
     onError: (err) => setErrorMsg(err.message ?? 'Error al crear ejecución'),
   })
 
-  const parsedJson = parseJsonInput(jsonInput, phase.id)
+  const parsedJson = parseJsonInput(jsonInput, phase.id, phaseParams)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -423,6 +434,8 @@ export default function PhaseCard({ phase, executions, preload, onPreloadConsume
           <div className="flex-1 min-w-0">
             <ParamsEditor
               faseId={phase.id}
+              pipelineId={pipelineId}
+              phaseParams={phaseParams}
               suggestions={suggestedParams}
               onChange={parsed => { paramsRef.current = parsed }}
               externalKey={preloadKey}
