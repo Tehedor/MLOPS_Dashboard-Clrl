@@ -7,9 +7,11 @@ CONTAINER_TEMPORALL_APP_NAME = mds_temporal
 DEFAULT_DATASET := $(if $(VARIANT),$(VARIANT),$(df))
 # Prefer EPOCH_MODE, keep em for backward compatibility
 EPOCH_MODE := $(if $(EPOCH_MODE),$(EPOCH_MODE),$(em))
+# RAM limit passed by the dashboard; fall back to 4g
+MEMORY_LIMIT ?= 4g
 
 run_temporal_app:
-	@cd temporal_app && VARIANT=$(DEFAULT_DATASET) EPOCH_MODE=$(EPOCH_MODE) docker compose -f docker-compose.yml up -d
+	@cd temporal_app && VARIANT=$(DEFAULT_DATASET) EPOCH_MODE=$(EPOCH_MODE) MEMORY_LIMIT=$(MEMORY_LIMIT) EXECUTIONS_PATH=$(EXECUTIONS_PATH) docker compose -f docker-compose.yml up -d
 
 stop_temporal_app:
 	@cd temporal_app && docker compose down
@@ -31,7 +33,7 @@ check_control_yaml:
 WINDOW_VERSION ?= $(if $(VARIANT),$(VARIANT),$(ws))
 
 run_windows_app:
-	@cd windows_app && WINDOW_VERSION=$(WINDOW_VERSION) docker compose -f docker-compose.yml up -d
+	@cd windows_app && WINDOW_VERSION=$(WINDOW_VERSION) MEMORY_LIMIT=$(MEMORY_LIMIT) EXECUTIONS_PATH=$(EXECUTIONS_PATH) docker compose -f docker-compose.yml up -d
 
 stop_windows_app:
 	@cd windows_app && docker compose -f docker-compose.yml down

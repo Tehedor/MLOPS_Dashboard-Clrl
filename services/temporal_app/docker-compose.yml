@@ -6,7 +6,7 @@ services:
     ports:
       - "8050:8050"
     volumes:
-      - ../../external/repo_actions/executions/:/app/executions
+      - ${EXECUTIONS_PATH:-../../external/repo_actions/executions}:/app/executions
       - ./epoch_processed:/app/epoch_processed
     environment:
       SERVER_PORT: 8050
@@ -20,11 +20,5 @@ services:
       CONTROL_DATASET_FILE: "control_dataset.yml"
       EPOCH_MODE: "${EPOCH_MODE:-true}"
       EPOCH_PROCESSED_DIR: "/app/epoch_processed"
-    deploy:
-      resources:
-        limits:
-          memory: 6G
-          cpus: "2.0"
-        reservations:
-          memory: 2G
+    mem_limit: ${MEMORY_LIMIT:-6g}
     restart: unless-stopped

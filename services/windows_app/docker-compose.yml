@@ -7,7 +7,8 @@ services:
       - "8060:8050"
     volumes:
       # - ../../executions:/app/executions
-      - ../../external/repo_actions/executions/:/app/executions
+      # - ../../external/repo_actions/executions/:/app/executions
+      - ${EXECUTIONS_PATH}:/app/executions
       # - ./epoch_processed:/app/epoch_processed
       - ./files_output/queries:/app/output/
       - ./files_output/multi_requests_file.yml:/app/scripts/multi_requests_file.yml
