@@ -1,0 +1,51 @@
+# Lineage visualization config for testPipelineEpoch.
+# parent_keys: YAML path(s) inside params.yaml that hold the parent variant id.
+
+phases:
+  - name: f01_explore
+    label: "F01 Explore"
+    parent_keys: []
+    metadata: ["metadata.yaml"]
+    color: {bg: "#E3F2FD", border: "#90CAF9", text: "#1565C0"}
+
+  - name: f02_events
+    label: "F02 Events"
+    parent_keys: ["parent"]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#E8F5E9", border: "#A5D6A7", text: "#2E7D32"}
+
+  - name: f03_windows
+    label: "F03 Windows"
+    parent_keys: [["parameters", "parent_variant"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#FFF3E0", border: "#FFCC80", text: "#EF6C00"}
+
+  - name: f04_targets
+    label: "F04 Targets"
+    parent_keys: [["parameters", "parent_variant"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#F3E5F5", border: "#CE93D8", text: "#6A1B9A"}
+
+  - name: f05_modeling
+    label: "F05 Modeling"
+    parent_keys: [["parameters", "parent_variant"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#FFEBEE", border: "#EF9A9A", text: "#C62828"}
+
+  - name: f06_quant
+    label: "F06 Quant"
+    parent_keys: [["parameters", "parent_variant"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#E0F7FA", border: "#80DEEA", text: "#006064"}
+
+  - name: f07_modval
+    label: "F07 ModVal"
+    parent_keys: [["parameters", "parent_variant"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#ECEFF1", border: "#B0BEC5", text: "#37474F"}
+
+  - name: f08_sysval
+    label: "F08 SysVal"
+    parent_keys: [["parameters", "parents"]]
+    metadata: ["metadata.yaml"]
+    color: {bg: "#F9FBE7", border: "#E6EE9C", text: "#827717"}

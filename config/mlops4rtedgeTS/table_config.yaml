@@ -1,0 +1,770 @@
+phases:
+  - id: f01_explore
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources:
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: raw_path
+            source_path: parameters.raw_path
+            type: str
+          - id: cleaning
+            source_path: parameters.cleaning
+            type: str
+          - id: nan_values
+            source_path: parameters.nan_values
+            type: list
+
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns: 
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: n_rows
+            source_path: exports.n_rows
+            type: int
+          - id: n_columns
+            source_path: exports.n_columns
+            type: int
+          - id: measure_cols
+            source_path: exports.measure_cols
+            type: list
+          - id: execution_time
+            source_path: metrics.execution_time
+            type: float
+          - id: n_nan_detected
+            source_path: metrics.n_nan_detected
+            type: int
+          - id: n_nan_replaced
+            source_path: metrics.n_nan_replaced
+            type: int
+          - id: nan_ratio
+            source_path: metrics.nan_ratio
+            type: float
+          - id: generated_at
+            source_path: provenance.generated_at
+            type: datetime    
+
+  - id: f02_events   
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: measure_name
+            source_path: parameters.measure_name
+            type: str
+ 
+
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: measure_name
+            source_path: exports.measure_name
+            type: str
+          - id: n_rows
+            source_path: exports.n_rows
+            type: int
+          - id: n_non_nan
+            source_path: exports.n_non_nan
+            type: int
+          - id: nan_ratio
+            source_path: exports.nan_ratio
+            type: float
+          - id: epoch_col
+            source_path: exports.epoch_col
+            type: str
+          - id: value_col
+            source_path: exports.value_col
+            type: str
+          - id: execution_time
+            source_path: metrics.execution_time
+            type: float
+          - id: n_rows_in
+            source_path: metrics.n_rows_in
+            type: int
+          - id: n_rows_out
+            source_path: metrics.n_rows_out
+            type: int
+          - id: generated_at
+            source_path: provenance.generated_at
+            type: datetime
+
+
+  - id: f03_windows
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: OW
+            source_path: parameters.OW
+            type: int
+          - id: LT
+            source_path: parameters.LT
+            type: int
+          - id: PW
+            source_path: parameters.PW
+            type: int
+          - id: window_strategy
+            source_path: parameters.window_strategy
+            type: str
+          - id: nan_mode
+            source_path: parameters.nan_mode
+            type: str
+
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: event_type_count
+            source_path: exports.event_type_count
+            type: int 
+          - id: window_strategy
+            source_path: exports.window_strategy
+            type: str 
+          - id: nan_mode
+            source_path: exports.nan_mode 
+            type: str 
+          - id: n_windows_out 
+            source_path: exports.n_windows_out 
+            type: int 
+          - id: n_windows_pos
+            source_path: exports.n_windows_pos 
+            type: int
+          - id: n_windows_neg
+            source_path: exports.n_windows_neg 
+            type: int
+          - id: execution_time 
+            source_path: metrics.execution_time 
+            type: float
+          - id: n_events_in 
+            source_path: metrics.n_events_in 
+            type: int
+          - id: n_windows_out_metric
+            source_path: metrics.n_windows_out 
+            type: int
+          - id: positive_ratio 
+            source_path: metrics.positive_ratio 
+            type: float
+          - id: generated_at 
+            source_path: provenance.generated_at 
+            type: datetime
+
+
+  - id: f04_targets
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources:
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: OW
+            source_path: parameters.OW
+            type: int
+          - id: LT
+            source_path: parameters.LT
+            type: int
+          - id: PW
+            source_path: parameters.PW
+            type: int
+          - id: prediction_name
+            source_path: parameters.prediction_name
+            type: str
+          - id: event_strategy
+            source_path: parameters.event_strategy
+            type: str
+          - id: threshold
+            source_path: parameters.threshold
+            type: float
+          - id: direction
+            source_path: parameters.direction
+            type: str
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: prediction_name
+            source_path: exports.prediction_name
+            type: str
+          - id: event_strategy
+            source_path: exports.event_strategy
+            type: str
+          - id: direction
+            source_path: exports.direction
+            type: str
+          - id: threshold_percentage
+            source_path: exports.threshold_percentage
+            type: float
+          - id: threshold_value
+            source_path: exports.threshold_value
+            type: float
+          - id: n_windows
+            source_path: exports.n_windows
+            type: int
+          - id: n_windows_pos
+            source_path: exports.n_windows_pos
+            type: int
+          - id: n_windows_neg
+            source_path: exports.n_windows_neg
+            type: int
+          - id: execution_time
+            source_path: metrics.execution_time
+            type: float
+          - id: positive_ratio
+            source_path: metrics.positive_ratio
+            type: float
+          - id: negative_ratio
+            source_path: metrics.negative_ratio
+            type: float
+
+
+  - id: f05_modeling
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: OW
+            source_path: parameters.OW
+            type: int
+          - id: LT
+            source_path: parameters.LT
+            type: int
+          - id: PW
+            source_path: parameters.PW
+            type: int
+          - id: prediction_name
+            source_path: parameters.prediction_name
+            type: str
+          - id: event_type_count
+            source_path: parameters.event_type_count 
+            type: int 
+          - id: model_family
+            source_path: parameters.model_family 
+            type: str 
+          - id: automl_enabled
+            source_path: parameters.automl.enabled 
+            type: bool 
+          - id: automl_max_trials
+            source_path: parameters.automl.max_trials 
+            type: int 
+          - id: automl_seed
+            source_path: parameters.automl.seed 
+            type: int
+          - id: search_space_batch_size
+            source_path: parameters.search_space.common.batch_size
+            type: list
+          - id: search_space_learning_rate
+            source_path: parameters.search_space.common.learning_rate
+            type: list
+          - id: search_space_n_layers
+            source_path: parameters.search_space.common.n_layers
+            type: list
+          - id: search_space_units
+            source_path: parameters.search_space.common.units
+            type: list
+          - id: search_space_dropout
+            source_path: parameters.search_space.common.dropout
+            type: list
+          - id: search_space_embed_dim_dense_bow
+            source_path: parameters.search_space.dense_bow.embed_dim
+            type: list
+          - id: search_space_embed_dim_sequence_embedding
+            source_path: parameters.search_space.sequence_embedding.embed_dim
+            type: list
+          - id: search_space_embed_dim_cnn1d
+            source_path: parameters.search_space.cnn1d.embed_dim
+            type: list
+          - id: search_space_filters_cnn1d
+            source_path: parameters.search_space.cnn1d.filters
+            type: list
+          - id: search_space_kernel_size_cnn1d
+            source_path: parameters.search_space.cnn1d.kernel_size
+            type: list
+          - id: training_epochs
+            source_path: parameters.training.epochs
+            type: int 
+          - id: training_max_samples
+            source_path: parameters.training.max_samples
+            type: int
+          - id: evaluation_split_train
+            source_path: parameters.evaluation.split.train
+            type: float
+          - id: evaluation_split_val
+            source_path: parameters.evaluation.split.val
+            type: float
+          - id: evaluation_split_test
+            source_path: parameters.evaluation.split.test
+            type: float
+          - id: imbalance_strategy
+            source_path: parameters.imbalance_strategy
+            type: str
+          - id: imbalance_max_majority_samples
+            source_path: parameters.imbalance_max_majority_samples
+            type: int
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: event_type_count
+            source_path: exports.event_type_count 
+            type: int 
+          - id: prediction_name
+            source_path: exports.prediction_name 
+            type: str 
+          - id: model_family
+            source_path: exports.model_family 
+            type: str 
+          - id: decision_threshold
+            source_path: exports.decision_threshold 
+            type: float 
+          - id: best_val_recall
+            source_path: exports.best_val_recall 
+            type: float 
+          - id: test_precision
+            source_path: exports.test_precision 
+            type: float 
+          - id: test_recall
+            source_path: exports.test_recall 
+            type: float 
+          - id: test_f1
+            source_path: exports.test_f1 
+            type: float 
+          - id: execution_time 
+            source_path: metrics.execution_time 
+            type: float
+          - id: n_train 
+            source_path: metrics.n_train 
+            type: int
+          - id: n_val 
+            source_path: metrics.n_val 
+            type: int
+          - id: n_test 
+            source_path: metrics.n_test 
+            type: int
+          - id: positive_ratio_train 
+            source_path: metrics.positive_ratio_train 
+            type: float
+          - id: tp 
+            source_path: metrics.tp 
+            type: int
+          - id: tn 
+            source_path: metrics.tn 
+            type: int
+          - id: fp 
+            source_path: metrics.fp 
+            type: int
+          - id: fn
+            source_path: metrics.fn
+            type: int
+          - id: generated_at
+            source_path: provenance.generated_at
+            type: datetime
+          - id: params_batch_size
+            source_path: mlflow_registration.params.batch_size
+            type: int
+          - id: params_learning_rate
+            source_path: mlflow_registration.params.learning_rate
+            type: float
+          - id: params_n_layers
+            source_path: mlflow_registration.params.n_layers
+            type: int
+          - id: params_units
+            source_path: mlflow_registration.params.units
+            type: int
+          - id: params_dropout
+            source_path: mlflow_registration.params.dropout
+            type: float
+          - id: params_embed_dim
+            source_path: mlflow_registration.params.embed_dim
+            type: int
+          - id: params_filters
+            source_path: mlflow_registration.params.filters
+            type: int
+          - id: params_kernel_size
+            source_path: mlflow_registration.params.kernel_size
+            type: int
+          - id: params_model_family
+            source_path: mlflow_registration.params.model_family
+            type: str
+
+
+
+  - id: f06_quant     
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: Tu
+            source_path: parameters.Tu
+            type: int
+          - id: OW
+            source_path: parameters.OW
+            type: int
+          - id: LT
+            source_path: parameters.LT
+            type: int
+          - id: PW
+            source_path: parameters.PW
+            type: int
+          - id: prediction_name
+            source_path: parameters.prediction_name
+            type: str
+          - id: event_type_count
+            source_path: parameters.event_type_count
+            type: int
+          - id: deployment_target
+            source_path: parameters.deployment.target
+            type: str
+          - id: deployment_runtime
+            source_path: parameters.deployment.runtime
+            type: str
+          - id: tflite_optimization
+            source_path: parameters.quantization.tflite_optimization
+            type: str
+          - id: calibration_samples
+            source_path: parameters.quantization.calibration_samples
+            type: int
+          - id: thresholding_strategy
+            source_path: parameters.thresholding.strategy
+            type: str
+          - id: thresholding_maximize_metric
+            source_path: parameters.thresholding.maximize_metric
+            type: str
+          - id: thresholding_grid_points
+            source_path: parameters.thresholding.grid_points
+            type: int
+
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: event_type_count
+            source_path: exports.event_type_count
+            type: int
+          - id: prediction_name
+            source_path: exports.prediction_name
+            type: str
+          - id: runtime_model_name
+            source_path: exports.runtime_model_name
+            type: str
+          - id: model_family
+            source_path: exports.model_family
+            type: str
+          - id: decision_threshold
+            source_path: exports.decision_threshold
+            type: float
+          - id: model_size_bytes
+            source_path: exports.model_size_bytes
+            type: int
+          - id: arena_estimated_bytes
+            source_path: exports.arena_estimated_bytes
+            type: int
+          - id: footprint_estimated_bytes
+            source_path: exports.footprint_estimated_bytes
+            type: int
+          - id: operators
+            source_path: exports.operators
+            type: list
+          - id: input_dtype
+            source_path: exports.input_dtype
+            type: str
+          - id: output_dtype
+            source_path: exports.output_dtype
+            type: str
+          - id: input_shape
+            source_path: exports.input_shape
+            type: list
+          - id: output_shape
+            source_path: exports.output_shape
+            type: list
+          - id: input_bytes
+            source_path: exports.input_bytes
+            type: list
+          - id: output_bytes
+            source_path: exports.output_bytes
+            type: list
+          - id: execution_time
+            source_path: metrics.execution_time
+            type: float
+          - id: tflm_compatible
+            source_path: metrics.tflm_compatible
+            type: bool
+          - id: operators_detected
+            source_path: metrics.operators_detected
+            type: int
+          - id: unsupported_operators
+            source_path: metrics.unsupported_operators
+            type: int 
+          - id: n_calibration_samples
+            source_path: metrics.n_calibration_samples
+            type: int
+
+
+
+  - id: f07_modval  
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parent_variant
+            source_path: parameters.parent_variant
+            type: str
+            color: "#fce1fb"
+          - id: prediction_name
+            source_path: parameters.prediction_name
+            type: str
+          - id: decision_threshold
+            source_path: parameters.decision_threshold
+            type: float
+          - id: event_type_count
+            source_path: parameters.event_type_count
+            type: int
+          - id: MTI_MS
+            source_path: parameters.MTI_MS
+            type: int
+          - id: platform
+            source_path: parameters.platform
+            type: str
+
+      - file: outputs.yaml
+        color: "#ffb3b3"
+        columns:
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: event_type_count 
+            source_path: exports.event_type_count  
+            type : int  
+          - id: operators 
+            source_path: exports.operators  
+            type: list
+          - id: decision_threshold 
+            source_path: exports.decision_threshold  
+            type: float
+          - id: arena_bytes
+            source_path: exports.arena_bytes
+            type: int
+          - id: model_memory_bytes
+            source_path: exports.model_memory_bytes
+            type: int
+          - id: itmax_ms
+            source_path: exports.itmax_ms
+            type: float
+          - id: ITmax
+            source_path: exports.ITmax
+            type: int
+          - id: MTI_MS
+            source_path: exports.MTI_MS
+            type: int
+          - id: quality_score
+            source_path: exports.quality_score
+            type: float
+          - id: n_inferences
+            source_path: exports.n_inferences
+            type: int
+          - id: ok_rate
+            source_path: exports.ok_rate
+            type: float
+          - id: offload_rate
+            source_path: exports.offload_rate
+            type: float
+          - id: watchdog_rate
+            source_path: exports.watchdog_rate
+            type: float
+          - id: edge_run_completed
+            source_path: exports.edge_run_completed
+            type: bool
+          - id: phase_status_reason
+            source_path: exports.phase_status_reason
+            type: str
+
+
+
+  - id: f08_sysval
+    base_columns:
+      - id: variant
+        color: "#b3ffc3"
+        type: str
+        indexed: true
+    sources: 
+      - file: params.yaml
+        color: "#bae7f5"
+        columns:
+          - id: parents
+            source_path: parameters.parents
+            type: list
+            color: "#fce1fb"
+          - id: selection_mode
+            source_path: parameters.selection_mode
+            type: str
+          - id: solver_time_limit_sec
+            source_path: parameters.solver_time_limit_sec
+            type: int
+          - id: time_scale_factor
+            source_path: parameters.time_scale_factor
+            type: float
+          - id: MTI_MS
+            source_path: parameters.MTI_MS
+            type: int
+          - id: platform
+            source_path: parameters.platform
+            type: str
+      - file: outputs.yaml 
+        color: "#ffb3b3"
+        columns:
+          - id: objective
+            source_path: exports.objective
+            type: str
+          - id: solver_status
+            source_path: exports.solver_status
+            type: str
+          - id: Tu
+            source_path: exports.Tu
+            type: int
+          - id: OW
+            source_path: exports.OW
+            type: int
+          - id: LT
+            source_path: exports.LT
+            type: int
+          - id: PW
+            source_path: exports.PW
+            type: int
+          - id: event_type_count
+            source_path: exports.event_type_count
+            type: int
+          - id: total_models_requested
+            source_path: exports.total_models_requested
+            type: int
+          - id: total_models_declared
+            source_path: exports.total_models_declared
+            type: int
+          - id: total_models_selected
+            source_path: exports.total_models_selected
+            type: int
+          - id: total_model_size_bytes
+            source_path: exports.total_model_size_bytes
+            type: int
+          - id: operators_union
+            source_path: exports.operators_union
+            type: list

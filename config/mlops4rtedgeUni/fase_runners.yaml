@@ -1,0 +1,36 @@
+# Phase -> runner assignment for mlops4rtedgeUni.
+# Runner definitions live in config/fases_execution_runners.yaml.
+
+fases:
+- fase: f01_explore
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f01_explore
+  parent_required: false
+- fase: f02_events
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f02_events
+  parent_required: true
+- fase: f03_windows
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f03_windows
+  parent_required: true
+- fase: f04_targets
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f04_targets
+  parent_required: true
+- fase: f05_modeling
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f05_modeling
+  parent_required: true
+- fase: f06_quant
+  runner: GithubActions, K8s-8gb, K8s-24gb, Local
+  gh_fase: f06_quant
+  parent_required: true
+- fase: f07_modval
+  runner: ESP32-self-hosted, Local
+  gh_fase: f07_modval
+  parent_required: true
+- fase: f08_sysval
+  runner: ESP32-self-hosted, Local
+  gh_fase: f08_sysval
+  parent_required: true

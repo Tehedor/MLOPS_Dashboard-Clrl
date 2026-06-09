@@ -1,13 +1,11 @@
 # Global settings — shared across all pipeline-projects.
-# Per-project settings (repo, branch, paths) live in pipelines.yaml.
+# Per-project settings (repo, branch, paths) live in config/pipelines.yaml.
 
 repo_sync_interval_seconds: 60
 table_refresh_interval_seconds: 5
 phases_runner: "config/fases_execution_runners.yaml"
-local_workflows: "config/local_workflows.yaml"
 local_runner_use_venv: "1"
-services_external_ctrl: "config/services_external_ctrl.yaml"
-table_config: "config/table_config.yaml"
+service_memory_limit_default: "4g"
 
 
 TERMINAL_RUNNERS:

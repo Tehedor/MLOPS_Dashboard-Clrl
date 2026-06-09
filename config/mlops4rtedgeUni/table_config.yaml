@@ -1,0 +1,881 @@
+# Table config for mlops4rtedgeUni.
+# Generated from external/mlops4rtedgeUni/repo_actions/scripts/traceability_schema.yaml.
+
+phases:
+- id: f01_explore
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: raw_path
+      source_path: parameters.raw_path
+      type: str
+    - id: cleaning
+      source_path: parameters.cleaning
+      type: str
+    - id: nan_values
+      source_path: parameters.nan_values
+      type: list
+    - id: error_values
+      source_path: parameters.error_values
+      type: dict
+    - id: first_line
+      source_path: parameters.first_line
+      type: int
+    - id: max_lines
+      source_path: parameters.max_lines
+      type: int
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_n_rows
+      source_path: exports.n_rows
+      type: int
+    - id: exports_n_columns
+      source_path: exports.n_columns
+      type: int
+    - id: exports_measure_cols
+      source_path: exports.measure_cols
+      type: list
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_nan_detected
+      source_path: metrics.n_nan_detected
+      type: int
+    - id: metrics_n_nan_replaced
+      source_path: metrics.n_nan_replaced
+      type: int
+    - id: metrics_nan_ratio
+      source_path: metrics.nan_ratio
+      type: float
+- id: f02_events
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: measure_name
+      source_path: parameters.measure_name
+      type: str
+    - id: strategy
+      source_path: parameters.strategy
+      type: str
+    - id: bands
+      source_path: parameters.bands
+      type: list
+    - id: nan_mode
+      source_path: parameters.nan_mode
+      type: str
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_measure_name
+      source_path: exports.measure_name
+      type: str
+    - id: exports_event_strategy
+      source_path: exports.event_strategy
+      type: str
+    - id: exports_bands
+      source_path: exports.bands
+      type: list
+    - id: exports_event_types
+      source_path: exports.event_types
+      type: list
+    - id: exports_n_event_types
+      source_path: exports.n_event_types
+      type: int
+    - id: exports_n_events
+      source_path: exports.n_events
+      type: int
+    - id: exports_n_types
+      source_path: exports.n_types
+      type: int
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_rows_in
+      source_path: metrics.n_rows_in
+      type: int
+    - id: metrics_n_rows_out
+      source_path: metrics.n_rows_out
+      type: int
+    - id: metrics_nan_ratio_in
+      source_path: metrics.nan_ratio_in
+      type: float
+    - id: metrics_nan_ratio_out
+      source_path: metrics.nan_ratio_out
+      type: float
+- id: f03_windows
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: OW
+      source_path: parameters.OW
+      type: int
+    - id: LT
+      source_path: parameters.LT
+      type: int
+    - id: PW
+      source_path: parameters.PW
+      type: int
+    - id: window_strategy
+      source_path: parameters.window_strategy
+      type: str
+    - id: nan_mode
+      source_path: parameters.nan_mode
+      type: str
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_window_strategy
+      source_path: exports.window_strategy
+      type: str
+    - id: exports_nan_mode
+      source_path: exports.nan_mode
+      type: str
+    - id: exports_measure_name
+      source_path: exports.measure_name
+      type: str
+    - id: exports_n_windows
+      source_path: exports.n_windows
+      type: int
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_events_in
+      source_path: metrics.n_events_in
+      type: int
+- id: f04_targets
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: prediction_name
+      source_path: parameters.prediction_name
+      type: str
+    - id: target_operator
+      source_path: parameters.target_operator
+      type: str
+    - id: target_event_types
+      source_path: parameters.target_event_types
+      type: list
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_prediction_name
+      source_path: exports.prediction_name
+      type: str
+    - id: exports_target_operator
+      source_path: exports.target_operator
+      type: str
+    - id: exports_target_event_types
+      source_path: exports.target_event_types
+      type: list
+    - id: exports_n_windows
+      source_path: exports.n_windows
+      type: int
+    - id: exports_n_windows_pos
+      source_path: exports.n_windows_pos
+      type: int
+    - id: exports_n_windows_neg
+      source_path: exports.n_windows_neg
+      type: int
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_positive_ratio
+      source_path: metrics.positive_ratio
+      type: float
+- id: f05_modeling
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: model_family
+      source_path: parameters.model_family
+      type: str
+    - id: automl
+      source_path: parameters.automl
+      type: dict
+    - id: search_space
+      source_path: parameters.search_space
+      type: dict
+    - id: training
+      source_path: parameters.training
+      type: dict
+    - id: deduplication_mode
+      source_path: parameters.deduplication_mode
+      type: str
+    - id: seed
+      source_path: parameters.seed
+      type: int
+    - id: evaluation
+      source_path: parameters.evaluation
+      type: dict
+    - id: imbalance_strategy
+      source_path: parameters.imbalance_strategy
+      type: str
+    - id: imbalance_max_majority_samples
+      source_path: parameters.imbalance_max_majority_samples
+      type: int
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_models
+      source_path: exports.models
+      type: list
+    - id: exports_prediction_name
+      source_path: exports.prediction_name
+      type: str
+    - id: exports_model_family
+      source_path: exports.model_family
+      type: str
+    - id: exports_trainable
+      source_path: exports.trainable
+      type: bool
+    - id: exports_incompatibility_reason
+      source_path: exports.incompatibility_reason
+      type: str
+    - id: exports_decision_threshold
+      source_path: exports.decision_threshold
+      type: float
+    - id: exports_best_val_recall
+      source_path: exports.best_val_recall
+      type: float
+    - id: exports_test_precision
+      source_path: exports.test_precision
+      type: float
+    - id: exports_test_recall
+      source_path: exports.test_recall
+      type: float
+    - id: exports_test_f1
+      source_path: exports.test_f1
+      type: float
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_train
+      source_path: metrics.n_train
+      type: int
+    - id: metrics_n_val
+      source_path: metrics.n_val
+      type: int
+    - id: metrics_n_test
+      source_path: metrics.n_test
+      type: int
+    - id: metrics_positive_ratio_train
+      source_path: metrics.positive_ratio_train
+      type: float
+    - id: metrics_tp
+      source_path: metrics.tp
+      type: int
+    - id: metrics_tn
+      source_path: metrics.tn
+      type: int
+    - id: metrics_fp
+      source_path: metrics.fp
+      type: int
+    - id: metrics_fn
+      source_path: metrics.fn
+      type: int
+- id: f06_quant
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: deployment
+      source_path: parameters.deployment
+      type: dict
+    - id: quantization
+      source_path: parameters.quantization
+      type: dict
+    - id: thresholding
+      source_path: parameters.thresholding
+      type: dict
+    - id: eedu
+      source_path: parameters.eedu
+      type: dict
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_prediction_name
+      source_path: exports.prediction_name
+      type: str
+    - id: exports_runtime_model_name
+      source_path: exports.runtime_model_name
+      type: str
+    - id: exports_model_family
+      source_path: exports.model_family
+      type: str
+    - id: exports_decision_threshold
+      source_path: exports.decision_threshold
+      type: float
+    - id: exports_edge_capable
+      source_path: exports.edge_capable
+      type: bool
+    - id: exports_incompatibility_reason
+      source_path: exports.incompatibility_reason
+      type: str
+    - id: exports_model_size_bytes
+      source_path: exports.model_size_bytes
+      type: int
+    - id: exports_arena_estimated_bytes
+      source_path: exports.arena_estimated_bytes
+      type: int
+    - id: exports_footprint_estimated_bytes
+      source_path: exports.footprint_estimated_bytes
+      type: int
+    - id: exports_operators
+      source_path: exports.operators
+      type: list
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_tflm_compatible
+      source_path: metrics.tflm_compatible
+      type: bool
+    - id: metrics_operators_detected
+      source_path: metrics.operators_detected
+      type: int
+    - id: metrics_unsupported_operators
+      source_path: metrics.unsupported_operators
+      type: int
+    - id: metrics_n_calibration_samples
+      source_path: metrics.n_calibration_samples
+      type: int
+    - id: metrics_val_recall_float
+      source_path: metrics.val_recall_float
+      type: float
+    - id: metrics_val_recall_quant
+      source_path: metrics.val_recall_quant
+      type: float
+    - id: metrics_val_precision_float
+      source_path: metrics.val_precision_float
+      type: float
+    - id: metrics_val_precision_quant
+      source_path: metrics.val_precision_quant
+      type: float
+    - id: metrics_val_f1_float
+      source_path: metrics.val_f1_float
+      type: float
+    - id: metrics_val_f1_quant
+      source_path: metrics.val_f1_quant
+      type: float
+- id: f07_modval
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: str
+      color: '#fce1fb'
+    - id: time_scale_factor
+      source_path: parameters.time_scale_factor
+      type: float
+    - id: MTI_MS
+      source_path: parameters.MTI_MS
+      type: int
+    - id: ITmax
+      source_path: parameters.ITmax
+      type: int
+    - id: max_rows
+      source_path: parameters.max_rows
+      type: int
+    - id: platform
+      source_path: parameters.platform
+      type: str
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_prediction_name
+      source_path: exports.prediction_name
+      type: str
+    - id: exports_model_id
+      source_path: exports.model_id
+      type: str
+    - id: exports_platform
+      source_path: exports.platform
+      type: str
+    - id: exports_runtime_model_name
+      source_path: exports.runtime_model_name
+      type: str
+    - id: exports_itmax_ms
+      source_path: exports.itmax_ms
+      type: float
+    - id: exports_ITmax
+      source_path: exports.ITmax
+      type: int
+    - id: exports_MTI_MS
+      source_path: exports.MTI_MS
+      type: int
+    - id: exports_operators
+      source_path: exports.operators
+      type: list
+    - id: exports_decision_threshold
+      source_path: exports.decision_threshold
+      type: float
+    - id: exports_arena_bytes
+      source_path: exports.arena_bytes
+      type: int
+    - id: exports_model_memory_bytes
+      source_path: exports.model_memory_bytes
+      type: int
+    - id: exports_edge_capable
+      source_path: exports.edge_capable
+      type: bool
+    - id: exports_incompatibility_reason
+      source_path: exports.incompatibility_reason
+      type: str
+    - id: exports_quality_score
+      source_path: exports.quality_score
+      type: float
+    - id: exports_n_inferences
+      source_path: exports.n_inferences
+      type: int
+    - id: exports_ok_rate
+      source_path: exports.ok_rate
+      type: float
+    - id: exports_offload_rate
+      source_path: exports.offload_rate
+      type: float
+    - id: exports_watchdog_rate
+      source_path: exports.watchdog_rate
+      type: float
+    - id: exports_edge_run_completed
+      source_path: exports.edge_run_completed
+      type: bool
+    - id: exports_phase_status_reason
+      source_path: exports.phase_status_reason
+      type: str
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_inferences
+      source_path: metrics.n_inferences
+      type: int
+    - id: metrics_edge_mean_latency_ms
+      source_path: metrics.edge_mean_latency_ms
+      type: float
+    - id: metrics_edge_max_latency_ms
+      source_path: metrics.edge_max_latency_ms
+      type: float
+    - id: metrics_edge_jitter_ms
+      source_path: metrics.edge_jitter_ms
+      type: float
+    - id: metrics_edge_memory_peak_bytes
+      source_path: metrics.edge_memory_peak_bytes
+      type: int
+    - id: metrics_pc_esp_agreement
+      source_path: metrics.pc_esp_agreement
+      type: float
+    - id: metrics_ok_rate
+      source_path: metrics.ok_rate
+      type: float
+    - id: metrics_offload_rate
+      source_path: metrics.offload_rate
+      type: float
+    - id: metrics_watchdog_rate
+      source_path: metrics.watchdog_rate
+      type: float
+    - id: metrics_quality_score
+      source_path: metrics.quality_score
+      type: float
+- id: f08_sysval
+  base_columns:
+  - id: variant
+    color: '#b3ffc3'
+    type: str
+    indexed: true
+  sources:
+  - file: params.yaml
+    color: '#bae7f5'
+    columns:
+    - id: parent
+      source_path: parent
+      type: str
+      color: '#fce1fb'
+    - id: parent_variant
+      source_path: parameters.parent_variant
+      type: list
+      color: '#fce1fb'
+    - id: selection_mode
+      source_path: parameters.selection_mode
+      type: str
+    - id: objective
+      source_path: parameters.objective
+      type: str
+    - id: solver_time_limit_sec
+      source_path: parameters.solver_time_limit_sec
+      type: int
+    - id: time_scale_factor
+      source_path: parameters.time_scale_factor
+      type: float
+    - id: Tu
+      source_path: parameters.Tu
+      type: int
+    - id: OW
+      source_path: parameters.OW
+      type: int
+    - id: LT
+      source_path: parameters.LT
+      type: int
+    - id: PW
+      source_path: parameters.PW
+      type: int
+    - id: event_type_count
+      source_path: parameters.event_type_count
+      type: int
+    - id: MTI_MS
+      source_path: parameters.MTI_MS
+      type: int
+    - id: max_rows
+      source_path: parameters.max_rows
+      type: int
+    - id: platform
+      source_path: parameters.platform
+      type: str
+    - id: memory_budget_bytes
+      source_path: parameters.memory_budget_bytes
+      type: int
+    - id: max_models
+      source_path: parameters.max_models
+      type: int
+    - id: min_quality_score
+      source_path: parameters.min_quality_score
+      type: float
+    - id: min_precision
+      source_path: parameters.min_precision
+      type: float
+    - id: min_recall
+      source_path: parameters.min_recall
+      type: float
+  - file: outputs.yaml
+    color: '#ffb3b3'
+    columns:
+    - id: exports_selection_mode
+      source_path: exports.selection_mode
+      type: str
+    - id: exports_objective
+      source_path: exports.objective
+      type: str
+    - id: exports_solver_status
+      source_path: exports.solver_status
+      type: str
+    - id: exports_solver_iterations
+      source_path: exports.solver_iterations
+      type: int
+    - id: exports_solver_objective_value
+      source_path: exports.solver_objective_value
+      type: float
+    - id: exports_solver_lambda_last
+      source_path: exports.solver_lambda_last
+      type: float
+    - id: exports_solver_gap_last
+      source_path: exports.solver_gap_last
+      type: float
+    - id: exports_parent_variants
+      source_path: exports.parent_variants
+      type: list
+    - id: exports_selected_variants
+      source_path: exports.selected_variants
+      type: list
+    - id: exports_platform
+      source_path: exports.platform
+      type: str
+    - id: exports_Tu
+      source_path: exports.Tu
+      type: int
+    - id: exports_OW
+      source_path: exports.OW
+      type: int
+    - id: exports_LT
+      source_path: exports.LT
+      type: int
+    - id: exports_PW
+      source_path: exports.PW
+      type: int
+    - id: exports_event_type_count
+      source_path: exports.event_type_count
+      type: int
+    - id: exports_model_ids
+      source_path: exports.model_ids
+      type: list
+    - id: exports_runtime_model_names
+      source_path: exports.runtime_model_names
+      type: list
+    - id: exports_MTI_MS
+      source_path: exports.MTI_MS
+      type: int
+    - id: exports_total_models_declared
+      source_path: exports.total_models_declared
+      type: int
+    - id: exports_total_models_selected
+      source_path: exports.total_models_selected
+      type: int
+    - id: exports_total_model_size_bytes
+      source_path: exports.total_model_size_bytes
+      type: int
+    - id: exports_required_arena_bytes
+      source_path: exports.required_arena_bytes
+      type: int
+    - id: exports_operators_union
+      source_path: exports.operators_union
+      type: list
+    - id: exports_compatible_input_signature
+      source_path: exports.compatible_input_signature
+      type: bool
+    - id: exports_configuration_edge_capable
+      source_path: exports.configuration_edge_capable
+      type: bool
+    - id: exports_selection_completed
+      source_path: exports.selection_completed
+      type: bool
+    - id: exports_phase_status
+      source_path: exports.phase_status
+      type: str
+    - id: exports_phase_status_reason
+      source_path: exports.phase_status_reason
+      type: str
+    - id: exports_edge_run_completed
+      source_path: exports.edge_run_completed
+      type: bool
+    - id: exports_esp_run_completed
+      source_path: exports.esp_run_completed
+      type: bool
+    - id: exports_unique_windows_count
+      source_path: exports.unique_windows_count
+      type: int
+    - id: exports_duplicate_windows_removed
+      source_path: exports.duplicate_windows_removed
+      type: int
+    - id: exports_selection_global_precision
+      source_path: exports.selection_global_precision
+      type: float
+    - id: exports_selection_global_recall
+      source_path: exports.selection_global_recall
+      type: float
+    - id: exports_selection_sum_effective_time_ms
+      source_path: exports.selection_sum_effective_time_ms
+      type: float
+    - id: exports_selection_max_exec_time_ms
+      source_path: exports.selection_max_exec_time_ms
+      type: float
+    - id: exports_exec_time_policy
+      source_path: exports.exec_time_policy
+      type: str
+    - id: exports_max_exec_time_ms
+      source_path: exports.max_exec_time_ms
+      type: float
+    - id: exports_system_viable
+      source_path: exports.system_viable
+      type: bool
+    - id: metrics_execution_time
+      source_path: metrics.execution_time
+      type: float
+    - id: metrics_n_inferences
+      source_path: metrics.n_inferences
+      type: int
+    - id: metrics_unique_windows_count
+      source_path: metrics.unique_windows_count
+      type: int
+    - id: metrics_evaluated_rows_total
+      source_path: metrics.evaluated_rows_total
+      type: int
+    - id: metrics_models_evaluated
+      source_path: metrics.models_evaluated
+      type: int
+    - id: metrics_throughput_inf_per_sec
+      source_path: metrics.throughput_inf_per_sec
+      type: float
+    - id: metrics_edge_mean_latency_ms
+      source_path: metrics.edge_mean_latency_ms
+      type: float
+    - id: metrics_edge_max_latency_ms
+      source_path: metrics.edge_max_latency_ms
+      type: float
+    - id: metrics_edge_jitter_ms
+      source_path: metrics.edge_jitter_ms
+      type: float
+    - id: metrics_ok_rate
+      source_path: metrics.ok_rate
+      type: float
+    - id: metrics_offload_rate
+      source_path: metrics.offload_rate
+      type: float
+    - id: metrics_watchdog_rate
+      source_path: metrics.watchdog_rate
+      type: float
+    - id: metrics_system_quality_score
+      source_path: metrics.system_quality_score
+      type: float
+    - id: metrics_mean_model_quality_score
+      source_path: metrics.mean_model_quality_score
+      type: float
+    - id: metrics_edge_memory_peak_bytes
+      source_path: metrics.edge_memory_peak_bytes
+      type: int
+    - id: metrics_pc_esp_agreement
+      source_path: metrics.pc_esp_agreement
+      type: float

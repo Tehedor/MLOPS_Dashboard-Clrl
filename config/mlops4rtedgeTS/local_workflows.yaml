@@ -1,0 +1,374 @@
+# Definición de los pasos del runner Local para mlops4rtedgeTS.
+# El runner local clona el repo en `local_runner_workspace` y ejecuta
+# estos pasos secuencialmente dentro de ese directorio.
+#
+# Variables disponibles en los comandos:
+#   {variant_id}       — ej. v0001
+#   {checkout_branch}  — rama de checkout (ej. test2)
+#   {params_json}      — JSON con los params (ej. '{"lr": 0.01}')
+#   {workspace}        — ruta absoluta al clon local del runner
+#   {parent_id}        — variante padre directa (fases 2–7)
+#   {catalog_id}       — variante catálogo de f02 (solo f04)
+#   {parents_ids}      — JSON list de variantes padre (solo f08, ej. '["v7_0001"]')
+#
+# Cada step tiene:
+#   name          — label para logs/UI
+#   type          — make | shell | dvc
+#   cmd           — comando a ejecutar (interpolado con las variables)
+#   commit_paths  — paths a incluir en el commit/PR tras el step (opcional)
+#   step_id       — id para el PR (mismo naming que commit-and-pr action)
+#   always_run    — si true, se ejecuta aunque un step anterior haya fallado
+#   publish_pr    — si true, crea PR y hace merge igual que el workflow de GH
+
+fases:
+  - fase: f01_explore
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - data/raw.csv.dvc
+    steps:
+      - name: "Ejecutar variant1"
+        type: make
+        cmd: "make variant1 VARIANT={variant_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f01_explore/{variant_id}"
+
+      - name: "Ejecutar script1"
+        type: make
+        cmd: "make script1 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f01_explore/{variant_id}"
+
+      - name: "Ejecutar check1"
+        type: make
+        cmd: "make check1 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f01_explore/{variant_id}"
+
+      - name: "Ejecutar register1"
+        type: make
+        cmd: "make register1 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f01_explore/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f02_events
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f01_explore/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant2"
+        type: make
+        cmd: "make variant2 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f02_events/{variant_id}"
+
+      - name: "Ejecutar script2"
+        type: make
+        cmd: "make script2 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f02_events/{variant_id}"
+
+      - name: "Ejecutar check2"
+        type: make
+        cmd: "make check2 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f02_events/{variant_id}"
+
+      - name: "Ejecutar register2"
+        type: make
+        cmd: "make register2 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f02_events/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f03_windows
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f02_events/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant3"
+        type: make
+        cmd: "make variant3 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f03_windows/{variant_id}"
+
+      - name: "Ejecutar script3"
+        type: make
+        cmd: "make script3 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f03_windows/{variant_id}"
+
+      - name: "Ejecutar check3"
+        type: make
+        cmd: "make check3 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f03_windows/{variant_id}"
+
+      - name: "Ejecutar register3"
+        type: make
+        cmd: "make register3 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f03_windows/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f04_targets
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f03_windows/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant4"
+        type: make
+        cmd: "make variant4 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f04_targets/{variant_id}"
+
+      - name: "Ejecutar script4"
+        type: make
+        cmd: "make script4 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f04_targets/{variant_id}"
+
+      - name: "Ejecutar check4"
+        type: make
+        cmd: "make check4 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f04_targets/{variant_id}"
+
+      - name: "Ejecutar register4"
+        type: make
+        cmd: "make register4 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f04_targets/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f05_modeling
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f04_targets/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant5"
+        type: make
+        cmd: "make variant5 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f05_modeling/{variant_id}"
+
+      - name: "Ejecutar script5"
+        type: make
+        cmd: "make script5-a VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f05_modeling/{variant_id}"
+
+      - name: "Ejecutar check5"
+        type: make
+        cmd: "make check5 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f05_modeling/{variant_id}"
+
+      - name: "Ejecutar register5"
+        type: make
+        cmd: "make register5 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f05_modeling/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f06_quant
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f05_modeling/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant6"
+        type: make
+        cmd: "make variant6 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f06_quant/{variant_id}"
+
+      - name: "Ejecutar script6"
+        type: make
+        cmd: "make script6-a VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f06_quant/{variant_id}"
+
+      - name: "Ejecutar check6"
+        type: make
+        cmd: "make check6 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f06_quant/{variant_id}"
+
+      - name: "Ejecutar register6"
+        type: make
+        cmd: "make register6 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f06_quant/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f07_modval
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f06_quant/{parent_id}/*.dvc"
+    steps:
+      - name: "Ejecutar variant7"
+        type: make
+        cmd: "make variant7 VARIANT={variant_id} PARENT={parent_id} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f07_modval/{variant_id}"
+
+      - name: "Ejecutar script7"
+        type: make
+        cmd: "make script7 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f07_modval/{variant_id}"
+
+      - name: "Ejecutar check7"
+        type: make
+        cmd: "make check7 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f07_modval/{variant_id}"
+
+      - name: "Ejecutar register7"
+        type: make
+        cmd: "make register7 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f07_modval/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"
+
+  - fase: f08_sysval
+    exclude_exts:
+      - .h5
+      - .parquet
+      - .tflite
+    dvc_pull:
+      - "executions/f07_modval/{parents_ids}/*.dvc"
+    steps:
+      - name: "Ejecutar variant8"
+        type: make
+        cmd: "make variant8 VARIANT={variant_id} PARENTS={parents_ids} {make_params}"
+        step_id: variant
+        publish_pr: true
+        commit_paths:
+          - "executions/f08_sysval/{variant_id}"
+
+      - name: "Ejecutar script8"
+        type: make
+        cmd: "make script8 VARIANT={variant_id}"
+        step_id: script
+        publish_pr: true
+        commit_paths:
+          - "executions/f08_sysval/{variant_id}"
+
+      - name: "Ejecutar check8"
+        type: make
+        cmd: "make check8 VARIANT={variant_id}"
+        step_id: check
+        always_run: true
+        publish_pr: true
+        commit_paths:
+          - "executions/f08_sysval/{variant_id}"
+
+      - name: "Ejecutar register8"
+        type: make
+        cmd: "make register8 VARIANT={variant_id}"
+        step_id: register
+        publish_pr: true
+        commit_paths:
+          - "executions/f08_sysval/{variant_id}"
+          - ".dvc/config"
+          - "dvc.yaml"
+          - "dvc.lock"

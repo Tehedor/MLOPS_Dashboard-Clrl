@@ -336,7 +336,7 @@ fases:
       - .parquet
       - .tflite
     dvc_pull:
-      - "executions/f07_validate/{parents_ids}/*.dvc"
+      - "executions/f07_modval/{parents_ids}/*.dvc"
     steps:
       - name: "Ejecutar variant8"
         type: make

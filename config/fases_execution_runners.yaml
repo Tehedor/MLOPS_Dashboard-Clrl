@@ -1,3 +1,6 @@
+# Shared runner definitions — used by all pipelines.
+# Phase → runner assignment lives in config/<pipeline>/fase_runners.yaml.
+
 runners:
   - GithubActions:
     # max-parallel: 2
@@ -9,46 +12,9 @@ runners:
   - Local:
     max-parallel: 1
     labels: [local]
-    # Ejecuta los pasos definidos en config/local_workflows.yaml
-    # en un clon separado del repo (local_runner_workspace en config.yaml).
-    # Crea PRs igual que los workflows de GH Actions.
   - K8s-8gb:
     max-parallel: 4
     labels: [runner-8gb]
   - K8s-24gb:
     max-parallel: 2
     labels: [runner-24gb]
-
-fases:
-  - fase: f01_explore
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f01_explore"
-    parent_required: false
-  - fase: f02_events
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f02_events"
-    parent_required: true
-  - fase: f03_windows
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f03_windows"
-    parent_required: true
-  - fase: f04_targets
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f04_targets"
-    parent_required: true
-  - fase: f05_modeling
-    runner: "GithubActions,K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f05_modeling"
-    parent_required: true
-  - fase: f06_quant
-    runner: "GithubActions, K8s-8gb, K8s-24gb, Local"
-    gh_fase: "f06_quant"
-    parent_required: true
-  - fase: f07_modval
-    runner: 'ESP32-self-hosted, Local'
-    gh_fase: "f07_modval"
-    parent_required: true
-  - fase: f08_sysval
-    runner: "ESP32-self-hosted, Local"
-    gh_fase: "f08_sysval"
-    parent_required: true
