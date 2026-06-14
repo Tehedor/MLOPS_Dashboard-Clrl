@@ -40,6 +40,17 @@ function fmtDuration(startIso, endIso) {
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
+function DurationChip({ startedAt, createdAt, updatedAt }) {
+  const runStart = startedAt || null
+  const dur = runStart ? fmtDuration(runStart, updatedAt) : null
+  if (!dur) return null
+  return (
+    <span className="text-xs font-mono text-gray-600 dark:text-gray-300">
+      ⏱ {dur}
+    </span>
+  )
+}
+
 const HISTORY_STATES = new Set(['success', 'failed', 'canceled'])
 
 const STATUS_RANK = { success: 0, failed: 1, canceled: 2 }
@@ -215,8 +226,9 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
             {ex.parent && <span className="truncate shrink-0">parent: <span className="text-gray-900 dark:text-gray-200 font-mono">{ex.parent}</span></span>}
           </div>
           <ParamsChips params={ex.params} />
-          <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
+          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
             <span>{ex.updated_at.slice(0, 19).replace('T', ' ')}</span>
+            <DurationChip startedAt={ex.started_at} createdAt={ex.created_at} updatedAt={ex.updated_at} />
           </div>
           {ex.error_code && (
             <div className="mt-1 text-xs text-red-400">{ex.error_code}</div>

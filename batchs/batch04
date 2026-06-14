@@ -118,15 +118,15 @@
 }
 
 
-#f07_modval  (v7_0056 — MTI 100ms baseline, parent v6_0019)
+#f07_modval  (v7_0059 — MTI 100ms, máximo 5000 filas para depuración serie)
 
 {
-  "variant": "v7_0056",
+  "variant": "v7_0059",
   "params": {
     "time_scale_factor": 0.01,
     "MTI_MS": 100,
     "ITmax": null,
-    "max_rows": null,
+    "max_rows": 5000,
     "platform": "esp32"
   },
   "parent": "v6_0019",
@@ -134,10 +134,10 @@
 }
 
 
-#f08_sysval  (v8_0003 — selección manual, 1 padre de batch03)
+#f08_sysval  (v8_0004 — selección manual de v7_0059, máximo 5000 filas)
 
 {
-  "variant": "v8_0003",
+  "variant": "v8_0004",
   "params": {
     "selection_mode": "manual",
     "objective": null,
@@ -149,7 +149,7 @@
     "PW": null,
     "event_type_count": null,
     "MTI_MS": 100,
-    "max_rows": null,
+    "max_rows": 5000,
     "platform": "esp32",
     "memory_budget_bytes": null,
     "max_models": null,
@@ -157,6 +157,6 @@
     "min_precision": null,
     "min_recall": null
   },
-  "parent": ["v7_0056"],
+  "parent": ["v7_0059"],
   "selected_runner": "ESP32-self-hosted"
 }

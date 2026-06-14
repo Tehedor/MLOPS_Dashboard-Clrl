@@ -141,7 +141,7 @@ def _parent_exists(ex: Execution, phase_requires_parent: bool) -> bool:
 
 def _row_to_execution(row) -> Execution:
     # Column order: id, pipeline_id, fase, variant, parent, runner, params,
-    #               status, error_code, gh_run_id, created_at, updated_at
+    #               status, error_code, gh_run_id, created_at, updated_at, started_at
     return Execution(
         id=row[0],
         pipeline_id=row[1],
@@ -155,6 +155,7 @@ def _row_to_execution(row) -> Execution:
         gh_run_id=row[9],
         created_at=row[10],
         updated_at=row[11],
+        started_at=row[12] if len(row) > 12 else None,
     )
 
 
@@ -207,11 +208,11 @@ class ExecutionService:
         )
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
-                "INSERT INTO executions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO executions (id,pipeline_id,fase,variant,parent,runner,params,status,error_code,gh_run_id,created_at,updated_at,started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     ex.id, ex.pipeline_id, ex.fase, ex.variant, ex.parent, ex.runner,
                     json.dumps(ex.params), ex.status.value, ex.error_code,
-                    ex.gh_run_id, ex.created_at, ex.updated_at,
+                    ex.gh_run_id, ex.created_at, ex.updated_at, ex.started_at,
                 ),
             )
             await db.commit()
@@ -327,10 +328,17 @@ class ExecutionService:
     ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         async with aiosqlite.connect(DB_PATH) as db:
-            await db.execute(
-                "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
-                (status.value, error_code, now, execution_id),
-            )
+            if status == ExecutionStatus.running:
+                # Set started_at only the first time it enters running state
+                await db.execute(
+                    "UPDATE executions SET status=?, error_code=?, updated_at=?, started_at=COALESCE(started_at, ?) WHERE id=?",
+                    (status.value, error_code, now, now, execution_id),
+                )
+            else:
+                await db.execute(
+                    "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
+                    (status.value, error_code, now, execution_id),
+                )
             await db.commit()
         _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
         if status in _TERMINAL:

@@ -144,6 +144,9 @@ def sync(pipeline_id: str) -> dict:
         return {"added": 0, "removed": 0, "updated": 0, "total": 0, "synced_at": None}
 
     executions_root = _executions_root(pipeline_id)
+    if not executions_root.is_dir():
+        log.warning("lineage_registry: executions dir missing for '%s', skipping sync", pipeline_id)
+        return {"added": 0, "removed": 0, "updated": 0, "total": 0, "synced_at": None}
     registry = _load_registry(pipeline_id)
 
     # Build lookup: (fase, variant_id) -> existing entry

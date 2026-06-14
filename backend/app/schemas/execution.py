@@ -36,3 +36,4 @@ class Execution(BaseModel):
     gh_run_id: str | None = None
     created_at: str
     updated_at: str
+    started_at: str | None = None

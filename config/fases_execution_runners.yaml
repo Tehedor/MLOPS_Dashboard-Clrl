@@ -13,8 +13,8 @@ runners:
     max-parallel: 1
     labels: [local]
   - K8s-8gb:
-    max-parallel: 4
+    max-parallel: 5
     labels: [runner-8gb]
   - K8s-24gb:
-    max-parallel: 2
+    max-parallel: 3
     labels: [runner-24gb]

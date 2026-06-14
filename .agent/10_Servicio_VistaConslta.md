@@ -48,3 +48,25 @@ Vista 2. Resumen operativo sin perder la estructura visual.
 - `DISPATCH_ERROR`
 - `EXECUTION_TIMEOUT`
 - `PERMISSION_DENIED`
+
+---
+
+## Mejoras aplicadas
+
+### m01 — Timer de tiempo de ejecución en PipelinePanel e HistoryPanel
+
+**Campo nuevo `started_at`:**
+- `backend/app/core/db.py`: columna `started_at TEXT` añadida a la tabla `executions`. Migración automática via `ALTER TABLE` en `init_db()` si la columna no existe.
+- `backend/app/schemas/execution.py`: campo `started_at: str | None = None`.
+- `backend/app/services/execution_service.py`:
+  - `_row_to_execution` lee `row[12]` como `started_at`.
+  - INSERT usa columnas explícitas (13 params).
+  - `_update_status`: al transicionar a `running`, hace `SET started_at = COALESCE(started_at, now)` — solo escribe la primera vez, no lo sobreescribe si ya está fijado.
+
+**PipelinePanel (`fronted/src/features/vista2/PipelinePanel.jsx`):**
+- Componente `RunningTimer({ startIso })`: contador live que se actualiza cada segundo con `setInterval`. Muestra `Xs`, `Xm Ys`, `Xh Ym`.
+- Se renderiza junto al `created_at` cuando `ex.status === 'running' && ex.started_at`, con un punto verde pulsante.
+
+**HistoryPanel (`fronted/src/features/vista2/HistoryPanel.jsx`):**
+- Componente `DurationChip({ startedAt, createdAt, updatedAt })`: muestra `⏱ Xm Ys` en la card (visible siempre, no solo en el detalle expandido).
+- Usa `started_at` como inicio de la duración real de ejecución; si no existe, no muestra nada (evita mostrar tiempo de cola como duración).

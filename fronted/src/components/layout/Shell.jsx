@@ -1,9 +1,85 @@
 import { NavLink } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import pipelinesConfig from '@pipelinesConfig'
 
-// Pick the first pipeline-project for global header links (DagsHub, MLflow, GitHub)
-const _firstProject = Object.values(pipelinesConfig?.pipelines ?? {})[0] ?? {}
+const _allProjects = Object.entries(pipelinesConfig?.pipelines ?? {})
+
+function NavDropdown({ label, urlFn }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const items = _allProjects.map(([id, proj]) => ({
+    key: id,
+    label: proj.label || id,
+    color: proj.color || null,
+    url: urlFn(proj) || null,
+  }))
+
+  if (items.length === 1) {
+    const { label: pl, color, url } = items[0]
+    return url
+      ? (
+        <a href={url} target="_blank" rel="noreferrer"
+          className="text-xs transition-colors flex items-center gap-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
+        >
+          {color && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />}
+          {label} →
+        </a>
+      )
+      : <span className="text-xs text-gray-400 dark:text-gray-700 cursor-default">{label}</span>
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300 flex items-center gap-0.5"
+      >
+        {label} <span className="text-[9px]">▾</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 min-w-[11rem] bg-white border border-gray-200 rounded shadow-lg dark:bg-gray-900 dark:border-gray-700">
+          {items.map(({ key, label: pl, color, url }) =>
+            url ? (
+              <a
+                key={key}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 whitespace-nowrap"
+              >
+                {color && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                )}
+                {pl} →
+              </a>
+            ) : (
+              <span
+                key={key}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 dark:text-gray-600 whitespace-nowrap cursor-default"
+              >
+                {color && (
+                  <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0 opacity-40" style={{ backgroundColor: color }} />
+                )}
+                {pl} (no disponible)
+              </span>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const VIEWS = [
   { to: '/vista1', label: 'Dashboard' },
@@ -70,30 +146,9 @@ export default function Shell({ children }) {
           )}
           <span className="sr-only">{isDark ? 'Modo claro' : 'Modo oscuro'}</span>
         </button>
-        <a
-          href={_firstProject.dagshub_repository ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
-        >
-          DagsHub →
-        </a>
-        <a
-          href={_firstProject.mlflow_tracking_uri ?? '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
-        >
-          MLFlow →
-        </a>
-        <a
-          href={_firstProject.repo ? `https://github.com/${_firstProject.repo}` : '#'}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs transition-colors text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
-        >
-          GitHub Actions →
-        </a>
+        <NavDropdown label="DagsHub" urlFn={(p) => p.dagshub_repository ?? null} />
+        <NavDropdown label="MLFlow" urlFn={(p) => p.mlflow_tracking_uri ?? null} />
+        <NavDropdown label="GitHub Actions" urlFn={(p) => p.repo ? `https://github.com/${p.repo}` : null} />
       </header>
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>

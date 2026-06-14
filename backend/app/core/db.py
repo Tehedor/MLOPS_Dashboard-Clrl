@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS executions (
     error_code  TEXT,
     gh_run_id   TEXT,
     created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
+    updated_at  TEXT NOT NULL,
+    started_at  TEXT
 )
 """
 
@@ -51,6 +52,12 @@ async def init_db() -> None:
             await db.execute("DROP TABLE IF EXISTS executions")
 
         await db.execute(_CREATE_EXECUTIONS)
+
+        # Migration: add started_at to existing DBs that don't have it yet
+        async with db.execute("PRAGMA table_info(executions)") as cursor:
+            cols_after = {row[1] async for row in cursor}
+        if cols_after and "started_at" not in cols_after:
+            await db.execute("ALTER TABLE executions ADD COLUMN started_at TEXT")
 
         # execution_variants is rebuilt from disk on startup — always recreate cleanly.
         await db.execute("DROP TABLE IF EXISTS execution_variants")

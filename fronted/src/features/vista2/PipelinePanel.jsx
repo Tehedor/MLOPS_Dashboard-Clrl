@@ -129,6 +129,31 @@ function fmtDuration(startIso, endIso) {
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
+function fmtElapsed(secs) {
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  if (m < 60) return `${m}m ${secs % 60}s`
+  return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+function RunningTimer({ startIso }) {
+  const [elapsed, setElapsed] = useState(() =>
+    startIso ? Math.max(0, Math.floor((Date.now() - new Date(startIso)) / 1000)) : 0
+  )
+  useEffect(() => {
+    if (!startIso) return
+    const id = setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - new Date(startIso)) / 1000)))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [startIso])
+  return (
+    <span className="text-xs font-mono text-green-600 dark:text-green-400">
+      {fmtElapsed(elapsed)}
+    </span>
+  )
+}
+
 const ACTIVE_STATES = new Set(['queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running'])
 
 // Priority order for status sort: lower index = higher priority
@@ -409,8 +434,14 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
             {ex.parent && <span>parent: <span className="text-gray-900 dark:text-gray-200 font-mono">{ex.parent}</span></span>}
           </div>
           <ParamsChips params={ex.params} />
-          <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
+          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
             <span>{ex.created_at.slice(0, 19).replace('T', ' ')}</span>
+            {ex.status === 'running' && ex.started_at && (
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <RunningTimer startIso={ex.started_at} />
+              </span>
+            )}
           </div>
 
           {selectedId === ex.id && (
