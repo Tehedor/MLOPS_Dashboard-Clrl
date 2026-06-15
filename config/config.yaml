@@ -8,6 +8,10 @@ local_runner_use_venv: "1"
 service_memory_limit_default: "4g"
 
 
+validation_mode:
+  enabled: false
+  output_csv: "analisis/validacion_variants.csv"
+
 TERMINAL_RUNNERS:
   runner1-ESP321:
     url: RUNNER1_URL

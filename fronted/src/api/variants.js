@@ -30,6 +30,13 @@ export const deleteVariant = (phase, variant, pipeline_id) =>
     body: JSON.stringify({ phase, variant, pipeline_id }),
   }).then(r => r.json())
 
+export const deleteVariantRepo = (phase, variant, pipeline_id) =>
+  fetch(`${BASE}/repo/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phase, variant, pipeline_id }),
+  }).then(r => r.json())
+
 export const syncVariants = (pipeline_id, phase) => {
   const params = new URLSearchParams({ pipeline_id })
   if (phase) params.set('phase', phase)

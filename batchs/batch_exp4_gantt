@@ -1,0 +1,343 @@
+# Experimento 4 — Valor de la paralelización (Gantt de ejecución)
+# Pregunta: ¿Cuánto tiempo real se ahorra ejecutando en paralelo vs. secuencial?
+# Diseño: árbol de variantes f01→f04 con ramificación progresiva (13 nodos).
+#   f01 (1) → f02-A, f02-B (2) → f03-A1, f03-A2, f03-B1, f03-B2 (4) → 6×f04
+# Dos sets: Local (secuencial, max-parallel=1) y K8s-8gb (paralelo, max-parallel=5).
+# Datos a capturar: created_at, started_at, completed_at para el Gantt.
+
+# ─────────────────────────────────────────────
+# SET A — Local (ejecución secuencial)
+# ─────────────────────────────────────────────
+
+#f01_explore
+
+{
+  "variant": "v1_4101",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "basic",
+    "nan_values": [-999999],
+    "error_values": {},
+    "first_line": null,
+    "max_lines": null
+  },
+  "selected_runner": "Local"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_4101",
+  "params": {
+    "strategy": "transitions",
+    "bands": [10, 90],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_4101",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v2_4102",
+  "params": {
+    "strategy": "levels",
+    "bands": [5, 95],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_4101",
+  "selected_runner": "Local"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_4101",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4101",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v3_4102",
+  "params": {
+    "OW": 300,
+    "LT": 50,
+    "PW": 50,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4101",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v3_4103",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4102",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v3_4104",
+  "params": {
+    "OW": 900,
+    "LT": 150,
+    "PW": 150,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4102",
+  "selected_runner": "Local"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_4101",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4101",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v4_4102",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4102",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v4_4103",
+  "params": {
+    "prediction_name": "battery_critical",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100"]
+  },
+  "parent": "v3_4102",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v4_4104",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4103",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v4_4105",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4104",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v4_4106",
+  "params": {
+    "prediction_name": "battery_critical",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100"]
+  },
+  "parent": "v3_4104",
+  "selected_runner": "Local"
+}
+
+
+# ─────────────────────────────────────────────
+# SET B — K8s-8gb (ejecución paralela)
+# ─────────────────────────────────────────────
+
+#f01_explore
+
+{
+  "variant": "v1_4301",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "basic",
+    "nan_values": [-999999],
+    "error_values": {},
+    "first_line": null,
+    "max_lines": null
+  },
+  "selected_runner": "K8s-8gb"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_4301",
+  "params": {
+    "strategy": "transitions",
+    "bands": [10, 90],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_4301",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v2_4302",
+  "params": {
+    "strategy": "levels",
+    "bands": [5, 95],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_4301",
+  "selected_runner": "K8s-8gb"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_4301",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4301",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v3_4302",
+  "params": {
+    "OW": 300,
+    "LT": 50,
+    "PW": 50,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4301",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v3_4303",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4302",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v3_4304",
+  "params": {
+    "OW": 900,
+    "LT": 150,
+    "PW": 150,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_4302",
+  "selected_runner": "K8s-8gb"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_4301",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4301",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v4_4302",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4302",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v4_4303",
+  "params": {
+    "prediction_name": "battery_critical",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100"]
+  },
+  "parent": "v3_4302",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v4_4304",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4303",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v4_4305",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_4304",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v4_4306",
+  "params": {
+    "prediction_name": "battery_critical",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100"]
+  },
+  "parent": "v3_4304",
+  "selected_runner": "K8s-8gb"
+}

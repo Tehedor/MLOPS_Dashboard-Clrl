@@ -1,0 +1,214 @@
+# Experimento 1 — Eficiencia de recursos
+# Pregunta: ¿Qué impacto tiene el hardware en el tiempo de ejecución?
+# Diseño: mismos params, 4 runners distintos. Fases f03 (ligera) y f05 (pesada).
+# Parents de la chain baseline: v2_0002 (f03) y v4_0001 (f05).
+
+# ─────────────────────────────────────────────
+# CHAIN BASELINE (prerequisitos)
+# v1_0001 → v2_0002 → v3_0001 → v4_0001
+# ─────────────────────────────────────────────
+
+#f01_explore
+
+{
+  "variant": "v1_0001",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "basic",
+    "nan_values": [-999999],
+    "error_values": {},
+    "first_line": null,
+    "max_lines": null
+  },
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0002",
+  "params": {
+    "strategy": "transitions",
+    "bands": [10, 90],
+    "nan_mode": "discard"
+  },
+  "parent": "v1_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0001",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0001",
+  "params": {
+    "prediction_name": "battery_overheat",
+    "target_operator": "OR",
+    "target_event_types": ["Battery_Active_Power_0_10-to-90_100", "Battery_Active_Power_10_90-to-90_100"]
+  },
+  "parent": "v3_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+# ─────────────────────────────────────────────
+# EXPERIMENTO 1 — variantes de medición
+# ─────────────────────────────────────────────
+
+#f03_windows
+
+{
+  "variant": "v3_1101",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0002",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v3_1201",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0002",
+  "selected_runner": "GithubActions"
+}
+
+{
+  "variant": "v3_1301",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0002",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v3_1401",
+  "params": {
+    "OW": 600,
+    "LT": 100,
+    "PW": 100,
+    "window_strategy": "synchro",
+    "nan_mode": "discard"
+  },
+  "parent": "v2_0002",
+  "selected_runner": "K8s-24gb"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_1101",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null,
+    "seed": null
+  },
+  "parent": "v4_0001",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v5_1201",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null,
+    "seed": null
+  },
+  "parent": "v4_0001",
+  "selected_runner": "GithubActions"
+}
+
+{
+  "variant": "v5_1301",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null,
+    "seed": null
+  },
+  "parent": "v4_0001",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v5_1401",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 5, "seed": 42},
+    "search_space": {
+      "common": {"batch_size": [128, 256], "learning_rate": [0.001, 0.0005], "n_layers": [1, 2], "units": [64, 128], "dropout": [0.0, 0.2]},
+      "dense_bow": {},
+      "sequence_embedding": {"embed_dim": [64, 128]},
+      "cnn1d": {"embed_dim": [64], "filters": [64, 128], "kernel_size": [3, 5]}
+    },
+    "training": {"epochs": 10, "max_samples": null},
+    "evaluation": {"split": {"train": 0.7, "val": 0.15, "test": 0.15}},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": null,
+    "seed": null
+  },
+  "parent": "v4_0001",
+  "selected_runner": "K8s-24gb"
+}

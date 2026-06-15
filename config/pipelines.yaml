@@ -50,6 +50,7 @@ pipelines:
     repo: "TeheORG/mlops4rtedge" # Repo de github
     branch: "test"
     external_base: "external/mlops4rtedge" # Dirección de almacenamiento
+    validation_mode: true
     traceability_path: "external/mlops4rtedge/repo_actions/scripts/traceability_schema.yaml"
     init_marker: ".mlops4ofp" # Verificador de que existe la pipeline-rama-repo
     command_start: "make setup-branch SETUP_CFG=setup/remote3.yaml DATA_FILE=data/raw.csv"

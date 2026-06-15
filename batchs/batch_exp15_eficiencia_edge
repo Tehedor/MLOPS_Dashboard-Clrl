@@ -1,0 +1,115 @@
+# Experimento 1.5 — Eficiencia de recursos (fases edge f07 y f08)
+# Pregunta: ¿Qué diferencia hay entre entornos local/virtual/físico para f07/f08?
+# Diseño: mismos params, 3 entornos (Local físico, K8s virtual, ESP32 real).
+# Parent baseline: v6_0001 para f07. f08 toma como parents los f07 correspondientes.
+# Nota: virtual=true activa el emulador QEMU+socat en lugar de hardware físico.
+
+#f07_modval
+
+{
+  "variant": "v7_1101",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": false
+  },
+  "parent": "v6_0001",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v7_1301",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": true
+  },
+  "parent": "v6_0001",
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v7_1501",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": false
+  },
+  "parent": "v6_0001",
+  "selected_runner": "ESP32-self-hosted"
+}
+
+
+#f08_sysval
+
+{
+  "variant": "v8_1101",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 100,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": false
+  },
+  "parent": ["v7_1101"],
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v8_1301",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 100,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": true
+  },
+  "parent": ["v7_1301"],
+  "selected_runner": "K8s-8gb"
+}
+
+{
+  "variant": "v8_1501",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 100,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": false
+  },
+  "parent": ["v7_1501"],
+  "selected_runner": "ESP32-self-hosted"
+}

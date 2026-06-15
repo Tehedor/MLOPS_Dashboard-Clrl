@@ -82,6 +82,12 @@ async def delete(payload: DvcPayload):
     return {"job_id": job_id, "status": "queued"}
 
 
+@router.post("/repo/delete")
+async def repo_delete(payload: DvcPayload):
+    job_id = await variants_service.enqueue_variant_delete(payload.phase, payload.variant, payload.pipeline_id)
+    return {"job_id": job_id, "status": "queued"}
+
+
 @router.post("/sync")
 async def sync(pipeline_id: str = Query(...), phase: str | None = None):
     pull_result = await repo_sync_service.check_and_pull(pipeline_id)

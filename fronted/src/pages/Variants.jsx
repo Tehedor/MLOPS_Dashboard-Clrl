@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPhases, getTableConfig, getRows,
-  pullVariant, deleteVariant, syncVariants, getJob, getSyncInterval,
+  pullVariant, deleteVariant, deleteVariantRepo, syncVariants, getJob, getSyncInterval,
 } from '../api/variants'
 import { getPipelineProjects } from '../api/pipeline_projects'
 import PipelineSelect from '../components/PipelineSelect'
@@ -23,6 +23,91 @@ function FileIcon() {
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
       <path fillRule="evenodd" d="M4 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6.414A2 2 0 0 0 13.414 5L11 2.586A2 2 0 0 0 9.586 2H4Zm5 1.5v2A1.5 1.5 0 0 0 10.5 7h2V12a.5.5 0 0 1-.5.5H4A.5.5 0 0 1 3.5 12V4A.5.5 0 0 1 4 3.5h5Z" clipRule="evenodd" />
     </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+      <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5A.75.75 0 0 1 9.95 6Z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function DeleteVariantBtn({ row, phase, pipelineId, onDeleted }) {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [jobStatus, setJobStatus] = useState(null)
+  const pollRef = useRef(null)
+
+  const startPoll = useCallback((id) => {
+    pollRef.current = setInterval(async () => {
+      const job = await getJob(id)
+      setJobStatus(job.status)
+      if (job.status === 'done' || job.status === 'failed') {
+        clearInterval(pollRef.current)
+        if (job.status === 'done') {
+          onDeleted()
+        } else {
+          alert(`Error al eliminar variante: ${job.error || 'unknown'}`)
+        }
+        setJobStatus(null)
+      }
+    }, 1500)
+  }, [onDeleted])
+
+  useEffect(() => () => clearInterval(pollRef.current), [])
+
+  const handleDelete = async () => {
+    setShowConfirm(false)
+    setJobStatus('queued')
+    const res = await deleteVariantRepo(phase, row.variant, pipelineId)
+    startPoll(res.job_id)
+  }
+
+  const busy = jobStatus === 'queued' || jobStatus === 'running'
+
+  return (
+    <>
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-xl max-w-sm w-full mx-4">
+            <p className="text-sm mb-1 text-gray-900 dark:text-gray-100">
+              ¿Eliminar la variante <strong>{row.variant}</strong> del repositorio?
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Se eliminarán todos los archivos (params, outputs, artefactos). Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Eliminar variante
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex items-center justify-center">
+        {busy ? (
+          <Spinner />
+        ) : (
+          <button
+            onClick={() => setShowConfirm(true)}
+            title="Eliminar variante del repositorio"
+            className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center justify-center"
+          >
+            <TrashIcon />
+          </button>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -602,7 +687,9 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r.variant))
   const somePageSelected = !allPageSelected && pageRows.some(r => selected.has(r.variant))
 
-  const totalTableWidth = cols.reduce((s, col) => s + getColW(col.key, col.key === 'variant' ? 180 : 120), 0)
+  const DEL_COL_W = 36
+  const totalTableWidth = DEL_COL_W
+    + cols.reduce((s, col) => s + getColW(col.key, col.key === 'variant' ? 180 : 120), 0)
     + getColW('_local', 200)
 
   return (
@@ -686,6 +773,7 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
         ) : (
           <table ref={tableRef} className="text-xs border-collapse" style={{ tableLayout: 'fixed', width: totalTableWidth }}>
             <colgroup>
+              <col style={{ width: DEL_COL_W }} />
               {cols.map(col => (
                 <col key={col.key} ref={el => { colElemsRef.current[col.key] = el }} style={{ width: getColW(col.key, col.key === 'variant' ? 180 : 120) }} />
               ))}
@@ -693,6 +781,15 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
             </colgroup>
             <thead className="sticky top-0 bg-gray-100 dark:bg-gray-900 z-10">
               <tr>
+                <th
+                  style={{ backgroundColor: 'rgb(209 213 219)', width: DEL_COL_W }}
+                  className="px-1 py-1.5 text-center font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600"
+                  title="Eliminar variante"
+                >
+                  <span className="flex items-center justify-center text-gray-400">
+                    <TrashIcon />
+                  </span>
+                </th>
                 {cols.map(col => (
                   <th
                     key={col.key}
@@ -759,6 +856,14 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
                     row._parse_error ? 'bg-red-50 dark:bg-red-950/20' : ''
                   }`}
                 >
+                  <td className="px-1 py-1">
+                    <DeleteVariantBtn
+                      row={row}
+                      phase={phase}
+                      pipelineId={pipelineId}
+                      onDeleted={refreshRows}
+                    />
+                  </td>
                   {cols.map(col => (
                     <td key={col.key} style={col.color ? { backgroundColor: col.color + '18' } : {}} className="px-2 py-1 text-gray-800 dark:text-gray-200">
                       <div className="truncate" title={

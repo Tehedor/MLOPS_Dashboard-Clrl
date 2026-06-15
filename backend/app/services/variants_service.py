@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import shlex
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -390,6 +391,14 @@ async def enqueue_delete(phase: str, variant: str, pipeline_id: str) -> str:
     return job_id
 
 
+async def enqueue_variant_delete(phase: str, variant: str, pipeline_id: str) -> str:
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"id": job_id, "type": "variant_delete", "phase": phase,
+                     "variant": variant, "pipeline_id": pipeline_id, "status": "queued"}
+    await _job_queue.put(job_id)
+    return job_id
+
+
 async def _run_pull(phase: str, variant: str, pipeline_id: str) -> None:
     repo = _repo_root(pipeline_id)
     variant_path = _executions_root(pipeline_id) / phase / variant
@@ -442,6 +451,17 @@ async def _run_delete(phase: str, variant: str, pipeline_id: str) -> None:
             log.warning("Delete error %s: %s", dvc_file, e)
 
 
+async def _run_variant_delete(phase: str, variant: str, pipeline_id: str) -> None:
+    variant_path = _executions_root(pipeline_id) / phase / variant
+    if not variant_path.exists():
+        raise RuntimeError(f"Variant not found: {variant_path}")
+    shutil.rmtree(variant_path)
+    variant_id = f"{pipeline_id}/{phase}/{variant}"
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM execution_variants WHERE id = ?", (variant_id,))
+        await db.commit()
+
+
 async def _worker() -> None:
     while True:
         job_id = await _job_queue.get()
@@ -455,13 +475,17 @@ async def _worker() -> None:
                 await _run_pull(job["phase"], job["variant"], pipeline_id)
             elif job["type"] == "delete":
                 await _run_delete(job["phase"], job["variant"], pipeline_id)
+            elif job["type"] == "variant_delete":
+                await _run_variant_delete(job["phase"], job["variant"], pipeline_id)
             job["status"] = "done"
         except Exception as e:
             job["status"] = "failed"
             job["error"] = str(e)
             log.error("DVC job %s failed: %s", job_id, e)
         finally:
-            await sync_variant(job["phase"], job["variant"], pipeline_id)
+            # variant_delete removes the directory and cleans SQLite itself
+            if job.get("type") != "variant_delete":
+                await sync_variant(job["phase"], job["variant"], pipeline_id)
 
 
 def start_worker() -> asyncio.Task:

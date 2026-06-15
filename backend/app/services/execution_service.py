@@ -348,7 +348,8 @@ class ExecutionService:
             async with aiosqlite.connect(DB_PATH) as _db:
                 _db.row_factory = aiosqlite.Row
                 async with _db.execute(
-                    "SELECT pipeline_id FROM executions WHERE id=?", (execution_id,)
+                    "SELECT pipeline_id, fase, variant, runner, parent, created_at, started_at FROM executions WHERE id=?",
+                    (execution_id,)
                 ) as _cur:
                     _row = await _cur.fetchone()
             if _row and _row["pipeline_id"]:
@@ -358,6 +359,22 @@ class ExecutionService:
                         None, lineage_registry_service.sync, _pid
                     )
                 )
+                # Validation CSV — append row on terminal state
+                try:
+                    from app.services.validation_csv_service import append_row as _csv_append
+                    _csv_append(
+                        pipeline_id=_pid,
+                        variant=_row["variant"],
+                        phase=_row["fase"],
+                        runner=_row["runner"],
+                        parent=_row["parent"],
+                        created_at=_row["created_at"],
+                        started_at=_row["started_at"],
+                        completed_at=now,
+                        status=status.value,
+                    )
+                except Exception as _csv_exc:
+                    log.warning("validation_csv hook failed: %s", _csv_exc)
 
     async def list_all(self, pipeline_id: str | None = None) -> list[Execution]:
         async with aiosqlite.connect(DB_PATH) as db:
@@ -470,13 +487,14 @@ async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     """Update local execution status from a completed GitHub run (matched by gh_run_id)."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT id FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
+            "SELECT id, pipeline_id, fase, variant, runner, parent, created_at, started_at "
+            "FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
             (str(gh_run_id),),
         ) as cursor:
             row = await cursor.fetchone()
     if not row:
         return False
-    execution_id = row[0]
+    execution_id, pipeline_id, fase, variant, runner, parent, created_at, started_at = row
     if conclusion == "success":
         new_status, error_code = ExecutionStatus.success, None
     elif conclusion in ("cancelled", "skipped"):
@@ -494,6 +512,22 @@ async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     if new_status in _TERMINAL:
         from app.services import repo_sync_service
         asyncio.create_task(repo_sync_service.force_pull())
+        # Validation CSV
+        try:
+            from app.services.validation_csv_service import append_row as _csv_append
+            _csv_append(
+                pipeline_id=pipeline_id,
+                variant=variant,
+                phase=fase,
+                runner=runner,
+                parent=parent,
+                created_at=created_at,
+                started_at=started_at,
+                completed_at=now,
+                status=new_status.value,
+            )
+        except Exception as _csv_exc:
+            log.warning("validation_csv hook failed: %s", _csv_exc)
     log.info("update_from_gh_run: %s → %s (%s)", gh_run_id, new_status.value, error_code)
     return True
 
