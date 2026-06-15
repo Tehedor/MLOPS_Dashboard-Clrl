@@ -1,10 +1,16 @@
 # ==============================================================================
 # ESP32 Virtual Runner
-# Entorno HIL puramente en software: socat + QEMU ESP32
-# Servicios de infraestructura: TTYD + Cloudflare Tunnel + GitHub Runner
+# Infraestructura: TTYD + Cloudflare Tunnel + GitHub Runner  (igual que runner físico)
+# Emulación:       socat + QEMU ESP32  (make install-qemu / make start-qemu)
 #
-# Uso rápido:
-#   make install                         instala todo (deps + servicios)
+# Uso rápido (infraestructura):
+#   make setup                           crea túnel CF y genera config.yaml
+#   make install                         instala y registra servicios systemd
+#   make start                           inicia TTYD + Túnel + Runner
+#   make stop                            detiene todos los servicios
+#
+# Uso rápido (emulación):
+#   make install-qemu                    instala socat + compila QEMU ESP32
 #   make verify                          verifica que el entorno virtual está listo
 #   make VARIANT=<v> prepare             genera build_generated/ (f071)
 #   make VARIANT=<v> build               compila firmware (idf.py vía Docker)
@@ -12,8 +18,6 @@
 #   make VARIANT=<v> run                 ejecuta validación (--skip-flash)
 #   make VARIANT=<v> post                análisis post-ejecución (f073)
 #   make stop-qemu                       para socat y QEMU
-#   make start                           inicia TTYD + Túnel + Runner
-#   make stop                            detiene TTYD + Túnel + Runner
 # ==============================================================================
 
 # ==============================================================================
@@ -49,7 +53,7 @@ RUNNER_VER    ?= 2.334.0
 RUNNER_HASH   ?= 048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271
 GH_REPO       ?= $(patsubst https://github.com/%,%,$(GITHUB_URL))
 
-# Pipeline virtual (socat + QEMU)
+# Emulación (socat + QEMU)
 VARIANT          ?=
 PYTHON           ?= python3
 SOCAT_PORT       ?= 4000
@@ -65,7 +69,6 @@ TTYD          := $(shell which ttyd 2>/dev/null)
 FULL_FQDN     := $(SUBDOMAIN).$(DOMAIN)
 export PROJECT_DIR CLOUDFLARED TTYD FULL_FQDN
 
-# qemu-system-xtensa: usa /opt/qemu-esp32 si existe, si no el del PATH
 QEMU_BIN := $(shell \
 	if [ -x "$(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa" ]; then \
 		echo "$(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa"; \
@@ -80,30 +83,24 @@ SOCAT_PID  := $(PID_DIR)/socat.pid
 QEMU_PID   := $(PID_DIR)/qemu.pid
 STATE_FILE := $(PROJECT_DIR)/.install-state
 
-.PHONY: help \
-        setup \
-        install-sys-deps install-python-deps configure-venv-path \
-        install-arch install-debian \
-        install-qemu-esp32 install-qemu-esp32-build-deps \
-        install-deps \
+.PHONY: help setup install start stop status logs logs-live clean daemon-reload \
+        install-deps install-sys-deps install-python-deps configure-venv-path \
         install-ttyd start-ttyd stop-ttyd status-ttyd logs-ttyd logs-live-ttyd clean-ttyd \
         install-tunnel start-tunnel stop-tunnel status-tunnel logs-tunnel logs-live-tunnel clean-tunnel \
         install-runner start-runner stop-runner status-runner logs-runner logs-live-runner clean-runner \
-        snapshot uninstall verify \
+        install-qemu install-qemu-build-deps snapshot uninstall verify \
         prepare build start-qemu stop-qemu run post \
-        start stop status logs logs-live \
-        watch-workflow open-workflow \
-        daemon-reload clean
+        watch-workflow open-workflow
 
 # ==============================================================================
 # HELP
 # ==============================================================================
 help:
-	@echo "🛠️  Panel de Control MLOps Virtual (QEMU + TTYD + CF Tunnel + GitHub Runner)"
+	@echo "🛠️  Panel de Control MLOps Virtual (TTYD + CF Tunnel + GitHub Runner + QEMU)"
 	@echo "------------------------------------------------------------------------"
-	@echo "COMANDOS GLOBALES:"
+	@echo "COMANDOS GLOBALES (infraestructura):"
 	@echo "  make setup                - Crea el túnel en CF y genera config.yaml"
-	@echo "  make install              - Instala deps + configura todos los servicios"
+	@echo "  make install              - Instala y registra servicios systemd"
 	@echo "  make start                - Inicia todos los servicios (TTYD + Túnel + Runner)"
 	@echo "  make stop                 - Detiene todos los servicios"
 	@echo "  make status               - Estado de todos los servicios"
@@ -112,16 +109,16 @@ help:
 	@echo "  make clean                - Borra toda la infraestructura"
 	@echo ""
 	@echo "DEPENDENCIAS DEL ENTORNO:"
-	@echo "  make install-deps             - Todo: sistema + Python + QEMU (auto-detecta distro)"
-	@echo "  make install-sys-deps         - Solo paquetes del sistema (git, gh, socat...)"
-	@echo "  make install-python-deps      - Solo venv en \$$HOME/.venv + requirements.txt"
-	@echo "  make configure-venv-path      - Expone el venv al runner (profile.d + systemd)"
-	@echo "  make install-qemu-esp32       - Compila fork QEMU de Espressif (si no existe)"
+	@echo "  make install-deps         - Sistema + Python + PATH del venv (todo)"
+	@echo "  make install-sys-deps     - Solo paquetes apt/pacman (git, gh, curl...)"
+	@echo "  make install-python-deps  - Solo venv en \$$HOME/.venv + requirements.txt"
+	@echo "  make configure-venv-path  - Expone el venv al runner (profile.d + systemd)"
+	@echo ""
+	@echo "EMULACIÓN ESP32 (QEMU):"
+	@echo "  make install-qemu             - Instala socat + compila fork QEMU Espressif"
 	@echo "  make verify                   - Verifica que el entorno virtual está completo"
 	@echo "  make snapshot                 - Registra estado actual del sistema en .install-state"
 	@echo "  make uninstall                - Elimina solo lo instalado por este Makefile"
-	@echo ""
-	@echo "PIPELINE VIRTUAL (QEMU):"
 	@echo "  make VARIANT=<v> prepare      - Genera build_generated/ para la variante (f071)"
 	@echo "  make VARIANT=<v> build        - Compila firmware (idf.py via Docker)"
 	@echo "  make VARIANT=<v> start-qemu   - Lanza socat + QEMU en background"
@@ -135,104 +132,25 @@ help:
 	@echo "  make open-workflow            - Abre en navegador el último workflow run"
 	@echo ""
 	@echo "VARIABLES:"
-	@echo "  VARIANT           Nombre de la variante (requerido para prepare/build/start-qemu/run/post)"
+	@echo "  VARIANT           Nombre de la variante (requerido para emulación)"
 	@echo "  SOCAT_PORT        Puerto TCP socat <-> QEMU (default: $(SOCAT_PORT))"
 	@echo "  VIRTUAL_PORT      Puerto serie virtual (default: $(VIRTUAL_PORT))"
 	@echo "  QEMU_INSTALL_DIR  Instalación fork QEMU Espressif (default: $(QEMU_INSTALL_DIR))"
 
 # ==============================================================================
-# 0. SNAPSHOT & UNINSTALL — rastrea qué instaló este Makefile
-# ==============================================================================
-snapshot:
-	@INST_SOCAT=false; INST_PYSERIAL=false; INST_QEMU_ESP32=false; \
-	QEMU_PATH=$(QEMU_INSTALL_DIR); \
-	if [ -f $(STATE_FILE) ]; then \
-		V=$$(grep "^INST_SOCAT=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && INST_SOCAT=$$V; \
-		V=$$(grep "^INST_PYSERIAL=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && INST_PYSERIAL=$$V; \
-		V=$$(grep "^INST_QEMU_ESP32=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && INST_QEMU_ESP32=$$V; \
-		V=$$(grep "^INST_QEMU_ESP32_PATH=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && QEMU_PATH=$$V; \
-	fi; \
-	DISTRO=unknown; \
-	command -v pacman  >/dev/null 2>&1 && DISTRO=arch; \
-	command -v apt-get >/dev/null 2>&1 && DISTRO=debian; \
-	{ \
-	  echo "# ESP32 Virtual Runner — Install State"; \
-	  echo "# 'make snapshot' regenera PRE_. 'make uninstall' deshace solo INST_=true con PRE_=false."; \
-	  echo "DISTRO=$$DISTRO"; \
-	  echo "CREATED_AT=$$(date +%Y-%m-%d)"; \
-	  echo ""; \
-	  echo "# Pre-existentes antes de este Makefile (no se tocan en uninstall)"; \
-	  command -v socat >/dev/null 2>&1 \
-	    && echo "PRE_SOCAT=true" || echo "PRE_SOCAT=false"; \
-	  $(PYTHON) -c "import yaml" 2>/dev/null \
-	    && echo "PRE_PYYAML=true" || echo "PRE_PYYAML=false"; \
-	  command -v docker >/dev/null 2>&1 \
-	    && echo "PRE_DOCKER=true" || echo "PRE_DOCKER=false"; \
-	  $(PYTHON) -c "import serial" 2>/dev/null \
-	    && echo "PRE_PYSERIAL=true" || echo "PRE_PYSERIAL=false"; \
-	  { command -v qemu-system-xtensa >/dev/null 2>&1 && \
-	    qemu-system-xtensa -machine help 2>&1 | grep -q "esp32"; } \
-	    && echo "PRE_QEMU_ESP32=true" || echo "PRE_QEMU_ESP32=false"; \
-	  echo ""; \
-	  echo "# Instalado por este Makefile (actualizado automáticamente)"; \
-	  echo "INST_SOCAT=$$INST_SOCAT"; \
-	  echo "INST_PYSERIAL=$$INST_PYSERIAL"; \
-	  echo "INST_QEMU_ESP32=$$INST_QEMU_ESP32"; \
-	  echo "INST_QEMU_ESP32_PATH=$$QEMU_PATH"; \
-	} > $(STATE_FILE)
-	@echo "Estado guardado en $(STATE_FILE)"
-
-uninstall:
-	@[ -f $(STATE_FILE) ] || { echo "ERROR: no existe $(STATE_FILE). Nada que desinstalar."; exit 1; }
-	@echo "=== Desinstalando componentes instalados por este Makefile ==="
-	@. $(STATE_FILE); \
-	if [ "$$INST_QEMU_ESP32" = "true" ] && [ "$$PRE_QEMU_ESP32" = "false" ]; then \
-		echo "[QEMU] Eliminando fork Espressif: $$INST_QEMU_ESP32_PATH"; \
-		sudo rm -rf "$$INST_QEMU_ESP32_PATH"; \
-		sed -i 's/^INST_QEMU_ESP32=.*/INST_QEMU_ESP32=false/' $(STATE_FILE); \
-	else \
-		echo "[QEMU] Nada que eliminar (no fue instalado por este Makefile)"; \
-	fi; \
-	if [ "$$INST_PYSERIAL" = "true" ] && [ "$$PRE_PYSERIAL" = "false" ]; then \
-		echo "[pyserial] Desinstalando..."; \
-		if [ "$$DISTRO" = "arch" ]; then \
-			sudo pacman -R --noconfirm python-pyserial 2>/dev/null || \
-			$(PYTHON) -m pip uninstall -y pyserial; \
-		else \
-			sudo apt-get remove -y python3-serial 2>/dev/null || \
-			$(PYTHON) -m pip uninstall -y pyserial; \
-		fi; \
-		sed -i 's/^INST_PYSERIAL=.*/INST_PYSERIAL=false/' $(STATE_FILE); \
-	else \
-		echo "[pyserial] Nada que eliminar (no fue instalado por este Makefile)"; \
-	fi; \
-	if [ "$$INST_SOCAT" = "true" ] && [ "$$PRE_SOCAT" = "false" ]; then \
-		echo "[socat] Desinstalando..."; \
-		if [ "$$DISTRO" = "arch" ]; then \
-			sudo pacman -R --noconfirm socat; \
-		else \
-			sudo apt-get remove -y socat; \
-		fi; \
-		sed -i 's/^INST_SOCAT=.*/INST_SOCAT=false/' $(STATE_FILE); \
-	else \
-		echo "[socat] Nada que eliminar (pre-existente o no instalado por este Makefile)"; \
-	fi
-	@echo "=== Desinstalación completada ==="
-
-# ==============================================================================
-# 1. DEPENDENCIAS DEL ENTORNO (Sistema + Python + QEMU)
+# 0. DEPENDENCIAS DEL ENTORNO (Sistema + Python)
 # ==============================================================================
 install-sys-deps:
 	@echo "📦 Instalando paquetes del sistema..."
 	@if command -v pacman >/dev/null 2>&1; then \
 		sudo pacman -Sy --noconfirm --needed \
-			git make procps-ng util-linux curl ca-certificates socat; \
+			git make procps-ng util-linux curl ca-certificates; \
 		command -v gh >/dev/null 2>&1 || \
 			sudo pacman -Sy --noconfirm --needed github-cli 2>/dev/null || \
 			{ echo "⚠️  gh no disponible en repos oficiales. Instala con: yay -S github-cli"; }; \
 	elif command -v apt-get >/dev/null 2>&1; then \
 		sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-			git make procps util-linux curl ca-certificates gnupg socat; \
+			git make procps util-linux curl ca-certificates gnupg; \
 		echo "🔑 Añadiendo repositorio GitHub CLI..."; \
 		sudo mkdir -p /etc/apt/keyrings; \
 		curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -243,7 +161,7 @@ install-sys-deps:
 		sudo apt-get update && sudo apt-get install -y --no-install-recommends gh; \
 		sudo rm -rf /var/lib/apt/lists/*; \
 	else \
-		echo "❌ ERROR: Distro no reconocida. Instala manualmente: git gh socat"; exit 1; \
+		echo "❌ ERROR: Distro no reconocida. Instala manualmente: git gh curl"; exit 1; \
 	fi
 	@echo "✅ Paquetes del sistema instalados."
 
@@ -280,93 +198,11 @@ configure-venv-path:
 	fi
 	@echo "✅ PATH del venv configurado."
 
-# -- Distro-specific: socat + pyserial + pyyaml + detección de QEMU ----------
-install-arch:
-	@[ -f $(STATE_FILE) ] || $(MAKE) snapshot
-	@echo "[Arch] Instalando dependencias del sistema..."
-	@PRE_SOCAT=$$(grep "^PRE_SOCAT=" $(STATE_FILE) | cut -d= -f2); \
-	sudo pacman -Sy --noconfirm --needed socat python python-pip; \
-	[ "$$PRE_SOCAT" = "false" ] && sed -i 's/^INST_SOCAT=.*/INST_SOCAT=true/' $(STATE_FILE) || true
-	@PRE_PYSERIAL=$$(grep "^PRE_PYSERIAL=" $(STATE_FILE) | cut -d= -f2); \
-	$(PYTHON) -m pip install --user pyserial pyyaml 2>/dev/null || \
-		sudo pacman -S --noconfirm --needed python-pyserial python-yaml; \
-	[ "$$PRE_PYSERIAL" = "false" ] && sed -i 's/^INST_PYSERIAL=.*/INST_PYSERIAL=true/' $(STATE_FILE) || true
-	@echo "[Arch] Verificando soporte -machine esp32..."
-	@if command -v qemu-system-xtensa >/dev/null 2>&1 && \
-		qemu-system-xtensa -machine help 2>&1 | grep -q "esp32"; then \
-		echo "[Arch] OK: qemu-system-xtensa del sistema soporta esp32"; \
-	else \
-		echo "[Arch] qemu-system-xtensa no soporta esp32. Compilando fork Espressif..."; \
-		sudo pacman -S --noconfirm --needed base-devel git ninja python pkg-config \
-			glib2 pixman libslirp; \
-		$(MAKE) install-qemu-esp32; \
-	fi
-	@echo "[Arch] Instalación completada."
-
-install-debian:
-	@[ -f $(STATE_FILE) ] || $(MAKE) snapshot
-	@echo "[Debian] Instalando dependencias del sistema..."
-	@PRE_SOCAT=$$(grep "^PRE_SOCAT=" $(STATE_FILE) | cut -d= -f2); \
-	PRE_PYSERIAL=$$(grep "^PRE_PYSERIAL=" $(STATE_FILE) | cut -d= -f2); \
-	sudo apt-get update -qq && \
-	sudo apt-get install -y --no-install-recommends \
-		socat python3 python3-pip python3-serial python3-yaml; \
-	[ "$$PRE_SOCAT"    = "false" ] && sed -i 's/^INST_SOCAT=.*/INST_SOCAT=true/'       $(STATE_FILE) || true; \
-	[ "$$PRE_PYSERIAL" = "false" ] && sed -i 's/^INST_PYSERIAL=.*/INST_PYSERIAL=true/' $(STATE_FILE) || true
-	@echo "[Debian] Verificando soporte -machine esp32..."
-	@if command -v qemu-system-xtensa >/dev/null 2>&1 && \
-		qemu-system-xtensa -machine help 2>&1 | grep -q "esp32"; then \
-		echo "[Debian] OK: qemu-system-xtensa del sistema soporta esp32"; \
-	else \
-		echo "[Debian] qemu-system-xtensa no soporta esp32. Compilando fork Espressif..."; \
-		$(MAKE) install-qemu-esp32-build-deps; \
-		$(MAKE) install-qemu-esp32; \
-	fi
-	@echo "[Debian] Instalación completada."
-
-install-qemu-esp32-build-deps:
-	sudo apt-get install -y --no-install-recommends \
-		git build-essential ninja-build cmake pkg-config \
-		libglib2.0-dev libpixman-1-dev libslirp-dev libgcrypt20-dev
-
-install-qemu-esp32:
-	@echo "⚙️  Compilando fork QEMU de Espressif (xtensa-softmmu)..."
-	@echo "   Esto puede tardar 10-20 minutos."
-	@if [ -x "$(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa" ]; then \
-		echo "   Ya instalado: $(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa"; \
-		exit 0; \
-	fi
-	@TMPDIR=$$(mktemp -d /tmp/qemu-esp32-XXXXXX); \
-	git clone --depth=1 https://github.com/espressif/qemu.git "$$TMPDIR" && \
-	cd "$$TMPDIR" && \
-	./configure \
-		--target-list=xtensa-softmmu \
-		--prefix="$(QEMU_INSTALL_DIR)" \
-		--disable-werror \
-		--disable-docs && \
-	ninja -C build && \
-	sudo ninja -C build install && \
-	rm -rf "$$TMPDIR"
-	@echo "✅ QEMU ESP32 instalado en $(QEMU_INSTALL_DIR)/bin/"
-	@echo "   Opcional: añade $(QEMU_INSTALL_DIR)/bin a tu PATH."
-	@[ -f $(STATE_FILE) ] || $(MAKE) snapshot
-	@sed -i 's/^INST_QEMU_ESP32=.*/INST_QEMU_ESP32=true/' $(STATE_FILE)
-	@sed -i 's|^INST_QEMU_ESP32_PATH=.*|INST_QEMU_ESP32_PATH=$(QEMU_INSTALL_DIR)|' $(STATE_FILE)
-
-install-deps:
-	@$(MAKE) install-sys-deps
-	@$(MAKE) install-python-deps
-	@if command -v pacman >/dev/null 2>&1; then \
-		$(MAKE) install-arch; \
-	elif command -v apt-get >/dev/null 2>&1; then \
-		$(MAKE) install-debian; \
-	else \
-		echo "❌ ERROR: Distro no reconocida para instalar socat/QEMU."; exit 1; \
-	fi
-	@echo "✅ Instalación completa: sistema + Python + QEMU lista."
+install-deps: install-sys-deps install-python-deps
+	@echo "✅ Instalación completa: sistema + Python + PATH lista."
 
 # ==============================================================================
-# 2. SETUP — crea túnel Cloudflare y genera config.yaml
+# 1. SETUP — crea túnel Cloudflare y genera config.yaml
 # ==============================================================================
 setup:
 	@echo "🚀 Comprobando túnel para $(FULL_FQDN)..."
@@ -387,7 +223,7 @@ setup:
 	@echo "✅ config.yaml generado correctamente."
 
 # ==============================================================================
-# 3. TTYD (Terminal Web)
+# 2. TTYD (Terminal Web)
 # ==============================================================================
 install-ttyd:
 	@echo "⚙️  Instalando ttyd.service..."
@@ -425,7 +261,7 @@ clean-ttyd: stop-ttyd
 	@sudo rm -f /etc/systemd/system/ttyd.service
 
 # ==============================================================================
-# 4. CLOUDFLARE TUNNEL
+# 3. CLOUDFLARE TUNNEL
 # ==============================================================================
 install-tunnel:
 	@echo "⚙️  Instalando cftunnel.service..."
@@ -465,7 +301,7 @@ clean-tunnel: stop-tunnel
 	@echo "✅ Lado local e histórico de DNS limpios."
 
 # ==============================================================================
-# 5. GITHUB RUNNER (Descarga, Registro y Servicio)
+# 4. GITHUB RUNNER (Descarga, Registro y Servicio)
 # ==============================================================================
 install-runner:
 	@echo "⚙️  Descargando e instalando dependencias del GitHub Runner..."
@@ -538,7 +374,160 @@ clean-runner: stop-runner
 	@rm -rf $(RUNNER_DIR)
 
 # ==============================================================================
-# 6. VERIFY — comprueba que el entorno virtual está completo
+# 5. COMANDOS GLOBALES (Orquestadores) — idénticos al runner físico
+# ==============================================================================
+daemon-reload:
+	@sudo systemctl daemon-reload
+	@sudo systemctl enable ttyd.service cftunnel.service >/dev/null 2>&1 || true
+
+install: install-ttyd install-tunnel install-runner daemon-reload
+	@echo "✅ Toda la infraestructura (Terminal + Túnel + Runner) instalada."
+
+start: start-ttyd start-tunnel start-runner
+stop: stop-ttyd stop-tunnel stop-runner
+status: status-ttyd status-tunnel status-runner
+logs: logs-ttyd logs-tunnel logs-runner
+
+logs-live:
+	@echo "🔴 Logs EN VIVO combinados (TTYD + Tunnel). Pulsa Ctrl+C para salir."
+	@sudo journalctl -u ttyd.service -u cftunnel.service -f
+
+clean: clean-ttyd clean-tunnel clean-runner
+	@sudo systemctl daemon-reload
+	@echo "✅ Limpieza global completada."
+
+# ==============================================================================
+# 6. GITHUB ACTIONS
+# ==============================================================================
+watch-workflow:
+	@echo "🔴 Siguiendo workflow en vivo en $(GH_REPO)..."
+	@if [ -n "$(RUN_ID)" ]; then \
+		gh run watch "$(RUN_ID)" --repo "$(GH_REPO)" --exit-status; \
+	else \
+		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
+			echo "❌ No hay workflow runs en $(GH_REPO)."; \
+			exit 1; \
+		fi; \
+		echo "▶️  Run detectado: $$LATEST_RUN"; \
+		gh run watch "$$LATEST_RUN" --repo "$(GH_REPO)" --exit-status; \
+	fi
+
+open-workflow:
+	@echo "🌐 Abriendo último workflow run en GitHub..."
+	@if [ -n "$(RUN_ID)" ]; then \
+		gh run view "$(RUN_ID)" --repo "$(GH_REPO)" --web; \
+	else \
+		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
+		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
+			echo "❌ No hay workflow runs en $(GH_REPO)."; \
+			exit 1; \
+		fi; \
+		echo "▶️  Run detectado: $$LATEST_RUN"; \
+		gh run view "$$LATEST_RUN" --repo "$(GH_REPO)" --web; \
+	fi
+
+# ==============================================================================
+# 7. EMULACIÓN — instalar socat + QEMU ESP32
+# ==============================================================================
+install-qemu-build-deps:
+	@if command -v apt-get >/dev/null 2>&1; then \
+		sudo apt-get install -y --no-install-recommends \
+			git build-essential ninja-build cmake pkg-config \
+			libglib2.0-dev libpixman-1-dev libslirp-dev libgcrypt20-dev; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		sudo pacman -S --noconfirm --needed \
+			base-devel git ninja python pkg-config \
+			glib2 pixman libslirp libgcrypt; \
+	else \
+		echo "❌ ERROR: Distro no reconocida."; exit 1; \
+	fi
+
+install-qemu: install-qemu-build-deps
+	@echo "📦 Instalando socat..."
+	@[ -f $(STATE_FILE) ] || $(MAKE) snapshot
+	@PRE_SOCAT=$$(grep "^PRE_SOCAT=" $(STATE_FILE) 2>/dev/null | cut -d= -f2); \
+	if command -v pacman >/dev/null 2>&1; then \
+		sudo pacman -Sy --noconfirm --needed socat python python-pyserial python-yaml; \
+	else \
+		sudo apt-get install -y --no-install-recommends socat python3-serial python3-yaml; \
+	fi; \
+	[ "$$PRE_SOCAT" = "false" ] && sed -i 's/^INST_SOCAT=.*/INST_SOCAT=true/' $(STATE_FILE) || true
+	@echo "⚙️  Compilando fork QEMU de Espressif (xtensa-softmmu)..."
+	@echo "   Esto puede tardar 10-20 minutos."
+	@if [ -x "$(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa" ]; then \
+		echo "   Ya instalado: $(QEMU_INSTALL_DIR)/bin/qemu-system-xtensa"; \
+	else \
+		TMPDIR=$$(mktemp -d /tmp/qemu-esp32-XXXXXX); \
+		git clone --depth=1 https://github.com/espressif/qemu.git "$$TMPDIR" && \
+		cd "$$TMPDIR" && \
+		./configure \
+			--target-list=xtensa-softmmu \
+			--prefix="$(QEMU_INSTALL_DIR)" \
+			--disable-werror \
+			--disable-docs && \
+		ninja -C build && \
+		sudo ninja -C build install && \
+		rm -rf "$$TMPDIR"; \
+		[ -f $(STATE_FILE) ] || $(MAKE) snapshot; \
+		sed -i 's/^INST_QEMU_ESP32=.*/INST_QEMU_ESP32=true/' $(STATE_FILE); \
+		sed -i 's|^INST_QEMU_ESP32_PATH=.*|INST_QEMU_ESP32_PATH=$(QEMU_INSTALL_DIR)|' $(STATE_FILE); \
+		echo "✅ QEMU ESP32 instalado en $(QEMU_INSTALL_DIR)/bin/"; \
+	fi
+
+# ==============================================================================
+# 8. SNAPSHOT & UNINSTALL — rastrea qué instaló este Makefile
+# ==============================================================================
+snapshot:
+	@INST_SOCAT=false; INST_QEMU_ESP32=false; QEMU_PATH=$(QEMU_INSTALL_DIR); \
+	if [ -f $(STATE_FILE) ]; then \
+		V=$$(grep "^INST_SOCAT=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && INST_SOCAT=$$V; \
+		V=$$(grep "^INST_QEMU_ESP32=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && INST_QEMU_ESP32=$$V; \
+		V=$$(grep "^INST_QEMU_ESP32_PATH=" $(STATE_FILE) | cut -d= -f2); [ -n "$$V" ] && QEMU_PATH=$$V; \
+	fi; \
+	DISTRO=unknown; \
+	command -v pacman  >/dev/null 2>&1 && DISTRO=arch; \
+	command -v apt-get >/dev/null 2>&1 && DISTRO=debian; \
+	{ \
+	  echo "# ESP32 Virtual Runner — Install State"; \
+	  echo "DISTRO=$$DISTRO"; \
+	  echo "CREATED_AT=$$(date +%Y-%m-%d)"; \
+	  echo ""; \
+	  echo "# Pre-existentes antes de este Makefile (no se tocan en uninstall)"; \
+	  command -v socat >/dev/null 2>&1 \
+	    && echo "PRE_SOCAT=true" || echo "PRE_SOCAT=false"; \
+	  { command -v qemu-system-xtensa >/dev/null 2>&1 && \
+	    qemu-system-xtensa -machine help 2>&1 | grep -q "esp32"; } \
+	    && echo "PRE_QEMU_ESP32=true" || echo "PRE_QEMU_ESP32=false"; \
+	  echo ""; \
+	  echo "# Instalado por este Makefile"; \
+	  echo "INST_SOCAT=$$INST_SOCAT"; \
+	  echo "INST_QEMU_ESP32=$$INST_QEMU_ESP32"; \
+	  echo "INST_QEMU_ESP32_PATH=$$QEMU_PATH"; \
+	} > $(STATE_FILE)
+	@echo "Estado guardado en $(STATE_FILE)"
+
+uninstall:
+	@[ -f $(STATE_FILE) ] || { echo "ERROR: no existe $(STATE_FILE). Nada que desinstalar."; exit 1; }
+	@echo "=== Desinstalando componentes instalados por este Makefile ==="
+	@. $(STATE_FILE); \
+	if [ "$$INST_QEMU_ESP32" = "true" ] && [ "$$PRE_QEMU_ESP32" = "false" ]; then \
+		echo "[QEMU] Eliminando fork Espressif: $$INST_QEMU_ESP32_PATH"; \
+		sudo rm -rf "$$INST_QEMU_ESP32_PATH"; \
+	else \
+		echo "[QEMU] Nada que eliminar"; \
+	fi; \
+	if [ "$$INST_SOCAT" = "true" ] && [ "$$PRE_SOCAT" = "false" ]; then \
+		echo "[socat] Desinstalando..."; \
+		if [ "$$DISTRO" = "arch" ]; then sudo pacman -R --noconfirm socat; \
+		else sudo apt-get remove -y socat; fi; \
+	else \
+		echo "[socat] Nada que eliminar"; \
+	fi
+	@echo "=== Desinstalación completada ==="
+
+# ==============================================================================
+# 9. VERIFY — comprueba que el entorno virtual está completo
 # ==============================================================================
 verify:
 	@echo ""
@@ -547,31 +536,31 @@ verify:
 	if command -v socat >/dev/null 2>&1; then \
 		printf "  [OK]    socat       : %s\n" "$$(socat -V 2>&1 | head -1)"; \
 	else \
-		echo   "  [FALTA] socat        — ejecuta: make install-deps"; \
+		echo   "  [FALTA] socat        — ejecuta: make install-qemu"; \
 		ERRORS=$$((ERRORS+1)); \
 	fi; \
 	if [ -x "$(QEMU_BIN)" ] || command -v "$(QEMU_BIN)" >/dev/null 2>&1; then \
 		printf "  [OK]    qemu        : %s\n" "$(QEMU_BIN)"; \
 	else \
-		echo   "  [FALTA] qemu-system-xtensa — ejecuta: make install-qemu-esp32"; \
+		echo   "  [FALTA] qemu-system-xtensa — ejecuta: make install-qemu"; \
 		ERRORS=$$((ERRORS+1)); \
 	fi; \
 	if $(QEMU_BIN) -machine help 2>&1 | grep -q "esp32"; then \
 		echo   "  [OK]    -machine esp32 soportado"; \
 	else \
-		echo   "  [FALTA] -machine esp32  — ejecuta: make install-qemu-esp32"; \
+		echo   "  [FALTA] -machine esp32  — ejecuta: make install-qemu"; \
 		ERRORS=$$((ERRORS+1)); \
 	fi; \
 	if $(PYTHON) -c "import serial" 2>/dev/null; then \
 		printf "  [OK]    pyserial    : %s\n" "$$($(PYTHON) -c 'import serial; print(serial.__version__)')"; \
 	else \
-		echo   "  [FALTA] pyserial     — ejecuta: make install-python-deps"; \
+		echo   "  [FALTA] pyserial     — ejecuta: make install-qemu"; \
 		ERRORS=$$((ERRORS+1)); \
 	fi; \
 	if $(PYTHON) -c "import yaml" 2>/dev/null; then \
 		echo   "  [OK]    pyyaml"; \
 	else \
-		echo   "  [FALTA] pyyaml       — ejecuta: make install-python-deps"; \
+		echo   "  [FALTA] pyyaml       — ejecuta: make install-qemu"; \
 		ERRORS=$$((ERRORS+1)); \
 	fi; \
 	if [ -d "$(VENV_DIR)" ]; then \
@@ -595,7 +584,7 @@ verify:
 	@echo ""
 
 # ==============================================================================
-# 7. PIPELINE VIRTUAL (VARIANT-específico)
+# 10. PIPELINE VIRTUAL (VARIANT-específico)
 # ==============================================================================
 prepare:
 	@[ -n "$(VARIANT)" ] || { echo "ERROR: VARIANT requerido. Ej: make VARIANT=v7_3001 prepare"; exit 1; }
@@ -607,7 +596,6 @@ build:
 	@echo "=== Compilando firmware (variante: $(VARIANT)) ==="
 	cd "$(PROJECT_DIR)" && $(PYTHON) -m scripts.f072_flashrun --variant $(VARIANT) --build-only
 
-# -- socat + QEMU --------------------------------------------------------------
 start-qemu:
 	@[ -n "$(VARIANT)" ] || { echo "ERROR: VARIANT requerido. Ej: make VARIANT=v7_3001 start-qemu"; exit 1; }
 	@[ -d "$(ESP_PROJECT_DIR)/build" ] || { \
@@ -617,7 +605,6 @@ start-qemu:
 	}
 	@[ -f "$(ESP_PROJECT_DIR)/build/flasher_args.json" ] || { \
 		echo "ERROR: No existe $(ESP_PROJECT_DIR)/build/flasher_args.json"; \
-		echo "       Asegúrate de que el build completó correctamente."; \
 		exit 1; \
 	}
 	@mkdir -p $(PID_DIR)
@@ -711,57 +698,3 @@ post:
 	@[ -n "$(VARIANT)" ] || { echo "ERROR: VARIANT requerido. Ej: make VARIANT=v7_3001 post"; exit 1; }
 	@echo "=== Análisis post-ejecución (variante: $(VARIANT)) ==="
 	cd "$(PROJECT_DIR)" && $(PYTHON) -m scripts.f073_post --variant $(VARIANT)
-
-# ==============================================================================
-# 8. GITHUB ACTIONS
-# ==============================================================================
-watch-workflow:
-	@echo "🔴 Siguiendo workflow en vivo en $(GH_REPO)..."
-	@if [ -n "$(RUN_ID)" ]; then \
-		gh run watch "$(RUN_ID)" --repo "$(GH_REPO)" --exit-status; \
-	else \
-		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
-		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
-			echo "❌ No hay workflow runs en $(GH_REPO)."; \
-			exit 1; \
-		fi; \
-		echo "▶️  Run detectado: $$LATEST_RUN"; \
-		gh run watch "$$LATEST_RUN" --repo "$(GH_REPO)" --exit-status; \
-	fi
-
-open-workflow:
-	@echo "🌐 Abriendo último workflow run en GitHub..."
-	@if [ -n "$(RUN_ID)" ]; then \
-		gh run view "$(RUN_ID)" --repo "$(GH_REPO)" --web; \
-	else \
-		LATEST_RUN=$$(gh run list --repo "$(GH_REPO)" --limit 1 --json databaseId --jq '.[0].databaseId'); \
-		if [ -z "$$LATEST_RUN" ] || [ "$$LATEST_RUN" = "null" ]; then \
-			echo "❌ No hay workflow runs en $(GH_REPO)."; \
-			exit 1; \
-		fi; \
-		echo "▶️  Run detectado: $$LATEST_RUN"; \
-		gh run view "$$LATEST_RUN" --repo "$(GH_REPO)" --web; \
-	fi
-
-# ==============================================================================
-# 9. COMANDOS GLOBALES (Orquestadores)
-# ==============================================================================
-daemon-reload:
-	@sudo systemctl daemon-reload
-	@sudo systemctl enable ttyd.service cftunnel.service >/dev/null 2>&1 || true
-
-install: install-deps install-ttyd install-tunnel install-runner daemon-reload
-	@echo "✅ Toda la infraestructura (deps + Terminal + Túnel + Runner) instalada."
-
-start: start-ttyd start-tunnel start-runner
-stop: stop-ttyd stop-tunnel stop-runner
-status: status-ttyd status-tunnel status-runner
-logs: logs-ttyd logs-tunnel logs-runner
-
-logs-live:
-	@echo "🔴 Logs EN VIVO combinados (TTYD + Tunnel). Pulsa Ctrl+C para salir."
-	@sudo journalctl -u ttyd.service -u cftunnel.service -f
-
-clean: clean-ttyd clean-tunnel clean-runner
-	@sudo systemctl daemon-reload
-	@echo "✅ Limpieza global completada."

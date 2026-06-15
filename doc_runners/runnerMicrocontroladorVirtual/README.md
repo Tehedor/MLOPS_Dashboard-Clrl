@@ -1,20 +1,81 @@
 # ESP32 Virtual Runner — Guía rápida
 
+Dos capas independientes:
+
+- **Infraestructura** — TTYD (terminal web) + Cloudflare Tunnel (acceso remoto) + GitHub Actions Runner (CI).
+- **Emulación** — socat + QEMU ESP32 (HIL en software, sin hardware real).
+
+---
+
+## Parte 1 — Infraestructura (TTYD + Túnel + Runner)
+
+### Prerequisitos manuales (fuera del Makefile)
+
+- **`cloudflared`**: instalar y autenticar una vez:
+  ```bash
+  # Debian: descargar el .deb de https://github.com/cloudflare/cloudflared/releases
+  sudo dpkg -i cloudflared-linux-amd64.deb
+  cloudflared login          # abre navegador para autenticar con tu cuenta CF
+  ```
+- **`ttyd`**: instalar el binario:
+  ```bash
+  # Debian: descargar de https://github.com/tsl0922/ttyd/releases
+  sudo install -m755 ttyd_linux.x86_64 /usr/local/bin/ttyd
+  ```
+
+### Pasos de instalación
+
+```bash
+# 1. Configurar variables
+cp .env.example .env
+# Editar .env y ajustar:
+#   TERMINAL_PASS   — contraseña del terminal web
+#   GITHUB_TOKEN    — token de registro (GitHub → Settings → Actions → Runners → New runner)
+#   GITHUB_URL      — URL del repo, p.ej. https://github.com/org/repo
+#   DOMAIN          — dominio base (default: tehelab.com)
+#   SUBDOMAIN       — subdominio del terminal (default: terminalESPvirt)
+#   RUN_USER        — usuario del sistema que corre los servicios (default: runner)
+
+# 2. Crear túnel en Cloudflare y generar config.yaml
+make setup
+
+# 3. Instalar dependencias + registrar servicios systemd
+make install
+
+# 4. Arrancar todo
+make start
+```
+
+### Diagnóstico
+
+```bash
+make status       # estado de TTYD + Túnel + Runner
+make logs         # logs estáticos de los tres servicios
+make logs-live    # logs en vivo combinados (Ctrl+C para salir)
+```
+
+### Parar / limpiar
+
+```bash
+make stop         # detiene los tres servicios
+make clean        # elimina servicios systemd y config.yaml
+```
+
+---
+
+## Parte 2 — Emulación ESP32 (QEMU + socat)
+
 Entorno HIL en software: **socat** crea un puerto serie virtual (`/dev/ttyVUSB0`) que actúa como puente TCP hacia **QEMU** emulando una ESP32 real.
 
 ---
 
-## Primera vez: instalar
+## Primera vez: instalar emulación
 
 ```bash
-# Arch Linux
-make install-arch
-
-# Debian / Ubuntu
-make install-debian
+make install-qemu
 ```
 
-> Si `qemu-system-xtensa` del sistema no soporta `-machine esp32` (lo comprueba automáticamente), descarga y compila el fork de Espressif en `/opt/qemu-esp32`. Tarda ~15 min.
+Instala socat, pyserial y compila el fork de Espressif para QEMU en `/opt/qemu-esp32`. Funciona en Arch y Debian. Tarda ~15 min por la compilación.
 
 Verificar que todo está OK:
 
