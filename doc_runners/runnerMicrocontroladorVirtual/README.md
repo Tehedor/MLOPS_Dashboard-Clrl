@@ -90,7 +90,7 @@ Salida esperada: todos los checks en `[OK]`, ninguno en `[FALTA]`.
 ## Flujo normal por variante
 
 ```
-          f071                f072 --build-only       make start
+          f071                f072 --build-only    make start-qemu
   params ──────► esp32_project ──────────────────► socat + QEMU activos
                                                          │
                      f072 --skip-flash ◄─────────── make run
@@ -99,18 +99,24 @@ Salida esperada: todos los checks en `[OK]`, ninguno en `[FALTA]`.
                    make post
 ```
 
+### 0. Instalar emulador (solo la primera vez)
+
+```bash
+make install-qemu
+make verify
+```
+
 ### 1. Compilar firmware
 
 ```bash
-make VARIANT=mi_variante build
+make VARIANT=mi_variante prepare   # genera build_generated/ (f071)
+make VARIANT=mi_variante build     # compila con idf.py vía Docker
 ```
-
-Llama a `f072_flashrun.py --build-only`. Genera `executions/f07_modval/<v>/esp32_project/build/`.
 
 ### 2. Lanzar entorno virtual
 
 ```bash
-make VARIANT=mi_variante start
+make VARIANT=mi_variante start-qemu
 ```
 
 - Arranca **socat** en background (sudo): crea `/dev/ttyVUSB0` ↔ TCP 4000
@@ -123,8 +129,7 @@ make VARIANT=mi_variante start
 make VARIANT=mi_variante run
 ```
 
-Llama a `f072_flashrun.py --mode serial --port /dev/ttyVUSB0 --skip-flash`.  
-El script inyecta el dataset por el puerto virtual y captura la respuesta de QEMU.
+Llama a `f072_flashrun.py --mode memory --skip-flash`. Inyecta el dataset por el puerto virtual y captura la respuesta de QEMU.
 
 ### 4. Análisis post-ejecución
 
@@ -137,14 +142,14 @@ Llama a `f073_post.py`. Genera `metrics_models.csv`, `metrics_memory.csv`, `outp
 ### 5. Parar el entorno
 
 ```bash
-make stop
+make stop-qemu
 ```
 
 Mata socat y QEMU, elimina `/dev/ttyVUSB0` y los PID files.
 
 ---
 
-## Variables configurables
+## Variables configurables (emulación)
 
 | Variable | Default | Descripción |
 |---|---|---|
@@ -152,16 +157,15 @@ Mata socat y QEMU, elimina `/dev/ttyVUSB0` y los PID files.
 | `SOCAT_PORT` | `4000` | Puerto TCP socat ↔ QEMU |
 | `VIRTUAL_PORT` | `/dev/ttyVUSB0` | Ruta del puerto serie virtual |
 | `QEMU_INSTALL_DIR` | `/opt/qemu-esp32` | Instalación del fork QEMU Espressif |
-| `ESP_PROJECT_DIR` | auto desde `VARIANT` | Ruta al proyecto ESP32 compilado |
 
 ```bash
 # Ejemplo con variables personalizadas
-make VARIANT=v3_quant SOCAT_PORT=4001 start
+make VARIANT=v3_quant SOCAT_PORT=4001 start-qemu
 ```
 
 ---
 
-## Logs y diagnóstico
+## Logs y diagnóstico (emulación)
 
 | Fichero | Contenido |
 |---|---|
@@ -171,10 +175,7 @@ make VARIANT=v3_quant SOCAT_PORT=4001 start
 | `executions/f07_modval/<v>/07_esp_build_log.txt` | Log de compilación idf.py |
 
 ```bash
-# Ver QEMU en tiempo real
 tail -f /tmp/esp32-virt/qemu.log
-
-# Ver captura serie
 tail -f executions/f07_modval/<VARIANT>/07_esp_monitor_log.txt
 ```
 
@@ -182,9 +183,9 @@ tail -f executions/f07_modval/<VARIANT>/07_esp_monitor_log.txt
 
 ## Problemas comunes
 
-**`[FALTA] -machine esp32`** → El QEMU del sistema no tiene el fork Espressif:
+**`[FALTA] -machine esp32`** → Falta el fork Espressif:
 ```bash
-make install-qemu-esp32
+make install-qemu
 ```
 
 **`ERROR: No existe .../build/flasher_args.json`** → El build no completó:
@@ -192,9 +193,9 @@ make install-qemu-esp32
 make VARIANT=<v> build
 ```
 
-**`ERROR: socat no está corriendo`** → Hay que hacer `start` antes de `run`:
+**`ERROR: socat no está corriendo`** → Hay que hacer `start-qemu` antes de `run`:
 ```bash
-make VARIANT=<v> start && make VARIANT=<v> run
+make VARIANT=<v> start-qemu && make VARIANT=<v> run
 ```
 
-**QEMU termina inmediatamente** → El `flasher_args.json` apunta a binarios incorrectos o el build está incompleto. Revisa `/tmp/esp32-virt/qemu.log`.
+**QEMU termina inmediatamente** → El `flasher_args.json` apunta a binarios incorrectos. Revisa `/tmp/esp32-virt/qemu.log`.
