@@ -72,10 +72,13 @@ Entorno HIL en software: **socat** crea un puerto serie virtual (`/dev/ttyVUSB0`
 ## Primera vez: instalar emulación
 
 ```bash
+# Arch Linux y Debian/Ubuntu — el mismo comando, detecta la distro automáticamente
 make install-qemu
 ```
 
-Instala socat, pyserial y compila el fork de Espressif para QEMU en `/opt/qemu-esp32`. Funciona en Arch y Debian. Tarda ~15 min por la compilación.
+Instala socat, pyserial y compila el fork de Espressif para QEMU en `/opt/qemu-esp32`. Tarda ~15 min por la compilación.
+
+> **Espacio en disco**: la compilación necesita ~2-3 GB libres en `/tmp`. Si el disco está justo, mueve `TMPDIR` o libera espacio antes.
 
 Verificar que todo está OK:
 

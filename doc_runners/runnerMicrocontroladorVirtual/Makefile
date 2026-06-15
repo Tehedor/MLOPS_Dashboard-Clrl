@@ -432,7 +432,7 @@ open-workflow:
 # ==============================================================================
 install-qemu-build-deps:
 	@if command -v apt-get >/dev/null 2>&1; then \
-		sudo apt-get install -y --no-install-recommends \
+		sudo apt-get update && sudo apt-get install -y --no-install-recommends \
 			git build-essential ninja-build cmake pkg-config \
 			libglib2.0-dev libpixman-1-dev libslirp-dev libgcrypt20-dev; \
 	elif command -v pacman >/dev/null 2>&1; then \
@@ -450,7 +450,7 @@ install-qemu: install-qemu-build-deps
 	if command -v pacman >/dev/null 2>&1; then \
 		sudo pacman -Sy --noconfirm --needed socat python python-pyserial python-yaml; \
 	else \
-		sudo apt-get install -y --no-install-recommends socat python3-serial python3-yaml; \
+		sudo apt-get update && sudo apt-get install -y --no-install-recommends socat python3-serial python3-yaml; \
 	fi; \
 	[ "$$PRE_SOCAT" = "false" ] && sed -i 's/^INST_SOCAT=.*/INST_SOCAT=true/' $(STATE_FILE) || true
 	@echo "⚙️  Compilando fork QEMU de Espressif (xtensa-softmmu)..."
