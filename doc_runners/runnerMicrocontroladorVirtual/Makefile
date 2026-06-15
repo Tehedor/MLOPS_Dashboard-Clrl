@@ -327,7 +327,7 @@ install-debian:
 install-qemu-esp32-build-deps:
 	sudo apt-get install -y --no-install-recommends \
 		git build-essential ninja-build cmake pkg-config \
-		libglib2.0-dev libpixman-1-dev libslirp-dev
+		libglib2.0-dev libpixman-1-dev libslirp-dev libgcrypt20-dev
 
 install-qemu-esp32:
 	@echo "⚙️  Compilando fork QEMU de Espressif (xtensa-softmmu)..."
