@@ -1,0 +1,471 @@
+\section{Plataforma de gestión y ejecución de pipelines}
+\label{sec:plataforma-gestion-pipelines}
+
+Para interactuar con el pipeline de forma más cómoda, se ha diseñado una aplicación local de gestión y ejecución. Esta plataforma permite lanzar ejecuciones de fases y variantes, consultar su estado, analizar los parámetros utilizados, revisar los artefactos generados y visualizar la trazabilidad completa de cada ejecución.
+
+La aplicación actúa como una capa de control sobre la infraestructura descrita en las secciones anteriores. En lugar de interactuar manualmente con GitHub Actions, DVC, DagsHub, MLflow o los runners autoalojados, el usuario puede operar sobre el sistema desde una interfaz unificada. De esta forma, la plataforma simplifica la ejecución del ciclo MLOps y facilita el seguimiento de los resultados generados por cada pipeline.
+
+La interfaz se organiza en varias vistas, donde cada una cubre una tarea específica dentro del proceso de gestión. Entre ellas se incluyen vistas para lanzar ejecuciones, consultar workflows y logs de GitHub Actions, monitorizar runners con microcontrolador, analizar variantes, revisar métricas y explorar la trazabilidad entre fases.
+
+Además del pipeline principal descrito en la Sección~\ref{subsec:subsectionMLopsDedicado}, la plataforma se ha preparado para gestionar otros pipelines desarrollados durante el proyecto. Todos ellos siguen los mismos principios generales de configuración, versionado, ejecución por fases y trazabilidad de variantes. Asimismo, los repositorios se encuentran bajo una misma organización de GitHub, lo que permite compartir configuración, credenciales de acceso, runners autoalojados y mecanismos comunes de automatización.
+
+Los pipelines integrados actualmente en la plataforma son los siguientes:
+
+\begin{itemize}
+    \item \textbf{MLOps4RTEdge} (\texttt{TeheORG/mlops4rtedge})%
+    \footnote{Repositorio GitHub: \url{https://github.com/TeheORG/mlops4rtedge}}%
+    \footnote{Repositorio DagsHub: \url{https://dagshub.com/Tehedor/mlops4rtedge}}:
+    pipeline principal basado en el ciclo MLOps descrito en la Sección~\ref{subsec:subsectionMLopsDedicado}. Está orientado a la generación, evaluación y validación de variantes para inferencia en el borde, incluyendo fases de preparación de datos, entrenamiento, optimización y validación \textit{Hardware-in-the-Loop}.
+
+    \item \textbf{MLOps4RTEdge Uni} (\texttt{TeheORG/mlops4rtedgeUni})%
+    \footnote{Repositorio GitHub: \url{https://github.com/TeheORG/mlops4rtedgeUni}}%
+    \footnote{Repositorio DagsHub: \url{https://dagshub.com/Tehedor/mlops4rtedgeUni}}:
+    variante complementaria del pipeline anterior, orientada a evaluar una configuración alternativa del flujo de trabajo sobre la misma arquitectura de gestión. Su integración permite comprobar que la plataforma puede operar sobre pipelines con estructura similar, pero con configuraciones, ramas y artefactos independientes.
+
+    \item \textbf{MLOps4RTEdge TS} (\texttt{TeheORG/mlops4rtedgeTS})%
+    \footnote{Repositorio GitHub: \url{https://github.com/TeheORG/mlops4rtedgeTS}}%
+    \footnote{Repositorio DagsHub: \url{https://dagshub.com/Tehedor/mlops4rtedgeTS}}:
+    pipeline complementario centrado en una variante temporal del flujo de trabajo. Su incorporación permite validar la capacidad de la plataforma para gestionar pipelines relacionados, manteniendo separación entre repositorios, ramas de ejecución, configuraciones de trazabilidad y almacenamiento de artefactos.
+\end{itemize}
+
+Para cada pipeline, la plataforma define una configuración independiente que incluye el repositorio de GitHub, la rama de trabajo, la ubicación local del proyecto, la ruta del esquema de trazabilidad, la configuración de workflows, los runners disponibles por fase, el repositorio de DagsHub y la URI de seguimiento de MLflow. Esta separación permite que la misma aplicación pueda operar sobre varios pipelines sin mezclar ejecuciones, artefactos ni credenciales.
+
+En conjunto, la plataforma actúa como un punto de entrada común para administrar el ciclo de vida de los pipelines MLOps. A partir de esta capa, es posible iniciar ejecuciones, consultar su progreso, acceder a los logs, supervisar los runners disponibles y reconstruir la relación entre variantes, parámetros, artefactos y métricas generadas durante cada fase.
+
+% -----------------------------------------------------------------------------------------------
+% -----------------------------------------------------------------------------------------------
+
+\section{Vista de ejecuciones}
+La vista de ejecuciones constituye la interfaz principal de control operativo de la plataforma. Su objetivo es permitir la creación, monitorización y gestión de ejecuciones asociadas a las distintas fases del pipeline MLOps, evitando que el usuario tenga que interactuar directamente con la API de GitHub Actions o con herramientas de línea de comandos. De este modo, la aplicación proporciona una capa de abstracción sobre la lógica de despacho, la resolución de dependencias entre fases y el control de concurrencia asociado a los distintos runners disponibles.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista1Ejecuciones.png}
+    \caption{Vista ejecuciones}
+    \label{fig:Vista1Ejecuciones}
+\end{figure}
+
+% \begin{figure}
+%     \centering
+%     \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/paginaEjecuciones2.png}
+%     \caption{Enter Caption}
+%     \label{fig:placeholder}
+% \end{figure}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\linewidth]{SelectorRunner1.png} \includegraphics[width=0.4\linewidth]{selectorRunner2.png}
+    \caption{Enter Caption}
+    \label{fig:placeholder}
+\end{figure}
+
+
+% \begin{figure}[H]
+%     \centering
+%     \caption{Enter Caption}
+%     \label{fig:placeholder}
+% \end{figure}
+
+
+La interfaz se organiza en tres paneles principales. El panel izquierdo contiene las tarjetas correspondientes a cada fase del pipeline, desde \texttt{f01\_explore} hasta \texttt{f08\_sysval}. Cada tarjeta permite configurar y lanzar nuevas ejecuciones para una fase concreta. El panel central muestra las ejecuciones activas o en espera, permitiendo filtrarlas por fase o variante. Por último, el panel derecho recoge el histórico de ejecuciones finalizadas, tanto correctas como fallidas, proporcionando una visión completa del estado operativo del sistema.
+
+Cada tarjeta de fase actúa como unidad principal de interacción. En ella se agrupan los parámetros necesarios para lanzar una ejecución, incluyendo el identificador de variante, la referencia a una variante padre cuando sea necesario, los parámetros específicos de la fase y el runner sobre el que se desea ejecutar el proceso. Cuando una fase permite el uso de varios runners, la interfaz muestra un selector para escoger el entorno de ejecución antes del despacho. En caso de existir un único runner disponible, este se presenta como una etiqueta estática. La información sobre los runners disponibles y sus límites de paralelismo se obtiene a partir del fichero de configuración \texttt{fases\_execution\_runners.yaml}.
+
+La vista permite dos modos de ejecución. El primero, denominado \textit{Single}, está orientado al lanzamiento de una única variante. En este modo, el usuario introduce el identificador de la variante y, si la fase lo requiere, también la variante padre de la que depende. Para fases con dependencias múltiples, se permite introducir una lista de identificadores en formato JSON. Además, los parámetros de ejecución se editan mediante un componente específico, cuyo esquema se genera a partir de la definición de trazabilidad del sistema. Esto permite adaptar dinámicamente los campos disponibles a los requisitos de cada fase.
+
+El segundo modo, denominado \textit{Multi JSON}, permite lanzar múltiples variantes en una única operación. Para ello, el usuario introduce bloques JSON separados por líneas en blanco, donde cada bloque representa una ejecución independiente con su variante, parámetros, padre y runner seleccionado. La interfaz realiza una validación continua del contenido introducido, detectando errores de formato, ausencia de campos obligatorios o parámetros incompletos. Al confirmar la operación, las ejecuciones se crean de forma paralela, informando individualmente de los errores sin bloquear aquellas variantes que sí puedan lanzarse correctamente.
+
+Cuando el usuario confirma una ejecución, el frontend realiza una petición \texttt{POST} al endpoint \texttt{/api/executions}. El backend comprueba primero que no exista una ejecución activa con la misma fase y variante en estados como \texttt{queued}, \texttt{waiting\_parent}, \texttt{waiting\_runner} o \texttt{dispatching}. Esta comprobación evita duplicidades y conflictos entre ejecuciones concurrentes. Si la solicitud es válida, el sistema normaliza el identificador de variante, registra la ejecución en la base de datos SQLite y lanza una tarea asíncrona encargada de gestionar el despacho.
+
+Antes de enviar la ejecución a GitHub Actions, el servicio backend evalúa tres condiciones. En primer lugar, comprueba si la fase requiere una variante padre y si esta se encuentra completada. En caso contrario, la ejecución queda en estado \texttt{waiting\_parent} hasta que la dependencia esté disponible. En segundo lugar, verifica si el runner seleccionado dispone de capacidad libre según el límite de paralelismo configurado. Si no existe disponibilidad, la ejecución pasa a estado \texttt{waiting\_runner}. Por último, se comprueba si la cola global de ejecuciones está pausada, en cuyo caso el proceso permanece bloqueado hasta su reactivación.
+
+Una vez satisfechas estas condiciones, el backend construye el evento de despacho hacia GitHub Actions mediante \texttt{repository\_dispatch}. Para ello, recupera las etiquetas asociadas al runner seleccionado y las envía al workflow, permitiendo que la ejecución se asigne dinámicamente al entorno correspondiente. Durante este proceso, la ejecución transiciona primero al estado \texttt{dispatching} y posteriormente a \texttt{running}. Si se produce algún error durante el despacho, la ejecución se marca como \texttt{failed}.
+
+Además de los runners basados en GitHub Actions, la plataforma contempla un runner de tipo \texttt{Local}. En este caso, la ejecución no se envía a GitHub Actions, sino que se ejecuta directamente en el proceso del servidor siguiendo los pasos definidos en \texttt{local\_workflows.yaml}. Esta funcionalidad permite realizar pruebas locales o ejecutar determinadas fases sin depender de infraestructura externa.
+
+El modelo de estados de una ejecución puede resumirse mediante la siguiente secuencia:
+
+\begin{blockPseudocodigo}
+queued
+  +--> waiting_parent
+        +--> waiting_runner
+              +--> dispatching
+                    +--> running
+                          +--> success
+                          +--> failed
+                          +--> canceled
+\end{blockPseudocodigo}
+
+Los estados \texttt{success}, \texttt{failed} y \texttt{canceled} se consideran terminales. Cuando una ejecución alcanza uno de estos estados, el sistema sincroniza el repositorio de resultados para reflejar los artefactos generados por el workflow. Además, tras un reinicio del servidor, el backend realiza un proceso de reconciliación para comprobar el estado real de las ejecuciones activas contra la API de GitHub Actions. De esta forma, se evita que queden ejecuciones huérfanas o estados inconsistentes tras una interrupción del servicio.
+
+La plataforma define distintos perfiles de runner en función de las necesidades de cómputo de cada fase. Entre ellos se incluyen runners alojados en GitHub Actions, runners desplegados sobre Kubernetes con diferentes capacidades de memoria, runners autoalojados para dispositivos ESP32 y un runner local. Esta configuración permite adaptar cada ejecución al entorno más adecuado según sus requisitos computacionales, de validación o de despliegue sobre hardware específico.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|c|}
+\hline
+\textbf{Runner} & \textbf{Etiquetas} & \textbf{Máximo paralelismo} \\ \hline
+\texttt{GithubActions} & \texttt{ubuntu-latest} & 20 \\ \hline
+\texttt{K8s-8gb} & \texttt{runner-8gb} & 4 \\ \hline
+\texttt{K8s-24gb} & \texttt{runner-24gb} & 2 \\ \hline
+\texttt{ESP32-self-hosted} & \texttt{self-hosted, ESP32} & 1 \\ \hline
+\texttt{Local} & \texttt{local} & 1 \\ \hline
+\end{tabular}
+\caption{Perfiles de runner configurados para la ejecución de fases del pipeline}
+\label{tab:runners-ejecuciones}
+\end{table}
+
+La vista de ejecuciones se comunica con el backend mediante una API REST específica. Esta API permite crear nuevas ejecuciones, consultar el estado de ejecuciones existentes, cancelar procesos activos, reintentar ejecuciones fallidas y recibir actualizaciones en tiempo real mediante un canal SSE. El uso de \textit{Server-Sent Events} permite mantener sincronizada la interfaz sin necesidad de realizar sondeos periódicos desde el cliente, reduciendo la latencia de actualización y el consumo de recursos.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+% Cambiamos la última 'l' por 'p{6.5cm}' (ajusta los cm si lo necesitas)
+\begin{tabular}{|l|l|p{6.5cm}|}
+\hline
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\ \hline
+\texttt{POST} & \texttt{/api/executions} & Crea y encola una nueva ejecución \\ \hline
+\texttt{GET} & \texttt{/api/executions} & Lista las ejecuciones registradas \\ \hline
+\texttt{GET} & \texttt{/api/executions/\{id\}} & Recupera el detalle de una ejecución \\ \hline
+\texttt{POST} & \texttt{/api/executions/\{id\}/cancel} & Cancela una ejecución activa \\ \hline
+\texttt{POST} & \texttt{/api/executions/\{id\}/retry} & Reintenta una ejecución fallida \\ \hline
+\texttt{GET} & \texttt{/api/executions/stream} & Envía actualizaciones de estado en tiempo real mediante SSE \\ \hline
+\end{tabular}
+\caption{Endpoints utilizados por la vista de ejecuciones}
+\label{tab:api-vista-ejecuciones}
+\end{table}
+
+En conjunto, esta vista permite centralizar la gestión operativa del pipeline MLOps desde una interfaz visual, facilitando el lanzamiento controlado de variantes, la supervisión de estados, la ejecución paralela sobre distintos entornos y la trazabilidad de los resultados generados. Esto reduce la complejidad de uso de la plataforma y permite que el flujo de trabajo sea más accesible, reproducible y mantenible.
+
+
+
+
+% -----------------------------------------------------------------------------------------------
+% -----------------------------------------------------------------------------------------------
+\section{Vista de GitHub Actions y logs}
+
+
+La vista de GitHub Actions y logs centraliza la consulta de las ejecuciones realizadas sobre las distintas fuentes de cómputo de la plataforma. Su objetivo es ofrecer una interfaz unificada desde la que consultar tanto los workflows ejecutados mediante GitHub Actions como las ejecuciones realizadas por el runner local gestionado por el backend. De esta forma, el usuario puede revisar el estado y los registros de ejecución sin acceder directamente a la interfaz de GitHub ni a los ficheros internos del servidor.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista2GhActions.png}
+    \caption{Vista Logs}
+    \label{fig:Vista2Logs}
+\end{figure}
+
+La vista integra información procedente de dos fuentes de datos diferentes. Por un lado, los runs asociados a GitHub Actions se recuperan a partir de los registros almacenados en Supabase. Estos datos se cargan inicialmente mediante una consulta REST y se mantienen actualizados en tiempo real mediante el sistema Realtime de Supabase, que notifica inserciones y actualizaciones sobre la tabla correspondiente. Por otro lado, las ejecuciones del runner local se obtienen desde el backend de la plataforma a través del endpoint \texttt{GET /api/executions}, consultado periódicamente para reflejar los cambios de estado.
+
+Dado que ambas fuentes presentan ciclos de vida y formatos de estado diferentes, la aplicación normaliza los datos antes de mostrarlos en la interfaz. Los estados propios del runner local, como \texttt{running}, \texttt{failed} o \texttt{canceled}, se transforman al vocabulario utilizado por GitHub Actions, como \texttt{in\_progress}, \texttt{failure} o \texttt{cancelled}. Esta normalización permite aplicar los mismos filtros y criterios de ordenación sobre todas las ejecuciones, independientemente de su origen. Finalmente, los registros se ordenan por fecha de creación descendente, mostrando en primer lugar las ejecuciones más recientes.
+
+La interfaz se organiza en dos paneles principales. El panel izquierdo muestra la lista de ejecuciones disponibles, mientras que el panel derecho contiene el visor de logs asociado a la ejecución seleccionada. Sobre la lista de ejecuciones se incluye una barra de búsqueda y un conjunto de filtros por estado. La búsqueda permite localizar ejecuciones a partir de distintos campos, como el identificador del run, el nombre del workflow, la rama, la fase o la variante. Los filtros disponibles permiten distinguir entre ejecuciones en cola, en progreso, completadas correctamente, fallidas o canceladas.
+
+Al seleccionar una ejecución, el visor de logs determina automáticamente su origen. En el caso de ejecuciones locales, los registros se obtienen desde el almacén de logs mantenido por el backend. En cambio, para ejecuciones de GitHub Actions, los logs se recuperan mediante el endpoint \texttt{GET /api/executions/gh-logs/\{run\_id\}}, que actúa como proxy hacia la API de GitHub. Una vez recuperados, los logs se almacenan en una caché interna del frontend para evitar peticiones repetidas sobre ejecuciones ya consultadas, especialmente cuando el usuario cambia entre vistas de la aplicación.
+
+Para almacenar la información procedente de GitHub Actions se utilizan dos tablas en Supabase. La primera, \texttt{workflow\_runs}, contiene un registro por ejecución e incluye información como el identificador del run, el estado, la fase, la variante y las marcas temporales de creación y actualización. La segunda, \texttt{workflow\_logs}, almacena los bloques de log generados por los distintos pasos del workflow, asociados al run correspondiente mediante una relación de clave foránea. La inserción de estos datos se realiza desde el propio workflow de GitHub Actions mediante llamadas a la API REST de Supabase.
+
+Con el fin de controlar el volumen de información almacenada, se aplica una política de retención sobre los datos persistidos. Los logs con una antigüedad superior a siete días se eliminan automáticamente, mientras que los runs finalizados con más de treinta días se borran junto con sus logs asociados. Esta estrategia permite mantener la trazabilidad reciente de las ejecuciones sin generar un crecimiento indefinido de la base de datos.
+
+La vista también contempla el caso en el que Supabase no se encuentre configurado. Si las variables de entorno necesarias para su conexión no están presentes, la interfaz informa al usuario de esta situación y evita renderizar la vista principal asociada a GitHub Actions. No obstante, las ejecuciones locales siguen siendo accesibles, ya que dependen únicamente del backend de la plataforma. De este modo, el sistema mantiene un comportamiento degradado pero funcional, permitiendo consultar los logs locales incluso cuando la integración con Supabase no está disponible.
+
+En conjunto, esta vista proporciona un punto centralizado de observabilidad sobre las ejecuciones del pipeline, integrando información procedente de GitHub Actions y del runner local. Esto facilita el seguimiento de errores, la revisión de resultados y la trazabilidad operativa del sistema, reduciendo la necesidad de consultar manualmente servicios externos o ficheros distribuidos.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Fuente} & \textbf{Origen de datos} & \textbf{Actualización} \\ \hline
+GitHub Actions & Supabase y API de GitHub & Tiempo real mediante Supabase Realtime \\ \hline
+Runner local & Backend de la plataforma & Consulta periódica al endpoint de ejecuciones \\ \hline
+\end{tabular}
+\caption{Fuentes de datos utilizadas por la vista de GitHub Actions y logs}
+\label{tab:fuentes-github-actions-logs}
+\end{table}
+
+% -----------------------------------------------------------------------------------------------
+% -----------------------------------------------------------------------------------------------
+\section{Vista de runners con microcontroladores}
+
+La vista de runners con microcontroladores proporciona acceso interactivo a los entornos de ejecución remotos directamente desde la interfaz de la plataforma. Su objetivo es permitir al usuario inspeccionar el estado de los runners, ejecutar comandos de diagnóstico y monitorizar su actividad en tiempo real sin necesidad de acceder manualmente mediante sesiones SSH externas ni abandonar el dashboard principal.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista3Runners.png}
+    \caption{Vista runners de microcontroladores}
+    \label{fig:Vista3Runners}
+\end{figure}
+
+Esta funcionalidad resulta especialmente relevante en el contexto de ejecuciones sobre hardware específico, como runners autoalojados conectados a microcontroladores ESP32 o runners desplegados sobre Kubernetes. En estos escenarios, la posibilidad de inspeccionar el entorno de ejecución durante el desarrollo o la validación permite diagnosticar errores, comprobar el estado del hardware y supervisar ejecuciones de tipo \textit{Hardware-in-the-Loop}.
+
+La interfaz se organiza en dos zonas principales. En la parte izquierda se muestra una barra lateral con la lista de runners registrados y disponibles. Esta información se obtiene mediante consultas periódicas al endpoint \texttt{GET /api/terminal/runners}, permitiendo visualizar qué entornos se encuentran accesibles y cuántas sesiones activas existen sobre cada uno de ellos. Al seleccionar un runner, la aplicación abre una nueva sesión de terminal sobre la celda activa de la zona principal.
+
+La zona principal contiene una cuadrícula configurable de terminales. El usuario puede añadir varias columnas independientes y dividir cada una de ellas en dos filas, lo que permite trabajar con múltiples sesiones simultáneas. Cada celda de la cuadrícula puede contener una o varias sesiones abiertas, organizadas mediante pestañas. De este modo, es posible mantener conexiones concurrentes sobre distintos runners o incluso varias sesiones sobre un mismo entorno, facilitando tareas de comparación, depuración y monitorización paralela.
+
+Cada sesión de terminal se identifica mediante un identificador único y se asocia a un runner de destino, una posición dentro de la cuadrícula y un estado de conexión. Inicialmente, la sesión se crea en estado \texttt{connecting} y pasa a \texttt{connected} cuando se establece correctamente el canal WebSocket con el backend. Si la conexión se interrumpe o el runner deja de estar disponible, la sesión puede pasar a estado \texttt{disconnected}, permitiendo reflejar visualmente su estado dentro de la interfaz.
+
+El componente de terminal encapsula tanto el emulador de terminal utilizado en el frontend como el canal de comunicación con el backend. Para evitar la pérdida de estado, las instancias de terminal permanecen montadas aunque el usuario cambie de pestaña o reorganice la cuadrícula. En lugar de destruir y crear de nuevo los terminales, la interfaz actualiza su posición y visibilidad, preservando las conexiones activas y evitando interrupciones innecesarias durante la interacción con los runners.
+
+La cuadrícula permite modificar dinámicamente su distribución mediante operaciones de adición o eliminación de columnas, así como división o unión de filas. Cuando una columna se elimina, las sesiones contenidas en ella se reubican automáticamente en otra celda disponible. Del mismo modo, al unir dos filas, las sesiones de la fila inferior se trasladan a la superior. Estas operaciones no interrumpen las conexiones abiertas, ya que únicamente se actualiza la posición lógica de la sesión dentro del estado de la interfaz.
+
+La comunicación con los entornos remotos se realiza mediante una API específica del backend. Esta API permite listar los runners disponibles y establecer canales WebSocket bidireccionales para cada sesión de terminal.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+% Cambiamos la última 'l' por 'p{7cm}' (puedes ajustar ese 7cm a lo que necesites)
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\ \hline
+\texttt{GET} & \texttt{/api/terminal/runners} & Lista los runners disponibles y sus sesiones activas \\ \hline
+\texttt{WebSocket} & \texttt{/api/terminal/ws/\{runner\_id\}} & Canal bidireccional de terminal con el runner seleccionado \\ \hline
+\end{tabular}
+\caption{Endpoints utilizados por la vista de runners con microcontroladores}
+\label{tab:api-runners-microcontroladores}
+\end{table}
+
+El canal WebSocket transporta los datos de entrada y salida del terminal entre el frontend y el backend. El backend actúa como intermediario entre el emulador de terminal del navegador y el proceso de shell ejecutado en el runner remoto. Esta arquitectura permite acceder de forma transparente tanto a runners alojados en Kubernetes como a runners autoalojados conectados a dispositivos ESP32, proporcionando una herramienta centralizada para la supervisión y depuración de entornos de ejecución heterogéneos.
+
+En conjunto, esta vista mejora la capacidad operativa de la plataforma al integrar el acceso a terminales remotos dentro del propio dashboard. Esto resulta especialmente útil en fases de desarrollo, validación y despliegue sobre hardware, donde la observabilidad directa del entorno de ejecución permite reducir tiempos de diagnóstico y facilita el control de runners especializados.
+
+
+
+% -----------------------------------------------------------------------------------------------
+% -----------------------------------------------------------------------------------------------
+\section{Vista de linaje}
+
+La vista de linaje permite consultar la trazabilidad del pipeline MLOps mediante una representación visual de las relaciones entre fases y variantes. Su objetivo es proporcionar al usuario una perspectiva histórica del flujo de ejecuciones, mostrando cómo cada variante generada se relaciona con sus variantes predecesoras. De esta forma, es posible analizar la procedencia de un resultado concreto y reconstruir el camino seguido por una variante a lo largo del pipeline.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista4Lineaje.png}
+    \caption{Vista de Linaje}
+    \label{fig:Vista4Lineaje}
+\end{figure}
+
+A diferencia de otras vistas de la plataforma, esta funcionalidad no reconstruye el grafo de trazabilidad directamente en el frontend. En su lugar, integra un informe HTML generado externamente por las herramientas de trazabilidad del repositorio de acciones. Esta decisión evita duplicar lógica en el dashboard y permite reutilizar los artefactos ya producidos por el propio flujo de trabajo. El informe se sirve como un recurso estático a través de la API del backend local y se embebe en la interfaz mediante un elemento \texttt{iframe}.
+
+Para mantener actualizado el contenido mostrado, el frontend consulta periódicamente el estado del informe de linaje. Esta consulta permite detectar cambios comparando el hash SHA del documento actual con el hash del último informe cargado. Cuando se identifica una modificación, la aplicación solicita la nueva versión del HTML y recarga el contenido embebido. El intervalo de actualización se define en el fichero de configuración mediante el parámetro \texttt{table\_refresh\_seconds}, lo que permite ajustar la frecuencia de refresco según las necesidades del despliegue.
+
+La vista también incorpora un mecanismo de refresco manual que permite al usuario forzar la actualización del informe sin esperar al siguiente ciclo automático. Durante este proceso se muestra un indicador de carga, facilitando la identificación del estado de la operación. Además, la interfaz presenta la marca temporal de la última actualización disponible, obtenida a partir del campo \texttt{updated\_at} proporcionado por el backend.
+
+Dado que el informe de linaje es generado por una herramienta externa, la vista implementa una adaptación visual al modo oscuro de la aplicación. Para ello, el frontend aplica estilos adicionales sobre el documento embebido, permitiendo mantener la legibilidad del contenido cuando cambia el tema de la interfaz. Esta adaptación evita la necesidad de generar versiones separadas del informe para cada modo visual.
+
+Desde el punto de vista funcional, la vista de linaje complementa a la vista de ejecuciones. Mientras que la vista de ejecuciones se centra en la gestión activa de los procesos, sus estados y su lanzamiento sobre distintos runners, la vista de linaje proporciona una visión acumulada de las dependencias generadas entre variantes. La relación entre una variante hija y su variante padre, definida durante el despacho mediante el campo \texttt{parent}, queda registrada como una conexión dentro del grafo.
+
+En conjunto, esta vista mejora la trazabilidad del sistema al permitir identificar el origen de cada resultado, revisar las dependencias entre fases y comprender cómo se han construido las distintas variantes del pipeline. Esto resulta especialmente útil en entornos MLOps, donde la reproducibilidad y la capacidad de auditar el ciclo de vida de los modelos son aspectos fundamentales.
+
+
+\section{Vista de variantes}
+
+La vista de variantes permite consultar el conjunto de variantes generadas por el pipeline MLOps, organizadas según la fase a la que pertenecen. Su objetivo es proporcionar una interfaz centralizada para inspeccionar los parámetros, métricas y artefactos asociados a cada ejecución completada, facilitando la comparación entre variantes sin necesidad de acceder manualmente al sistema de ficheros ni utilizar comandos DVC desde la terminal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista5Variantes.png}
+    \caption{Vista de Variantes}
+    \label{fig:Vista5Variantes}
+\end{figure}
+
+La interfaz se estructura mediante una pestaña por cada fase del pipeline. Estas fases se descubren automáticamente a partir del repositorio de ejecuciones, por lo que la aparición de nuevas fases no requiere modificar el frontend. Al seleccionar una fase, la aplicación carga una tabla con las variantes disponibles, mostrando sus identificadores, parámetros relevantes, resultados y estado de los artefactos locales.
+
+Las columnas de cada tabla se definen de forma dinámica a partir de un fichero de configuración. Esta configuración permite indicar qué campos deben mostrarse para cada fase, incluyendo columnas base, como el identificador de variante, y columnas derivadas de los ficheros \texttt{params.yaml} y \texttt{output.yaml}. De este modo, cada fase puede presentar únicamente la información relevante para su contexto, manteniendo una interfaz flexible y adaptable a la evolución del pipeline.
+
+Para mejorar el rendimiento de consulta, el backend indexa la información de las variantes en una base de datos SQLite. Esta indexación evita tener que recorrer y parsear los ficheros YAML en cada petición de la interfaz. El proceso se ejecuta al arrancar el backend y también puede lanzarse manualmente desde la vista mediante un botón de sincronización. Si una fase no dispone de configuración de tabla, la interfaz muestra un mensaje informativo sin afectar al funcionamiento del resto de fases. Del mismo modo, si una variante contiene ficheros ausentes o malformados, la fila correspondiente se marca con un indicador de advertencia, manteniendo visibles las variantes correctas de la misma tabla.
+
+La tabla incorpora distintos mecanismos de navegación y filtrado para facilitar el análisis de resultados. En primer lugar, las columnas pueden ordenarse haciendo clic sobre su cabecera, permitiendo alternar entre orden ascendente y descendente. En segundo lugar, cada columna dispone de un filtro individual que restringe las filas visibles según el valor introducido. Estos filtros se envían al backend como parámetros de consulta, por lo que la paginación se aplica siempre sobre el conjunto ya filtrado. Además, la vista incluye una búsqueda global sobre el identificador de variante.
+
+La interfaz también permite personalizar la visualización de columnas. Mediante un menú desplegable, el usuario puede mostrar u ocultar columnas derivadas según sus necesidades, mientras que las columnas base permanecen siempre visibles. Asimismo, las columnas pueden redimensionarse manualmente arrastrando sus bordes. Tanto la visibilidad como el ancho de las columnas se almacenan localmente por fase, permitiendo conservar la configuración entre sesiones.
+
+Un aspecto relevante de esta vista es la gestión de artefactos locales asociados a cada variante. La columna \texttt{Local} indica si los artefactos DVC de una variante están disponibles en el entorno local. Los posibles estados son \texttt{local}, cuando todos los artefactos están presentes; \texttt{partial}, cuando solo existe una parte; \texttt{not\_local}, cuando no hay artefactos disponibles; y \texttt{error}, cuando se produce algún problema durante la comprobación.
+
+Desde la propia tabla es posible descargar o eliminar artefactos locales. La descarga de una variante lanza una operación \texttt{dvc pull} desde el backend, mientras que la eliminación retira los artefactos locales asociados. Estas operaciones se gestionan mediante trabajos encolados, evitando la ejecución concurrente de múltiples operaciones DVC sobre el mismo repositorio. Durante la ejecución de un trabajo, la fila afectada muestra un indicador de progreso y deshabilita temporalmente sus acciones para evitar estados inconsistentes.
+
+La vista también soporta operaciones masivas sobre varias variantes seleccionadas. Cuando el usuario selecciona una o más filas, aparece una barra de acciones que permite descargar o eliminar los artefactos de varias variantes en una única operación. En el caso de las eliminaciones, se requiere confirmación explícita mediante una ventana modal, tanto para operaciones individuales como masivas, con el objetivo de evitar pérdidas accidentales de datos.
+
+Algunas variantes pueden incluir informes HTML generados durante su ejecución, como perfiles de datos, análisis exploratorios o visualizaciones de métricas. Cuando estos informes están disponibles, la vista los muestra mediante un icono en la columna correspondiente, permitiendo abrirlos directamente desde la tabla en una nueva pestaña del navegador.
+
+La vista de variantes se comunica con el backend mediante una API REST específica, encargada de listar fases, obtener la configuración de tablas, consultar variantes paginadas, gestionar artefactos locales y monitorizar trabajos DVC.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\ \hline
+\texttt{GET} & \texttt{/api/variants/phases} & Lista las fases disponibles del pipeline \\ \hline
+\texttt{GET} & \texttt{/api/variants/table-config/\{phase\}} & Obtiene la configuración de columnas para una fase \\ \hline
+\texttt{GET} & \texttt{/api/variants/rows} & Recupera filas paginadas con filtros y ordenación \\ \hline
+\texttt{POST} & \texttt{/api/variants/local/pull} & Encola la descarga DVC de una variante \\ \hline
+\texttt{POST} & \texttt{/api/variants/local/delete} & Encola la eliminación de artefactos locales \\ \hline
+\texttt{POST} & \texttt{/api/variants/sync} & Fuerza el reindexado de una fase en SQLite \\ \hline
+\texttt{GET} & \texttt{/api/variants/jobs/\{job\_id\}} & Consulta el estado de un trabajo DVC en curso \\ \hline
+\end{tabular}%
+}
+\caption{Endpoints utilizados por la vista de variantes}
+\label{tab:api-vista-variantes}
+\end{table}
+
+En conjunto, esta vista proporciona una herramienta de análisis y gestión sobre los resultados generados por el pipeline. Permite comparar variantes, revisar métricas, consultar parámetros de ejecución y controlar la disponibilidad local de artefactos, contribuyendo a mejorar la trazabilidad, reproducibilidad y mantenibilidad del sistema MLOps.
+
+
+
+\section{Servicios de Apoyo MLOps}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista6Servicios.png}
+    \caption{Vista temporal de compoentes}
+    \label{fig:appTemporal.png}
+\end{figure}
+
+
+\subsection{Aplicación de visualización temporal del dataset}
+
+
+La aplicación de visualización temporal del dataset constituye un servicio auxiliar desarrollado con Plotly Dash, cuyo objetivo es facilitar la inspección interactiva de las series temporales generadas durante las fases iniciales del pipeline MLOps. Esta herramienta permite analizar visualmente la evolución temporal de las variables de la microred Mesa del Sol, apoyando las tareas de exploración, validación de datos y preparación de eventos.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/appTemporal.png}
+    \caption{Vista temporal de compoentes}
+    \label{fig:appTemporal.png}
+\end{figure}
+
+
+La aplicación se despliega como un contenedor Docker a partir de la imagen \texttt{stehedor/mds\_temporal\_app\_mlops:v2}, exponiendo su interfaz web a través del puerto \texttt{8050}. Su integración con el flujo de trabajo se realiza mediante el acceso directo al directorio de ejecuciones del repositorio de acciones, montado como volumen dentro del contenedor. De este modo, la aplicación puede leer los artefactos generados por el pipeline sin requerir procesos adicionales de transferencia o duplicación de datos.
+
+La herramienta consume principalmente variantes procedentes de dos fases del pipeline. La primera corresponde a \texttt{f01\_explore}, donde cada variante contiene el dataset completo de la microred tras las tareas de limpieza y preprocesado, almacenado en el fichero \texttt{01\_explore\_dataset.parquet}. Los datasets de esta fase siguen una nomenclatura del tipo \texttt{MDS-Complete-vXXX}. La segunda corresponde a \texttt{f02\_events}, donde se generan datasets asociados a la preparación de saltos de evento. En este caso, las variantes compuestas combinan una variante de exploración con una variante de eventos, siguiendo el formato \texttt{MDS-COMPLETE-TvXXX-EvYYY}.
+
+La aplicación dispone de dos modos de funcionamiento, configurables mediante la variable de entorno \texttt{EPOCH\_MODE}. En el modo temporal, activado con \texttt{EPOCH\_MODE=false}, se representan las series temporales de los distintos componentes de medida sobre el eje temporal continuo del dataset. Este modo permite seleccionar desde la interfaz una variante de \texttt{f01\_explore} y visualizar la evolución de las variables disponibles, siendo especialmente útil para revisar la calidad del dataset tras el proceso de limpieza.
+
+El segundo modo corresponde al modo de salto de evento, activado mediante \texttt{EPOCH\_MODE=true}. En este caso, la visualización incorpora la información de eventos generada en la fase \texttt{f02\_events}. La interfaz permite seleccionar tanto variantes simples de exploración como variantes compuestas que integran datos temporales y eventos. Cuando un dataset compuesto se carga por primera vez, la aplicación realiza un procesado previo de la información de saltos de evento. El resultado se almacena en el directorio \texttt{epoch\_processed/}, permitiendo que cargas posteriores del mismo dataset se realicen de forma inmediata.
+
+Los datasets utilizados contienen medidas procedentes de los distintos equipos de la microred, incluyendo potencias activas de batería, generador, pila de combustible y sistema fotovoltaico, así como tensiones, frecuencias y temperaturas asociadas a la infraestructura eléctrica y térmica. En el modo de salto de evento, la aplicación identifica automáticamente la columna que contiene los eventos a partir de un conjunto de nombres canónicos definidos en la configuración, como \texttt{event}, \texttt{event\_id}, \texttt{evt}, \texttt{code} o \texttt{codigo\_evento}.
+
+El despliegue de la aplicación se gestiona mediante comandos definidos en el sistema de automatización del proyecto. Para iniciar el servicio se emplea el comando \texttt{make run\_temporal\_app VARIANT=<variante>} desde el directorio \texttt{services/}, que lanza el contenedor mediante Docker Compose con las variables de entorno necesarias. La detención del servicio se realiza mediante \texttt{make stop\_temporal\_app}. El contenedor se configura con recursos limitados, asignando hasta 6 GB de memoria y 2 núcleos de CPU, con el fin de soportar el procesamiento de datasets de gran tamaño sin comprometer el resto de servicios del entorno.
+
+En conjunto, esta aplicación proporciona una herramienta visual complementaria al pipeline MLOps, permitiendo inspeccionar de forma interactiva los datos temporales y los eventos generados durante las fases de preparación. Su integración mediante contenedores facilita su despliegue reproducible y permite utilizarla como apoyo en la validación de datos, detección visual de anomalías y análisis exploratorio de la microred.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+% Cambiamos la última 'l' por 'p{6.5cm}' para forzar el ancho y el salto de línea
+\begin{tabular}{|l|l|p{6.5cm}|}
+\hline
+\textbf{Modo} & \textbf{Variable de entorno} & \textbf{Uso principal} \\ \hline
+Temporal & \texttt{EPOCH\_MODE=false} & Visualización de series temporales de \texttt{f01\_explore} \\ \hline
+Salto de evento & \texttt{EPOCH\_MODE=true} & Visualización de datasets combinados con eventos de \texttt{f02\_events} \\ \hline
+\end{tabular}
+\caption{Modos de funcionamiento de la aplicación de visualización temporal}
+\label{tab:modos-visualizacion-temporal}
+\end{table}
+
+\section{Aplicación de visualización de ventanas}
+
+
+La aplicación de visualización de ventanas constituye un servicio auxiliar desarrollado con Plotly Dash, orientado al análisis interactivo de los datasets generados durante la fase \texttt{f03\_windows} del pipeline MLOps. Su objetivo es permitir la inspección de las secuencias de eventos contenidas en las ventanas de observación y predicción, facilitando la comprensión del comportamiento temporal de la microred antes de iniciar las fases de entrenamiento de modelos.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista6Servicios.png}
+    \caption{Vista aplicación de análisis de Ventanas}
+    \label{fig:appVentanas.png}
+\end{figure}
+
+
+La aplicación se despliega como un contenedor Docker a partir de la imagen \texttt{stehedor/mds\_windows\_app\_edge:v0}, exponiendo su interfaz web a través del puerto \texttt{8060}. Al igual que la aplicación de visualización temporal, este servicio accede a los artefactos generados por el pipeline mediante el directorio compartido de ejecuciones, evitando la duplicación de datos y permitiendo analizar directamente las variantes producidas por las fases anteriores.
+
+Cada variante de la fase \texttt{f03\_windows} genera un fichero Parquet denominado \texttt{03\_windows.parquet}, donde cada fila representa una ventana extraída a partir de la secuencia de eventos de la microred. Estas ventanas se dividen en dos partes principales: la ventana de observación y la ventana de predicción. La primera, almacenada en el campo \texttt{OW\_events}, contiene la secuencia de eventos históricos previa al instante de predicción. La segunda, almacenada en el campo \texttt{PW\_events}, representa la secuencia futura que el modelo deberá anticipar.
+
+La variante que se desea analizar se especifica durante el arranque del contenedor mediante la variable de entorno \texttt{WINDOW\_VERSION}, siguiendo el formato \texttt{vY\_XXXX}. Esta parametrización permite reutilizar la misma aplicación para inspeccionar distintas configuraciones de ventanas generadas por el pipeline.
+
+Una de las funcionalidades principales de la herramienta es la incorporación de un lenguaje de consulta orientado a la búsqueda de patrones en las ventanas. Las consultas se definen de forma independiente para la fuente, correspondiente a \texttt{OW\_events}, y para el destino, correspondiente a \texttt{PW\_events}. Esto permite filtrar ventanas según el comportamiento observado previamente y el comportamiento posterior asociado.
+
+El lenguaje de consulta soporta distintos tipos de operadores. En primer lugar, permite coincidencias exactas de secuencia, de forma que una consulta como \texttt{"475,511"} selecciona únicamente las ventanas cuya secuencia coincide exactamente con ambos eventos en ese orden. También incorpora comodines: el operador \texttt{*} representa cualquier número de eventos, mientras que \texttt{?} representa exactamente un evento cualquiera. De este modo, patrones como \texttt{"475,*"} permiten localizar ventanas que comienzan por un evento concreto, mientras que \texttt{"475,?,511"} selecciona aquellas que contienen un evento intermedio entre dos códigos determinados.
+
+Además, el lenguaje permite expresar condiciones de pertenencia mediante conjuntos. Por ejemplo, la sintaxis \texttt{\{511\}} selecciona ventanas que contienen el evento \texttt{511} en cualquier posición, mientras que \texttt{!\{511\}} excluye aquellas donde dicho evento aparece. También se admiten operadores booleanos, como \texttt{|} para combinar patrones alternativos y \texttt{\&} para imponer condiciones simultáneas. Esto permite construir consultas más expresivas, combinando restricciones de inicio, presencia o ausencia de eventos dentro de la secuencia.
+
+Para facilitar la interpretación de los códigos de evento, la aplicación permite utilizar alias de componentes mediante el prefijo \texttt{@}. Por ejemplo, un alias como \texttt{@Battery\_Active\_Power} puede utilizarse en lugar del código numérico asociado a dicho componente. Estos alias se definen en el fichero \texttt{components.yml}, donde cada componente se asocia además a un color y una descripción textual. Esta configuración permite relacionar las secuencias simbólicas de eventos con los componentes físicos de la microred, facilitando la interpretación de los resultados.
+
+Además de las consultas introducidas manualmente desde la interfaz, la aplicación permite ejecutar consultas en lote. Para ello, se utiliza el fichero \texttt{files\_output/multi\_requests\_file.yml}, que contiene una lista de pares \texttt{src}/\texttt{dst} con los patrones que se desean evaluar. Los resultados de cada consulta se almacenan en el directorio \texttt{files\_output/queries/}, permitiendo realizar análisis sistemáticos sobre el espacio de patrones de ventanas sin necesidad de interacción manual continua.
+
+La configuración de componentes se centraliza en el fichero \texttt{components.yml}. Cada entrada de este fichero define el nombre del componente, su color de representación en las gráficas y una descripción asociada. Esta separación entre lógica de consulta y configuración visual facilita la adaptación de la herramienta a nuevos conjuntos de eventos o componentes sin modificar el código principal de la aplicación.
+
+El despliegue del servicio se gestiona mediante comandos definidos en el sistema de automatización del proyecto. La aplicación se inicia mediante \texttt{make run\_windows\_app VARIANT=<variante>} desde el directorio \texttt{services/}, lo que invoca Docker Compose y pasa la variante seleccionada como variable \texttt{WINDOW\_VERSION}. La detención del servicio se realiza mediante \texttt{make stop\_windows\_app}. El contenedor dispone de una asignación máxima de 6 GB de memoria y 2 núcleos de CPU, permitiendo procesar datasets de ventanas de tamaño considerable manteniendo controlado el consumo de recursos.
+
+En conjunto, esta aplicación proporciona una herramienta complementaria para el análisis de patrones temporales antes del entrenamiento de modelos. Su uso permite inspeccionar las relaciones entre eventos pasados y futuros, validar la calidad de las ventanas generadas y detectar patrones relevantes en el comportamiento de la microred Mesa del Sol.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Operador} & \textbf{Ejemplo} & \textbf{Descripción} \\ \hline
+Coincidencia exacta & \texttt{"475,511"} & Selecciona secuencias que coinciden exactamente con el patrón indicado \\ \hline
+Comodín múltiple & \texttt{"475,*"} & Selecciona secuencias que comienzan por \texttt{475} y continúan con cualquier número de eventos \\ \hline
+Comodín simple & \texttt{"475,?,511"} & Selecciona secuencias con un único evento cualquiera entre \texttt{475} y \texttt{511} \\ \hline
+Pertenencia & \texttt{\{511\}} & Selecciona secuencias que contienen el evento \texttt{511} en cualquier posición \\ \hline
+Negación & \texttt{!\{511\}} & Excluye secuencias que contienen el evento \texttt{511} \\ \hline
+OR lógico & \texttt{"475 | 612"} & Selecciona secuencias que cumplen cualquiera de los patrones indicados \\ \hline
+AND lógico & \texttt{"475,* \& \{612\}"} & Selecciona secuencias que cumplen simultáneamente ambas condiciones \\ \hline
+Alias de componente & \texttt{@Battery\_Active\_Power} & Sustituye el código numérico por el nombre del componente asociado \\ \hline
+\end{tabular}%
+}
+\caption{Operadores del lenguaje de consulta de la aplicación de visualización de ventanas}
+\label{tab:operadores-consulta-ventanas}
+\end{table}
+
+\section{Implementación en la plataforma de gestión y ejecución}
+\begin{draftidea}[Implementación en la Plataforma]
+\begin{itemize}
+    \item % TODO: Describir a nivel técnico cómo se integran estos servicios de apoyo en la plataforma principal
+\end{itemize}
+\end{draftidea}
+
+
+Las aplicaciones de visualización descritas en los apartados anteriores se integran dentro de la plataforma principal mediante una vista específica denominada vista de servicios. Esta vista permite arrancar, detener y acceder a los servicios auxiliares directamente desde el dashboard, evitando que el usuario tenga que interactuar manualmente con la línea de comandos, los ficheros de Docker Compose o las variables de entorno necesarias para cada aplicación.
+
+La integración de estos servicios se basa en un registro centralizado definido en el fichero \texttt{config/services\_external\_ctrl.yaml}. Este fichero actúa como punto único de configuración para declarar los servicios auxiliares disponibles en la plataforma. Para cada servicio se especifica su identificador, el puerto en el que expone su interfaz, las fases del pipeline cuyas variantes son relevantes, los comandos \texttt{make} disponibles para su control y la variable de entorno utilizada para indicar la variante que debe cargarse al iniciar el contenedor.
+
+Además, la configuración permite definir el formato en el que debe pasarse la variante al servicio. En algunos casos, como la aplicación de visualización de ventanas, el identificador de variante se utiliza directamente. En otros, como la aplicación temporal en modo de salto de evento, es necesario construir un identificador compuesto a partir de la variante padre y la variante hija. Esta separación entre configuración y código permite añadir nuevos servicios o modificar los existentes sin realizar cambios en la lógica del backend ni del frontend.
+
+El backend proporciona una API REST específica para gestionar estos servicios. A través de ella, la interfaz puede listar los servicios registrados, comprobar si se encuentran activos y ejecutar comandos de control, como el arranque o la detención de un servicio. La comprobación de estado se realiza mediante una petición HTTP al puerto configurado para cada aplicación, considerando activo el servicio cuando responde correctamente. Por su parte, la ejecución de comandos se lleva a cabo desde el directorio \texttt{services/}, invocando los objetivos \texttt{make} correspondientes junto con las variables de entorno indicadas desde la interfaz.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{6.5cm}|}
+\hline
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\ \hline
+\texttt{GET} & \texttt{/api/services} & Lista todos los servicios auxiliares registrados \\ \hline
+\texttt{GET} & \texttt{/api/services/\{id\}/status} & Comprueba si el servicio indicado se encuentra activo \\ \hline
+\texttt{POST} & \texttt{/api/services/\{id\}/command} & Ejecuta un comando \texttt{make} sobre el servicio seleccionado \\ \hline
+\end{tabular}
+\caption{Endpoints utilizados por la vista de servicios}
+\label{tab:api-vista-servicios}
+\end{table}
+
+La vista de servicios se organiza en dos zonas principales. En la barra lateral izquierda se muestra la lista de servicios registrados, junto con su estado de actividad y el puerto asignado. Cuando un servicio se encuentra activo, la interfaz muestra además un enlace directo para abrir su aplicación web en el navegador. El estado de cada servicio se actualiza de forma periódica, permitiendo reflejar cambios de disponibilidad sin intervención del usuario.
+
+La zona principal contiene el panel de control del servicio seleccionado. Este panel muestra las fases asociadas al servicio y las variantes disponibles en cada una de ellas. Para cada variante se indica también el estado de presencia local de sus artefactos DVC, distinguiendo entre artefactos presentes, parcialmente presentes, ausentes o con error. Desde este mismo panel, el usuario puede arrancar el servicio utilizando una variante concreta como entrada.
+
+El flujo de arranque incorpora una comprobación previa sobre la disponibilidad de los artefactos necesarios. Cuando el usuario selecciona una variante, la plataforma verifica si sus artefactos DVC están disponibles localmente. Si no lo están, se inicia automáticamente una descarga mediante el endpoint de gestión de variantes, mostrando un indicador de progreso hasta completar la operación. Una vez confirmada la presencia local de los datos, la vista invoca el endpoint de control de servicios para ejecutar el comando de arranque correspondiente.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{capitulos//cap5-plataforma//images/vista6Servicios.png}
+    \caption{Vista Selección VarianteServicio Temporal}
+    \label{fig:VistaSelecciónVarianteServicioTemporal.png}
+\end{figure}
+
+
+En el caso de la aplicación temporal en modo de salto de evento, la plataforma construye automáticamente el identificador compuesto necesario para el contenedor, combinando la variante padre y la variante de eventos. De este modo, el servicio recibe directamente el nombre del dataset combinado que debe cargar. Para la aplicación de visualización de ventanas, en cambio, la variante se transmite sin transformación, ya que el servicio acepta directamente el identificador en el formato generado por el pipeline.
+
+
+
+La vista mantiene el estado del servicio activo y la variante en ejecución en almacenamiento local del navegador. Esto permite conservar la información entre cambios de pestaña o recargas de la página. Si la plataforma detecta que un servicio previamente activo ha sido detenido, se limpia automáticamente el estado asociado a la variante en ejecución, evitando mostrar información desactualizada.
+
+En conjunto, esta integración permite gestionar los servicios auxiliares de análisis desde la misma plataforma utilizada para controlar el pipeline MLOps. Con ello se reduce la complejidad operativa, se facilita el acceso a herramientas de visualización y se mantiene una experiencia de uso unificada para el lanzamiento, consulta y análisis de variantes generadas por el sistema.
+
