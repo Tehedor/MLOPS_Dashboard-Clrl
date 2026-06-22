@@ -307,7 +307,7 @@ export default function Linaje() {
             <span>{syncing ? 'Escaneando variantes…' : 'Sin datos — pulsa Sync para escanear'}</span>
           </div>
         ) : (
-          <LineageGraph registry={registry} phasesConfig={phasesConfig} mode={viewMode.id} filterText={filterText} dateStart={dateStart} dateEnd={dateEnd} />
+          <LineageGraph registry={registry} phasesConfig={phasesConfig} mode={viewMode.id} filterText={filterText} dateStart={dateStart} dateEnd={dateEnd} pipelineId={pipelineId} pipelineRepo={projects.find(p => p.id === pipelineId)?.repo} />
         )}
       </div>
     </div>

@@ -1,8 +1,11 @@
 import asyncio
 import json
 import logging
+import os
 import shlex
 import shutil
+import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +14,10 @@ from typing import Optional
 import aiosqlite
 import yaml
 
-from app.core.config import load_app_config, PROJECT_ROOT, settings, get_pipeline_project, load_pipelines_config, resolve_pipeline_config_path
+from app.core.config import (
+    load_app_config, PROJECT_ROOT, settings, get_pipeline_project, get_pipeline_token,
+    load_pipelines_config, resolve_pipeline_config_path,
+)
 from app.core.db import DB_PATH
 
 log = logging.getLogger(__name__)
@@ -208,6 +214,22 @@ async def sync_phase(phase_id: str, pipeline_id: str) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         for row in rows:
             await db.execute(_UPSERT, row)
+        # Prune rows for variants no longer present on disk — without this, a
+        # folder removed by any path other than _run_variant_delete (a failed
+        # delete, or repo_sync_service's reset --hard after an upstream change)
+        # leaves a permanent ghost row that sync can never clear.
+        if variants:
+            placeholders = ",".join("?" * len(variants))
+            await db.execute(
+                f"DELETE FROM execution_variants WHERE pipeline_id = ? AND phase = ? "
+                f"AND variant NOT IN ({placeholders})",
+                [pipeline_id, phase_id, *variants],
+            )
+        else:
+            await db.execute(
+                "DELETE FROM execution_variants WHERE pipeline_id = ? AND phase = ?",
+                (pipeline_id, phase_id),
+            )
         await db.commit()
     return len(rows)
 
@@ -451,11 +473,119 @@ async def _run_delete(phase: str, variant: str, pipeline_id: str) -> None:
             log.warning("Delete error %s: %s", dvc_file, e)
 
 
+async def _sh(cmd: str, cwd: Path, env: Optional[dict] = None) -> tuple[int, str, str]:
+    proc = await asyncio.create_subprocess_shell(
+        cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        cwd=str(cwd), env=env,
+    )
+    out, err = await proc.communicate()
+    return proc.returncode, out.decode(errors="replace"), err.decode(errors="replace")
+
+
+async def _delete_variant_via_pr(phase: str, variant: str, pipeline_id: str) -> None:
+    """Remove a variant from the upstream repo via branch + PR + squash-merge.
+
+    A plain rmtree() on the local mirror clone (external/.../repo_actions) never
+    reaches GitHub — repo_sync_service periodically does `git reset --hard
+    origin/{branch}` on that same clone, which would silently resurrect the
+    "deleted" variant the next time anything else changes upstream. This uses
+    an isolated temp clone (mirroring local_runner_service._publish_pr) so the
+    deletion is actually committed, pushed and merged, and so it doesn't race
+    with repo_sync_service's background polling on the shared mirror clone.
+    """
+    proj = get_pipeline_project(pipeline_id)
+    repo = proj["repo"]
+    base = proj.get("branch", "main")
+    token = get_pipeline_token(pipeline_id)
+    rel_path = f"executions/{phase}/{variant}"
+
+    env = {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}
+    repo_url = f"https://x-access-token:{token}@github.com/{repo}.git"
+
+    tmp = Path(tempfile.mkdtemp(prefix="variant-delete-"))
+    try:
+        rc, _, err = await _sh(
+            f"git clone --branch {shlex.quote(base)} --single-branch --depth 1 "
+            f"{shlex.quote(repo_url)} .",
+            tmp, env,
+        )
+        if rc != 0:
+            raise RuntimeError(f"clone failed: {err[:500]}")
+
+        for cmd in [
+            'git config user.name "mlops-dashboard[bot]"',
+            'git config user.email "mlops-dashboard[bot]@local"',
+        ]:
+            await _sh(cmd, tmp, env)
+
+        branch = f"mlops/delete-{phase}-{variant}-{int(time.time())}"
+        rc, _, err = await _sh(f"git checkout -b {shlex.quote(branch)}", tmp, env)
+        if rc != 0:
+            raise RuntimeError(f"checkout -b failed: {err[:500]}")
+
+        await _sh(f"git rm -r --ignore-unmatch -- {shlex.quote(rel_path)}", tmp, env)
+
+        rc, _, _ = await _sh("git diff --cached --quiet", tmp, env)
+        if rc == 0:
+            log.info("Nothing to delete upstream for %s/%s/%s (local-only variant)", pipeline_id, phase, variant)
+            return
+
+        msg = f"Delete variant {phase}/{variant}"
+        rc, _, err = await _sh(f"git commit -m {shlex.quote(msg)}", tmp, env)
+        if rc != 0:
+            raise RuntimeError(f"commit failed: {err[:500]}")
+
+        pushed = False
+        for attempt in range(1, 4):
+            rc, _, err = await _sh(f"git push origin {shlex.quote(branch)}", tmp, env)
+            if rc == 0:
+                pushed = True
+                break
+            await asyncio.sleep(attempt * 3)
+        if not pushed:
+            raise RuntimeError(f"push failed: {err[:500]}")
+
+        pr_title = f"Delete variant {phase}/{variant}"
+        pr_body = f"PR automática para eliminar la variante **{variant}** de la fase **{phase}**."
+        rc, out, err = await _sh(
+            f'gh api -X POST repos/{repo}/pulls '
+            f'-f title={shlex.quote(pr_title)} -f body={shlex.quote(pr_body)} '
+            f'-f base={shlex.quote(base)} -f head={shlex.quote(branch)} --jq ".number"',
+            tmp, env,
+        )
+        pr_number = out.strip()
+        if rc != 0 or not pr_number:
+            raise RuntimeError(f"PR creation failed: {err[:500]}")
+
+        merged = False
+        for attempt in range(1, 6):
+            rc, _, err = await _sh(
+                f"gh pr merge {pr_number} --squash --delete-branch --repo {repo}", tmp, env,
+            )
+            if rc == 0:
+                merged = True
+                break
+            await asyncio.sleep(attempt * 3)
+        if not merged:
+            raise RuntimeError(f"PR #{pr_number} merge failed: {err[:500]}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 async def _run_variant_delete(phase: str, variant: str, pipeline_id: str) -> None:
+    """Delete a variant. Doesn't require the local mirror folder to still
+    exist — it may already be gone (a previously-failed delete that removed
+    the folder but errored before clearing the DB row, or a reset --hard that
+    picked up someone else's deletion). Always attempts the upstream removal
+    and always clears the DB row, so retrying on a "ghost" row recovers it
+    instead of permanently failing with "Variant not found"."""
     variant_path = _executions_root(pipeline_id) / phase / variant
-    if not variant_path.exists():
-        raise RuntimeError(f"Variant not found: {variant_path}")
-    shutil.rmtree(variant_path)
+
+    await _delete_variant_via_pr(phase, variant, pipeline_id)
+
+    if variant_path.exists():
+        shutil.rmtree(variant_path)
+
     variant_id = f"{pipeline_id}/{phase}/{variant}"
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM execution_variants WHERE id = ?", (variant_id,))

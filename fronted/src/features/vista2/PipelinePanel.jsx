@@ -172,7 +172,7 @@ function phaseNum(fase) {
   return m ? parseInt(m[1]) : 99
 }
 
-export default function PipelinePanel({ executions, filterVariant, filterFase, filterPipeline, selectedId, onSelect, pipelineProjects = {} }) {
+export default function PipelinePanel({ executions, filterVariant, filterFase, filterPipeline, filterRunner, selectedId, onSelect, pipelineProjects = {} }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -228,6 +228,7 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
     .filter(e => !filterVariant  || e.variant.includes(filterVariant))
     .filter(e => !filterFase     || e.fase === filterFase)
     .filter(e => !filterPipeline || e.pipeline_id === filterPipeline)
+    .filter(e => !filterRunner   || e.runner === filterRunner)
     .slice()
     .sort((a, b) => {
       // Status has priority when active
@@ -435,7 +436,7 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
           </div>
           <ParamsChips params={ex.params} />
           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
-            <span>{ex.created_at.slice(0, 19).replace('T', ' ')}</span>
+            <span>{new Date(ex.created_at).toLocaleString()}</span>
             {ex.status === 'running' && ex.started_at && (
               <span className="flex items-center gap-1">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

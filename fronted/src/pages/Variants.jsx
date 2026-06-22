@@ -392,6 +392,37 @@ function BulkActionBar({ selected, rows, onPull, onDelete, onClear, progress }) 
   )
 }
 
+// ── Repo-delete selection bar ──────────────────────────────────────────────────
+
+function RepoDeleteBar({ count, onDeleteClick, onCancel, progress }) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-1.5 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800 text-xs shrink-0">
+      <span className="font-medium text-red-700 dark:text-red-300">
+        Selecciona variantes a eliminar del repositorio — {count} seleccionada{count !== 1 ? 's' : ''}
+      </span>
+
+      {progress ? (
+        <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+          <Spinner />
+          Eliminando {progress.done}/{progress.total}…
+        </span>
+      ) : (
+        <button
+          onClick={onDeleteClick}
+          disabled={count === 0}
+          className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          🗑 Eliminar del repositorio {count > 0 && `(${count})`}
+        </button>
+      )}
+
+      <button onClick={onCancel} className="ml-auto text-red-400 hover:text-red-600 dark:hover:text-red-300">
+        Cancelar selección ✕
+      </button>
+    </div>
+  )
+}
+
 // ── Filter popper ─────────────────────────────────────────────────────────────
 
 function FilterPopper({ colKey, value, onChange, onClose }) {
@@ -493,6 +524,14 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   const [bulkProgress, setBulkProgress] = useState(null)
   const bulkPollRef = useRef(null)
   useEffect(() => () => clearInterval(bulkPollRef.current), [])
+
+  // Repo-delete checkbox mode — toggled from the trash icon in the header
+  const [delMode, setDelMode]                 = useState(false)
+  const [delSelected, setDelSelected]         = useState(new Set())
+  const [delBulkConfirm, setDelBulkConfirm]   = useState(false)
+  const [delBulkProgress, setDelBulkProgress] = useState(null)
+  const delBulkPollRef = useRef(null)
+  useEffect(() => () => clearInterval(delBulkPollRef.current), [])
 
   const [colWidths, setColWidths] = useState(() => {
     try { const s = localStorage.getItem(LS_WIDTHS_KEY(phase)); if (s) return JSON.parse(s) } catch {}
@@ -605,6 +644,21 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
     })
   }
 
+  function toggleDelRow(variant) {
+    setDelSelected(prev => {
+      const next = new Set(prev)
+      next.has(variant) ? next.delete(variant) : next.add(variant)
+      return next
+    })
+  }
+
+  function toggleDelMode() {
+    setDelMode(prev => {
+      if (prev) setDelSelected(new Set())
+      return !prev
+    })
+  }
+
   // ── Bulk operations ─────────────────────────────────────────────────────────
 
   async function handleBulkPull() {
@@ -666,6 +720,40 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
     setSelected(new Set())
   }
 
+  async function handleDelBulkConfirmed() {
+    setDelBulkConfirm(false)
+    const targets = (data?.rows || []).filter(r => delSelected.has(r.variant))
+    if (!targets.length) return
+    setDelBulkProgress({ done: 0, total: targets.length })
+    const jobMap = new Map()
+    await Promise.all(targets.map(async row => {
+      try {
+        const { job_id } = await deleteVariantRepo(phase, row.variant, pipelineId)
+        jobMap.set(row.variant, job_id)
+      } catch {
+        setDelBulkProgress(p => p && { ...p, done: p.done + 1 })
+      }
+    }))
+    clearInterval(delBulkPollRef.current)
+    delBulkPollRef.current = setInterval(async () => {
+      if (!jobMap.size) { _finishDelBulk(); return }
+      for (const [variant, jobId] of [...jobMap]) {
+        const job = await getJob(jobId)
+        if (job.status === 'done' || job.status === 'failed') jobMap.delete(variant)
+      }
+      setDelBulkProgress(p => p && { ...p, done: targets.length - jobMap.size })
+      if (!jobMap.size) _finishDelBulk()
+    }, 1500)
+  }
+
+  function _finishDelBulk() {
+    clearInterval(delBulkPollRef.current)
+    refreshRows()
+    setDelBulkProgress(null)
+    setDelSelected(new Set())
+    setDelMode(false)
+  }
+
   // ────────────────────────────────────────────────────────────────────────────
 
   if (cfgError) {
@@ -704,6 +792,44 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
           onClear={() => setSelected(new Set())}
           progress={bulkProgress}
         />
+      )}
+
+      {/* Repo-delete checkbox-mode bar */}
+      {delMode && (
+        <RepoDeleteBar
+          count={delSelected.size}
+          onDeleteClick={() => setDelBulkConfirm(true)}
+          onCancel={toggleDelMode}
+          progress={delBulkProgress}
+        />
+      )}
+
+      {/* Repo-delete bulk confirm modal */}
+      {delBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-5 shadow-xl max-w-sm w-full mx-4">
+            <p className="text-sm mb-1 text-gray-900 dark:text-gray-100">
+              ¿Eliminar <strong>{pageRows.filter(r => delSelected.has(r.variant)).length}</strong> variante(s) del repositorio?
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Se eliminarán todos los archivos (params, outputs, artefactos) vía PR en el repositorio remoto. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDelBulkConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelBulkConfirmed}
+                className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bulk delete confirm modal */}
@@ -784,11 +910,14 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
                 <th
                   style={{ backgroundColor: 'rgb(209 213 219)', width: DEL_COL_W }}
                   className="px-1 py-1.5 text-center font-semibold text-gray-800 dark:text-gray-100 border-b-2 border-gray-300 dark:border-gray-600"
-                  title="Eliminar variante"
+                  title={delMode ? 'Cancelar selección' : 'Seleccionar variantes para eliminar del repositorio'}
                 >
-                  <span className="flex items-center justify-center text-gray-400">
-                    <TrashIcon />
-                  </span>
+                  <button
+                    onClick={toggleDelMode}
+                    className={`flex items-center justify-center w-full ${delMode ? 'text-red-600' : 'text-gray-400 hover:text-red-600'}`}
+                  >
+                    {delMode ? <span className="text-xs font-bold leading-none">✕</span> : <TrashIcon />}
+                  </button>
                 </th>
                 {cols.map(col => (
                   <th
@@ -857,12 +986,24 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
                   }`}
                 >
                   <td className="px-1 py-1">
-                    <DeleteVariantBtn
-                      row={row}
-                      phase={phase}
-                      pipelineId={pipelineId}
-                      onDeleted={refreshRows}
-                    />
+                    {delMode ? (
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={delSelected.has(row.variant)}
+                          onChange={() => toggleDelRow(row.variant)}
+                          className="cursor-pointer"
+                          title="Seleccionar para eliminar del repositorio"
+                        />
+                      </div>
+                    ) : (
+                      <DeleteVariantBtn
+                        row={row}
+                        phase={phase}
+                        pipelineId={pipelineId}
+                        onDeleted={refreshRows}
+                      />
+                    )}
                   </td>
                   {cols.map(col => (
                     <td key={col.key} style={col.color ? { backgroundColor: col.color + '18' } : {}} className="px-2 py-1 text-gray-800 dark:text-gray-200">
@@ -989,7 +1130,7 @@ export default function Variants() {
   return (
     <div className="flex flex-col h-full">
       {/* Pipeline selector + phase tabs row */}
-      <div className="flex items-center gap-0.5 px-3 pt-2 border-b border-gray-200 dark:border-gray-800 shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-3 pt-2 border-b border-gray-200 dark:border-gray-800 shrink-0">
 
         {/* Pipeline dropdown — only shown when more than one project */}
         {projects.length > 1 && (
@@ -1003,25 +1144,27 @@ export default function Variants() {
           </div>
         )}
 
-        {isLoading ? (
-          <span className="flex items-center gap-1 text-xs text-gray-400 italic">
-            <Spinner /> Cargando fases…
-          </span>
-        ) : (
-          phases.map(phase => (
-            <button
-              key={phase}
-              onClick={() => setActivePhase(phase)}
-              className={`px-3 py-1.5 text-xs rounded-t font-medium whitespace-nowrap transition-colors ${
-                activePhase === phase
-                  ? 'bg-white dark:bg-gray-900 border border-b-white dark:border-gray-700 dark:border-b-gray-900 text-gray-900 dark:text-gray-100 -mb-px'
-                  : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
-              }`}
-            >
-              {phase}
-            </button>
-          ))
-        )}
+        <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
+          {isLoading ? (
+            <span className="flex items-center gap-1 text-xs text-gray-400 italic">
+              <Spinner /> Cargando fases…
+            </span>
+          ) : (
+            phases.map(phase => (
+              <button
+                key={phase}
+                onClick={() => setActivePhase(phase)}
+                className={`px-3 py-1.5 text-xs rounded-t font-medium whitespace-nowrap transition-colors ${
+                  activePhase === phase
+                    ? 'bg-white dark:bg-gray-900 border border-b-white dark:border-gray-700 dark:border-b-gray-900 text-gray-900 dark:text-gray-100 -mb-px'
+                    : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                {phase}
+              </button>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Table area — min-h-0 prevents flex child from growing beyond bounds

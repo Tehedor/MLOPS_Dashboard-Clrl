@@ -214,6 +214,16 @@ async def stream_executions():
     return StreamingResponse(generator(), media_type="text/event-stream")
 
 
+@router.get("/variant-last-run")
+async def variant_last_run(
+    pipeline_id: str = Query(...),
+    fase: str = Query(...),
+    variant: str = Query(...),
+):
+    gh_run_id = await _service.get_latest_run_id(pipeline_id, fase, variant)
+    return {"gh_run_id": gh_run_id}
+
+
 @router.get("/{execution_id}", response_model=Execution)
 async def get_execution(execution_id: str):
     ex = await _service.get(execution_id)

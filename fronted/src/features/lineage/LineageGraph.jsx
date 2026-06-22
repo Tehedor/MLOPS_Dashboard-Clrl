@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { getVariantLastRun } from '../../api/executions'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -149,11 +150,15 @@ function DetailCard({ node, phaseColor, highlighted, faded, onClick, onMouseEnte
 
 function EdgeLayer({ edges, containerRef, highlightedFamily }) {
   const [paths, setPaths] = useState([])
+  const [svgSize, setSvgSize] = useState({ w: 0, h: 0 })
 
   const recalc = useCallback(() => {
     const container = containerRef.current
     if (!container) return
     const cRect = container.getBoundingClientRect()
+    const scrollL = container.scrollLeft
+    const scrollT = container.scrollTop
+    setSvgSize({ w: container.scrollWidth, h: container.scrollHeight })
     const newPaths = []
     for (const { sourceId, targetId } of edges) {
       const src = container.querySelector(`[data-node-id="${sourceId}"]`)
@@ -161,10 +166,10 @@ function EdgeLayer({ edges, containerRef, highlightedFamily }) {
       if (!src || !tgt) continue
       const sRect = src.getBoundingClientRect()
       const tRect = tgt.getBoundingClientRect()
-      const x1 = sRect.right  - cRect.left
-      const y1 = sRect.top + sRect.height / 2 - cRect.top
-      const x2 = tRect.left   - cRect.left
-      const y2 = tRect.top + tRect.height / 2 - cRect.top
+      const x1 = sRect.right  - cRect.left + scrollL
+      const y1 = sRect.top + sRect.height / 2 - cRect.top + scrollT
+      const x2 = tRect.left   - cRect.left + scrollL
+      const y2 = tRect.top + tRect.height / 2 - cRect.top + scrollT
       const cx = (x1 + x2) / 2
       newPaths.push({ sourceId, targetId, d: `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}` })
     }
@@ -178,15 +183,8 @@ function EdgeLayer({ edges, containerRef, highlightedFamily }) {
     return () => ro.disconnect()
   }, [recalc])
 
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    el.addEventListener('scroll', recalc)
-    return () => el.removeEventListener('scroll', recalc)
-  }, [recalc, containerRef])
-
   return (
-    <svg style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
+    <svg style={{ position: 'absolute', top: 0, left: 0, width: svgSize.w || '100%', height: svgSize.h || '100%', pointerEvents: 'none' }}>
       {paths.map(({ sourceId, targetId, d }) => {
         const isHighlighted = highlightedFamily.has(sourceId) && highlightedFamily.has(targetId)
         const isFaded = highlightedFamily.size > 0 && !isHighlighted
@@ -291,13 +289,25 @@ function DetailSection({ title, data }) {
   )
 }
 
-function DetailPanel({ node, onClose }) {
+function DetailPanel({ node, onClose, pipelineId, pipelineRepo }) {
   const [visibleSections, setVisibleSections] = useState(loadVisibleSections)
+  const [ghRunId, setGhRunId] = useState(null)
+  const [loadingRun, setLoadingRun] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem('linaje_panel_sections', JSON.stringify([...visibleSections])) }
     catch { /* ignore */ }
   }, [visibleSections])
+
+  useEffect(() => {
+    if (!node || !pipelineId) { setGhRunId(null); return }
+    setLoadingRun(true)
+    setGhRunId(null)
+    getVariantLastRun(pipelineId, node.fase, node.id)
+      .then(r => setGhRunId(r.gh_run_id ?? null))
+      .catch(() => setGhRunId(null))
+      .finally(() => setLoadingRun(false))
+  }, [node?.fase, node?.id, pipelineId])
 
   if (!node) return null
 
@@ -314,6 +324,10 @@ function DetailPanel({ node, onClose }) {
     }).filter(([, v]) => v !== undefined)
   )
 
+  const runUrl = ghRunId && pipelineRepo
+    ? `https://github.com/${pipelineRepo}/actions/runs/${ghRunId}`
+    : null
+
   return (
     <div className="detail-panel">
       {/* Header */}
@@ -326,6 +340,32 @@ function DetailPanel({ node, onClose }) {
         <button className="detail-panel__close" onClick={onClose} title="Cerrar">✕</button>
       </div>
       <div className="detail-panel__fase">{node.fase}</div>
+
+      {/* GitHub Actions link */}
+      {loadingRun && (
+        <div className="detail-panel__gh-link detail-panel__gh-link--loading">
+          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+          </svg>
+        </div>
+      )}
+      {!loadingRun && runUrl && (
+        <a
+          href={runUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="detail-panel__gh-link"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>GitHub Run #{ghRunId}</span>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3.5 1.5h7v7M10.5 1.5L1.5 10.5"/>
+          </svg>
+        </a>
+      )}
 
       {/* Sections */}
       <div className="detail-panel__sections">
@@ -413,7 +453,7 @@ function computeVisibleKeys(filterText, dateStart, dateEnd, variants, edges) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LineageGraph({ registry, phasesConfig, mode = 'compact', filterText = '', dateStart = null, dateEnd = null }) {
+export default function LineageGraph({ registry, phasesConfig, mode = 'compact', filterText = '', dateStart = null, dateEnd = null, pipelineId = null, pipelineRepo = null }) {
   const containerRef  = useRef(null)
   const [hoveredKey,   setHoveredKey]   = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
@@ -533,7 +573,7 @@ export default function LineageGraph({ registry, phasesConfig, mode = 'compact',
         <EdgeLayer edges={edges} containerRef={containerRef} highlightedFamily={highlightedFamily} />
       </div>
 
-      {selectedNode && <DetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} />}
+      {selectedNode && <DetailPanel node={selectedNode} onClose={() => setSelectedNode(null)} pipelineId={pipelineId} pipelineRepo={pipelineRepo} />}
     </div>
   )
 }

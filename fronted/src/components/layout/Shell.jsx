@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import pipelinesConfig from '@pipelinesConfig'
+import runnersConfig from '@phasesRunner'
 
 const _allProjects = Object.entries(pipelinesConfig?.pipelines ?? {})
 
@@ -149,6 +150,16 @@ export default function Shell({ children }) {
         <NavDropdown label="DagsHub" urlFn={(p) => p.dagshub_repository ?? null} />
         <NavDropdown label="MLFlow" urlFn={(p) => p.mlflow_tracking_uri ?? null} />
         <NavDropdown label="GitHub Actions" urlFn={(p) => p.repo ? `https://github.com/${p.repo}` : null} />
+        {runnersConfig?.url_ctrl_runners && (
+          <a
+            href={runnersConfig.url_ctrl_runners}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs transition-colors flex items-center gap-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300"
+          >
+            GH Runners →
+          </a>
+        )}
       </header>
       <main className="flex-1 overflow-hidden">{children}</main>
     </div>

@@ -7,6 +7,19 @@ function phaseNum(phaseId) {
   return parseInt(phaseId.match(/^f(\d+)/)?.[1] ?? '1')
 }
 
+function variantNum(variant) {
+  return parseInt(variant?.match(/_(\d+)$/)?.[1] ?? '0', 10)
+}
+
+// Phase asc, then variant asc — so a batch sent "de golpe" reaches the backend
+// (and is created/queued) in dependency-friendly order: earlier phases and
+// lower-numbered variants first.
+function byPriority(a, b) {
+  const pa = phaseNum(a.fase), pb = phaseNum(b.fase)
+  if (pa !== pb) return pa - pb
+  return variantNum(a.variant) - variantNum(b.variant)
+}
+
 function nextVariant(phaseId, existing = []) {
   const n      = phaseNum(phaseId)
   const prefix = `v${n}_`
@@ -191,17 +204,23 @@ export default function BatchPanel({ phases, executions, onWarnings, pipelineId,
     setIsPending(true)
     setSubmitResults(null)
 
-    const settled = await Promise.allSettled(
-      parsed.entries.map(entry => createExecution({ pipeline_id: pipelineId, ...entry }))
-    )
+    // Submitted sequentially (not Promise.all) and pre-sorted by phase/variant so the
+    // created_at order in the DB matches the intended dispatch priority — the backend's
+    // runner-slot queue is FIFO by created_at, so insertion order here is what decides
+    // who goes first when several executions compete for the same runner.
+    const ordered = [...parsed.entries].sort(byPriority)
 
     const ok     = []
     const errors = {}
-    settled.forEach((r, i) => {
-      const key = `${parsed.entries[i].fase} / ${parsed.entries[i].variant}`
-      if (r.status === 'fulfilled') ok.push(key)
-      else errors[key] = r.reason?.message ?? 'Error'
-    })
+    for (const entry of ordered) {
+      const key = `${entry.fase} / ${entry.variant}`
+      try {
+        await createExecution({ pipeline_id: pipelineId, ...entry })
+        ok.push(key)
+      } catch (err) {
+        errors[key] = err?.message ?? 'Error'
+      }
+    }
 
     if (ok.length > 0) qc.invalidateQueries({ queryKey: ['executions'] })
     setSubmitResults({ ok, errors })

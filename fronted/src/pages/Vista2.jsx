@@ -54,17 +54,32 @@ export default function Vista2() {
   }, [activePipelineId])
 
   // ── Pipeline filter for mid/right panels ──────────────────────────────────
-  const [filterPipelineMid,   setFilterPipelineMid]   = useState('')
-  const [filterPipelineRight, setFilterPipelineRight] = useState('')
+  const [filterPipelineMid,   setFilterPipelineMid]   = useState(() => localStorage.getItem('v2_filterPipelineMid') ?? '')
+  const [filterPipelineRight, setFilterPipelineRight] = useState(() => localStorage.getItem('v2_filterPipelineRight') ?? '')
+
+  // ── Runner filter for mid/right panels ────────────────────────────────────
+  const [filterRunnerMid,   setFilterRunnerMid]   = useState(() => localStorage.getItem('v2_filterRunnerMid') ?? '')
+  const [filterRunnerRight, setFilterRunnerRight] = useState(() => localStorage.getItem('v2_filterRunnerRight') ?? '')
 
   // ── Existing filters ──────────────────────────────────────────────────────
-  const [filterVariantL, setFilterVariantL] = useState('')
-  const [filterFaseL,    setFilterFaseL]    = useState('')
-  const [filterVariantR, setFilterVariantR] = useState('')
-  const [filterFaseR,    setFilterFaseR]    = useState('')
-  const [syncFilters,    setSyncFilters]    = useState(false)
+  const [filterVariantL, setFilterVariantL] = useState(() => localStorage.getItem('v2_filterVariantL') ?? '')
+  const [filterFaseL,    setFilterFaseL]    = useState(() => localStorage.getItem('v2_filterFaseL') ?? '')
+  const [filterVariantR, setFilterVariantR] = useState(() => localStorage.getItem('v2_filterVariantR') ?? '')
+  const [filterFaseR,    setFilterFaseR]    = useState(() => localStorage.getItem('v2_filterFaseR') ?? '')
+  const [syncFilters,    setSyncFilters]    = useState(() => loadBool('v2_syncFilters'))
 
-  const [leftTab,      setLeftTab]      = useState('cards')
+  const [leftTab,      setLeftTab]      = useState(() => localStorage.getItem('v2_leftTab') ?? 'cards')
+
+  useEffect(() => { localStorage.setItem('v2_filterPipelineMid', filterPipelineMid) }, [filterPipelineMid])
+  useEffect(() => { localStorage.setItem('v2_filterPipelineRight', filterPipelineRight) }, [filterPipelineRight])
+  useEffect(() => { localStorage.setItem('v2_filterRunnerMid', filterRunnerMid) }, [filterRunnerMid])
+  useEffect(() => { localStorage.setItem('v2_filterRunnerRight', filterRunnerRight) }, [filterRunnerRight])
+  useEffect(() => { localStorage.setItem('v2_filterVariantL', filterVariantL) }, [filterVariantL])
+  useEffect(() => { localStorage.setItem('v2_filterFaseL', filterFaseL) }, [filterFaseL])
+  useEffect(() => { localStorage.setItem('v2_filterVariantR', filterVariantR) }, [filterVariantR])
+  useEffect(() => { localStorage.setItem('v2_filterFaseR', filterFaseR) }, [filterFaseR])
+  useEffect(() => { localStorage.setItem('v2_syncFilters', String(syncFilters)) }, [syncFilters])
+  useEffect(() => { localStorage.setItem('v2_leftTab', leftTab) }, [leftTab])
   const [leftWarnings, setLeftWarnings] = useState([])
   const [preloadMap,   setPreloadMap]   = useState({})
 
@@ -159,6 +174,14 @@ export default function Vista2() {
     })
     return [...mergedLocal, ...externalRuns]
   }, [localExecutions, supabaseRuns])
+
+  // Distinct runner names seen across all executions, for the runner filter dropdown
+  const allRunners = useMemo(
+    () => [...new Set(allExecutions.map(e => e.runner).filter(Boolean))]
+      .sort()
+      .map(r => ({ id: r, label: r })),
+    [allExecutions]
+  )
 
   // Executions scoped to the active pipeline (for PhaseCard duplicate checks)
   const pipelineExecutions = useMemo(
@@ -363,6 +386,11 @@ export default function Vista2() {
               onChange={setFilterPipelineMid}
               projects={pipelineProjectsList}
             />
+            <RunnerFilterSelect
+              value={filterRunnerMid}
+              onChange={setFilterRunnerMid}
+              runners={allRunners}
+            />
             <label className="flex items-center gap-1 shrink-0 cursor-pointer select-none" title="Sincronizar filtros con Histórico">
               <input
                 type="checkbox"
@@ -382,6 +410,7 @@ export default function Vista2() {
                 filterVariant={filterVariantL}
                 filterFase={filterFaseL}
                 filterPipeline={filterPipelineMid}
+                filterRunner={filterRunnerMid}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 pipelineProjects={pipelineProjects}
@@ -420,6 +449,12 @@ export default function Vista2() {
               projects={pipelineProjectsList}
               disabled={syncFilters}
             />
+            <RunnerFilterSelect
+              value={syncFilters ? filterRunnerMid : filterRunnerRight}
+              onChange={v => { if (!syncFilters) setFilterRunnerRight(v) }}
+              runners={allRunners}
+              disabled={syncFilters}
+            />
             {syncFilters && (
               <span className="text-xs text-indigo-500 dark:text-indigo-400 shrink-0">↔ sync</span>
             )}
@@ -433,6 +468,7 @@ export default function Vista2() {
                 filterVariant={effectiveFilterVariantR}
                 filterFase={effectiveFilterFaseR}
                 filterPipeline={syncFilters ? filterPipelineMid : filterPipelineRight}
+                filterRunner={syncFilters ? filterRunnerMid : filterRunnerRight}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 highlightFaseVariant={highlightFaseVariant}
@@ -568,3 +604,7 @@ function FilterSelect({ value, onChange, phases = [], disabled = false }) {
 }
 
 const PipelineFilterSelect = (props) => <PipelineSelect {...props} showAll={true} />
+
+function RunnerFilterSelect({ runners = [], ...props }) {
+  return <PipelineSelect {...props} projects={runners} showAll={true} />
+}

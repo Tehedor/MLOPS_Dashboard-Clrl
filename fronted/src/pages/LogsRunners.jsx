@@ -6,7 +6,8 @@ import PipelineSelect from '../components/PipelineSelect'
 import RunList from '../features/logs/RunList'
 import LogViewer from '../features/logs/LogViewer'
 
-const ALL_STATUSES = ['all', 'queued', 'in_progress', 'success', 'failure', 'cancelled']
+const ALL_STATUSES = ['all', 'queued', 'in_progress', 'success', 'failure']
+const STATUS_LABELS = { all: 'Todos', queued: 'Esperando', in_progress: 'Ejecutando', success: 'Terminado', failure: 'Fallado' }
 
 // Caché a nivel de módulo: sobrevive al desmontaje del componente (cambio de tab/página)
 const _ghLogsCache  = {}
@@ -49,6 +50,7 @@ export default function LogsRunners() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
   const [pipelineFilter, setPipelineFilter] = useState('')
+  const [faseFilter, setFaseFilter] = useState('')
   const [search, setSearch] = useState(() => searchParams.get('run_id') ?? '')
   const [projects, setProjects] = useState([])
 
@@ -155,9 +157,15 @@ export default function LogsRunners() {
     (a, b) => new Date(b.created_at) - new Date(a.created_at)
   )
 
+  const distinctFases = useMemo(
+    () => [...new Set(allRuns.map(r => r.fase).filter(Boolean))].sort(),
+    [allRuns]
+  )
+
   const filtered = allRuns.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (pipelineFilter && r.pipeline_id !== pipelineFilter) return false
+    if (faseFilter && r.fase !== faseFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -195,6 +203,18 @@ export default function LogsRunners() {
           </div>
         )}
 
+        {/* Fase filter */}
+        {distinctFases.length > 1 && (
+          <select
+            value={faseFilter}
+            onChange={e => setFaseFilter(e.target.value)}
+            className="text-xs rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 shrink-0"
+          >
+            <option value="">Todas las fases</option>
+            {distinctFases.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        )}
+
         {/* Status filter */}
         <div className="flex gap-1 flex-wrap">
           {ALL_STATUSES.map((s) => (
@@ -208,7 +228,7 @@ export default function LogsRunners() {
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              {s === 'all' ? 'Todos' : s.replace('_', ' ')}
+              {STATUS_LABELS[s] ?? s}
             </button>
           ))}
         </div>

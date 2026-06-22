@@ -111,7 +111,6 @@ def append_row(
 
     csv_path = _output_path()
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    write_header = not csv_path.exists() or csv_path.stat().st_size == 0
 
     row = {
         "experiment": _experiment_from_variant(variant),
@@ -130,10 +129,19 @@ def append_row(
     }
 
     try:
-        with open(csv_path, "a", newline="") as fh:
+        existing_rows = []
+        if csv_path.exists() and csv_path.stat().st_size > 0:
+            with open(csv_path, newline="") as fh:
+                reader = csv.DictReader(fh)
+                existing_rows = [
+                    r for r in reader
+                    if not (r.get("variant") == variant and r.get("phase") == phase)
+                ]
+
+        with open(csv_path, "w", newline="") as fh:
             writer = csv.DictWriter(fh, fieldnames=CSV_HEADERS)
-            if write_header:
-                writer.writeheader()
+            writer.writeheader()
+            writer.writerows(existing_rows)
             writer.writerow(row)
         log.info("validation_csv: %s/%s → %s [%s]", phase, variant, status, csv_path)
     except Exception as exc:

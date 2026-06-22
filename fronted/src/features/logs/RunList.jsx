@@ -1,10 +1,11 @@
 const STATUS_STYLES = {
-  queued:      'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
-  in_progress: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 animate-pulse',
-  success:     'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
-  failure:     'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
-  cancelled:   'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
+  queued:      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700',
+  in_progress: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 animate-pulse border border-yellow-300 dark:border-yellow-700',
+  success:     'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border border-green-300 dark:border-green-700',
+  failure:     'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border border-red-300 dark:border-red-700',
+  cancelled:   'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 border border-gray-300 dark:border-gray-700',
 }
+const STATUS_LABELS = { queued: 'Esperando', in_progress: 'Ejecutando', success: 'Terminado', failure: 'Fallado', cancelled: 'Cancelado' }
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -20,7 +21,7 @@ function StatusBadge({ status }) {
   const style = STATUS_STYLES[status] ?? STATUS_STYLES.queued
   return (
     <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${style}`}>
-      {status?.replace('_', ' ') ?? '—'}
+      {STATUS_LABELS[status] ?? status?.replace('_', ' ') ?? '—'}
     </span>
   )
 }
@@ -48,6 +49,7 @@ export default function RunList({ runs, selectedRunId, onSelect, loading, pipeli
         const project  = run.pipeline_id ? pipelineProjects[run.pipeline_id] : null
         const color    = project?.color ?? null
         const isActive = run.run_id === selectedRunId
+        const isWaiting = run.status === 'queued'
 
         return (
           <li
@@ -57,7 +59,7 @@ export default function RunList({ runs, selectedRunId, onSelect, loading, pipeli
               isActive
                 ? 'bg-gray-100 dark:bg-gray-900'
                 : 'hover:bg-gray-50 dark:hover:bg-gray-900/50'
-            }`}
+            } ${isWaiting ? 'opacity-60' : ''}`}
           >
             {/* Borde izquierdo de color */}
             <div

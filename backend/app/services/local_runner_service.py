@@ -5,6 +5,7 @@ local_log_store (live SSE) without blocking the event loop.
 """
 
 import asyncio
+import json
 import os
 import pty
 import re
@@ -182,7 +183,8 @@ def _make_params_str(params: dict) -> str:
     for k, v in normalize_make_params(params).items():
         if v is None or str(v).strip() == "":
             continue
-        parts.append(f'{k}={shlex.quote(str(v))}')
+        sv = str(v).lower() if isinstance(v, bool) else str(v)
+        parts.append(f'{k}={shlex.quote(sv)}')
     return " ".join(parts)
 
 
@@ -204,15 +206,38 @@ async def _setup_workspace(workspace: Path, branch: str, repo: str, env: dict, e
         if rc != 0:
             return False
     else:
-        for cmd in [
-            "git fetch origin",
-            f"git checkout {branch}",
-            f"git reset --hard origin/{branch}",
-            "git clean -fdx --exclude=.dvc/cache",
-        ]:
-            rc = await _run(cmd, workspace, env, step, execution_id)
-            if rc != 0:
+        if await _run("git fetch origin", workspace, env, step, execution_id) != 0:
+            return False
+
+        # check explicitly whether the remote branch exists
+        remote_exists = (
+            await _run(
+                f"git ls-remote --exit-code origin refs/heads/{branch}",
+                workspace, env, step, execution_id,
+            ) == 0
+        )
+
+        if remote_exists:
+            # force-fetch the specific branch to ensure origin/{branch} tracking ref exists locally
+            # (single-branch clones won't create it with a plain "git fetch origin")
+            if await _run(
+                f"git fetch origin +{branch}:refs/remotes/origin/{branch}",
+                workspace, env, step, execution_id,
+            ) != 0:
                 return False
+            await _run("git checkout -- .", workspace, env, step, execution_id)
+            if await _run(f"git checkout -B {branch} origin/{branch}", workspace, env, step, execution_id) != 0:
+                return False
+        else:
+            log_store.push(execution_id, step, f"[info] '{branch}' not on remote — creating from HEAD and pushing")
+            if await _run(f"git checkout -B {branch}", workspace, env, step, execution_id) != 0:
+                return False
+            if await _run(f"git push -u origin {branch}", workspace, env, step, execution_id) != 0:
+                return False
+
+        if await _run("git clean -fdx --exclude=.dvc/cache --exclude=.venv", workspace, env, step, execution_id) != 0:
+            return False
+
     return True
 
 
@@ -329,6 +354,7 @@ async def _publish_pr(
         return False
 
     await _run(f"git checkout {base}", workspace, env, label, execution_id)
+    await _run(f"git fetch origin +{base}:refs/remotes/origin/{base}", workspace, env, label, execution_id)
     await _run(f"git reset --hard origin/{base}", workspace, env, label, execution_id)
     return True
 
@@ -358,9 +384,17 @@ async def run_local_phase(ex) -> bool:
     repo = proj["repo"]
     make_params = _make_params_str(params)
 
+    parents_ids = parent_id or ""
+    if parents_ids.startswith("["):
+        try:
+            parents_ids = ",".join(str(p).strip() for p in json.loads(parents_ids))
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     ctx = {
         "variant_id":      variant_id,
         "parent_id":       parent_id or "",
+        "parents_ids":     parents_ids,
         "checkout_branch": branch,
         "make_params":     make_params,
         "workspace":       str(workspace),
@@ -377,6 +411,7 @@ async def run_local_phase(ex) -> bool:
         "USE_VENV":          use_venv,
         "SKIP_GIT_PUBLISH":  "1",
         "SKIP_LINEAGE":      "1",
+        "MLOPS_RUNNER":      ex.runner or "Local",
         "VARIANT_ROOT":      f"executions/{fase}/{variant_id}",
         "PYTHONUNBUFFERED":  "1",
     }
@@ -398,9 +433,10 @@ async def run_local_phase(ex) -> bool:
     if use_venv == "1":
         venv_dir = workspace / ".venv"
         if not (venv_dir / "bin" / "python3").exists():
-            log_store.push(execution_id, "python-setup", "[info] Creando venv e instalando dependencias (solo la primera vez)…")
+            log_store.push(execution_id, "python-setup", "[info] Creando venv (solo la primera vez)…")
             await _run("python3 -m venv .venv", workspace, env, "python-setup", execution_id)
-            await _run(".venv/bin/pip install --quiet -r requirements.txt", workspace, env, "python-setup", execution_id)
+        log_store.push(execution_id, "python-setup", "[info] Comprobando dependencias (requirements.txt)…")
+        await _run(".venv/bin/pip install --quiet -r requirements.txt", workspace, env, "python-setup", execution_id)
 
     dvc_paths = workflow.get("dvc_pull", [])
     if dvc_paths:

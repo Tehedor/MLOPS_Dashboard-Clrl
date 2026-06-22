@@ -58,6 +58,18 @@ export async function retryExecution(id) {
   return res.json()
 }
 
+export async function getVariantLastRun(pipelineId, fase, variant) {
+  try {
+    const res = await fetch(
+      `${BASE}/variant-last-run?pipeline_id=${encodeURIComponent(pipelineId)}&fase=${encodeURIComponent(fase)}&variant=${encodeURIComponent(variant)}`
+    )
+    if (!res.ok) return { gh_run_id: null }
+    return res.json()
+  } catch {
+    return { gh_run_id: null }
+  }
+}
+
 export async function getQueueStatus() {
   const res = await fetch(`${BASE}/queue/status`)
   if (!res.ok) throw new Error('Failed to fetch queue status')

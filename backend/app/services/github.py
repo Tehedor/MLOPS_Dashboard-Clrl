@@ -51,6 +51,8 @@ _HEADERS = {
     "X-GitHub-Api-Version": "2022-11-28",
 }
 
+_DISPATCH_LOCK = asyncio.Lock()
+
 # Param keys that don't map to simple .upper() of their schema name
 _PARAM_KEY_REMAP = {
     'raw_path':                       'RAW',
@@ -158,34 +160,42 @@ async def dispatch_phase(
     runner_json: str | None = None,
     branch: str | None = None,
     token: str = "",
+    runner_name: str = "",
 ) -> str | None:
-    """Dispatch a workflow to the given repo and return the GH run_id if found."""
-    t = token or settings.github_token
-    dispatch_url = f"https://api.github.com/repos/{repo}/dispatches"
-    payload = {
-        "event_type": "ejecutar-fase-api",
-        "client_payload": {
-            "fase": fase,
-            "variant_id": variant,
-            **({"parent_variant": parent} if parent else {}),
-            "params": _normalize_params(params),
-            **({"runner": json.loads(runner_json)} if runner_json else {}),
-            **({"checkout_branch": branch} if branch else {}),
-        },
-    }
-    headers = _auth_headers(t)
-    _log_curl(dispatch_url, headers, payload, t)
-    dispatch_ts = datetime.now(timezone.utc).isoformat()
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(dispatch_url, json=payload, headers=headers)
-        resp.raise_for_status()
+    """Dispatch a workflow to the given repo and return the GH run_id if found.
 
-    for delay in (3, 5, 8, 12):
-        await asyncio.sleep(delay)
-        run_id = await _find_run_after(repo, dispatch_ts, t)
-        if run_id:
-            return run_id
-    return None
+    Uses _DISPATCH_LOCK to serialize dispatch+search cycles — without it,
+    concurrent batch dispatches race on _find_run_after and can associate the
+    wrong GH run_id with an execution.
+    """
+    t = token or settings.github_token
+    async with _DISPATCH_LOCK:
+        dispatch_url = f"https://api.github.com/repos/{repo}/dispatches"
+        payload = {
+            "event_type": "ejecutar-fase-api",
+            "client_payload": {
+                "fase": fase,
+                "variant_id": variant,
+                **({"parent_variant": parent} if parent else {}),
+                "params": _normalize_params(params),
+                **({"runner": json.loads(runner_json)} if runner_json else {}),
+                **({"runner_name": runner_name} if runner_name else {}),
+                **({"checkout_branch": branch} if branch else {}),
+            },
+        }
+        headers = _auth_headers(t)
+        _log_curl(dispatch_url, headers, payload, t)
+        dispatch_ts = datetime.now(timezone.utc).isoformat()
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(dispatch_url, json=payload, headers=headers)
+            resp.raise_for_status()
+
+        for delay in (3, 5, 8, 12):
+            await asyncio.sleep(delay)
+            run_id = await _find_run_after(repo, dispatch_ts, t)
+            if run_id:
+                return run_id
+        return None
 
 
 async def fetch_run_status(repo: str, gh_run_id: str, token: str = "") -> dict | None:

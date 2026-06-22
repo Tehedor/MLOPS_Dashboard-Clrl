@@ -114,12 +114,14 @@ function ParamField({ def, value, suggestion, onChange }) {
           {def.options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : def.type === 'boolean' ? (
-        <input
-          type="checkbox"
-          className="accent-indigo-500"
-          checked={!!value}
-          onChange={e => onChange(e.target.checked)}
-        />
+        <select
+          className={`${base} ${borderColor} flex-1`}
+          value={value === true || value === 'true' ? 'true' : value === false || value === 'false' ? 'false' : ''}
+          onChange={e => onChange(e.target.value === 'true')}
+        >
+          <option value="false">false</option>
+          <option value="true">true</option>
+        </select>
       ) : def.type === 'json' ? (
         <input
           className={`${base} ${borderColor} flex-1 font-mono`}
@@ -164,6 +166,7 @@ function ParamField({ def, value, suggestion, onChange }) {
 function initForm(defs) {
   return Object.fromEntries(defs.map(d => {
     if (d.type === 'select' && d.required && d.options?.length > 0) return [d.id, d.options[0]]
+    if (d.type === 'boolean') return [d.id, false]
     return [d.id, '']
   }))
 }
@@ -173,7 +176,7 @@ function paramsToForm(params, defs) {
   for (const def of defs) {
     if (params[def.id] !== undefined) {
       const v = params[def.id]
-      form[def.id] = (def.type === 'json') ? JSON.stringify(v) : String(v ?? '')
+      form[def.id] = (def.type === 'json') ? JSON.stringify(v) : (def.type === 'boolean') ? (v === true || v === 'true') : String(v ?? '')
     }
   }
   return form
@@ -187,7 +190,7 @@ function formToParams(values, defs) {
 
     if (def.type === 'integer')      params[def.id] = parseInt(raw, 10)
     else if (def.type === 'float')   params[def.id] = parseFloat(raw)
-    else if (def.type === 'boolean') params[def.id] = Boolean(raw)
+    else if (def.type === 'boolean') params[def.id] = (raw === true || raw === 'true')
     else if (def.type === 'json') {
       try { params[def.id] = JSON.parse(raw) } catch { params[def.id] = raw }
     } else {

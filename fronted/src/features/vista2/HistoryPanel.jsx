@@ -72,7 +72,7 @@ function parseParams(raw) {
   try { return JSON.parse(raw ?? '{}') } catch { return {} }
 }
 
-export default function HistoryPanel({ executions, filterVariant, filterFase, filterPipeline, selectedId, onSelect, highlightFaseVariant, onLoadInCard, pipelineProjects = {} }) {
+export default function HistoryPanel({ executions, filterVariant, filterFase, filterPipeline, filterRunner, selectedId, onSelect, highlightFaseVariant, onLoadInCard, pipelineProjects = {} }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -119,6 +119,7 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
     .filter(e => !filterVariant  || e.variant.includes(filterVariant))
     .filter(e => !filterFase     || e.fase === filterFase)
     .filter(e => !filterPipeline || e.pipeline_id === filterPipeline)
+    .filter(e => !filterRunner   || e.runner === filterRunner)
     .slice()
     .sort((a, b) => {
       // Status priority
@@ -227,7 +228,7 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
           </div>
           <ParamsChips params={ex.params} />
           <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-500 mt-1">
-            <span>{ex.updated_at.slice(0, 19).replace('T', ' ')}</span>
+            <span>{new Date(ex.updated_at).toLocaleString()}</span>
             <DurationChip startedAt={ex.started_at} createdAt={ex.created_at} updatedAt={ex.updated_at} />
           </div>
           {ex.error_code && (
@@ -237,9 +238,9 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
           {selectedId === ex.id && (
             <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-700 flex flex-col gap-2">
               <div className="text-xs text-gray-500 dark:text-gray-500">
-                {ex.created_at.slice(0, 19).replace('T', ' ')}
+                {new Date(ex.created_at).toLocaleString()}
                 <span className="mx-1">→</span>
-                {ex.updated_at.slice(0, 19).replace('T', ' ')}
+                {new Date(ex.updated_at).toLocaleString()}
                 {fmtDuration(ex.created_at, ex.updated_at) && (
                   <span className="ml-2 text-gray-400 dark:text-gray-600">
                     ({fmtDuration(ex.created_at, ex.updated_at)})
@@ -282,12 +283,19 @@ export default function HistoryPanel({ executions, filterVariant, filterFase, fi
                     Cargar en tarjeta
                   </button>
                 )}
-                {ex.gh_run_id && (
+                {ex.gh_run_id ? (
                   <button
                     onClick={e => { e.stopPropagation(); navigate(`/vista3?run_id=${ex.gh_run_id}`) }}
                     className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded px-2 py-1 transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
                   >
                     Logs →
+                  </button>
+                ) : ex.runner === 'Local' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); navigate(`/vista3?run_id=${ex.id}`) }}
+                    className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded px-2 py-1 transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
+                  >
+                    Logs local →
                   </button>
                 )}
               </div>

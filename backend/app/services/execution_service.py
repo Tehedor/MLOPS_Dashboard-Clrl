@@ -22,10 +22,56 @@ from app.services.github import dispatch_phase
 
 _FASE_CONFIG_CACHE: dict[str, dict] = {}
 _ACTIVE_DISPATCHES: set[str] = set()  # guards against duplicate concurrent _dispatch tasks
+_RUNNER_LOCKS: dict[str, asyncio.Lock] = {}  # serializes slot check+claim per runner
+_RUNNER_SLOT_EVENTS: dict[str, asyncio.Event] = {}  # signaled when a runner slot frees up
 _PAUSED: bool = False
 
-POLL_PARENT_SECS = 30
-POLL_RUNNER_SECS = 15
+POLL_PARENT_SECS_IDLE = 30
+POLL_PARENT_SECS_BUSY = 10
+POLL_RUNNER_SECS_IDLE = 15
+POLL_RUNNER_SECS_BUSY = 3
+_BUSY_QUEUE_THRESHOLD = 5
+
+
+async def _pending_count(runner: str) -> int:
+    pending = ('queued', 'waiting_runner')
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            f"SELECT COUNT(*) FROM executions WHERE runner=? AND status IN ({','.join('?'*len(pending))})",
+            (runner, *pending),
+        ) as cursor:
+            row = await cursor.fetchone()
+    return row[0] if row else 0
+
+
+def _poll_runner_secs(pending: int) -> float:
+    return POLL_RUNNER_SECS_BUSY if pending >= _BUSY_QUEUE_THRESHOLD else POLL_RUNNER_SECS_IDLE
+
+
+def _poll_parent_secs(pending: int) -> float:
+    return POLL_PARENT_SECS_BUSY if pending >= _BUSY_QUEUE_THRESHOLD else POLL_PARENT_SECS_IDLE
+
+
+def _get_runner_lock(runner_name: str) -> asyncio.Lock:
+    lock = _RUNNER_LOCKS.get(runner_name)
+    if lock is None:
+        lock = asyncio.Lock()
+        _RUNNER_LOCKS[runner_name] = lock
+    return lock
+
+
+def _get_runner_slot_event(runner_name: str) -> asyncio.Event:
+    ev = _RUNNER_SLOT_EVENTS.get(runner_name)
+    if ev is None:
+        ev = asyncio.Event()
+        _RUNNER_SLOT_EVENTS[runner_name] = ev
+    return ev
+
+
+def _signal_runner_slot_free(runner_name: str) -> None:
+    ev = _RUNNER_SLOT_EVENTS.get(runner_name)
+    if ev is not None:
+        ev.set()
 
 
 def _normalize_variant(fase: str, variant: str) -> str:
@@ -121,7 +167,7 @@ def _single_parent_exists(parent: str, pipeline_id: str) -> bool:
     try:
         with open(metadata_path) as f:
             data = yaml.safe_load(f) or {}
-        return data.get("lifecycle_state") == "EXECUTION_COMPLETED"
+        return data.get("lifecycle_state") == "EXECUTION_COMPLETED" and data.get("registred") is True
     except Exception:
         return False
 
@@ -221,7 +267,11 @@ class ExecutionService:
 
     async def _runner_has_slot(self, runner_name: str, exclude_id: str | None = None) -> bool:
         max_parallel = _runner_max_parallel(runner_name)
-        active = ('running', 'dispatching', 'waiting_runner')
+        # 'waiting_runner' deliberately excluded: it means "wants a slot", not "holds one".
+        # Counting it here let two waiting jobs see each other as occupying the only slot,
+        # so neither could ever proceed (livelock). The per-runner lock in _dispatch_inner
+        # already serializes check+claim, so only 'running'/'dispatching' truly occupy a slot.
+        active = ('running', 'dispatching')
         async with aiosqlite.connect(DB_PATH) as db:
             if exclude_id:
                 async with db.execute(
@@ -236,6 +286,25 @@ class ExecutionService:
                 ) as cursor:
                     row = await cursor.fetchone()
         return (row[0] if row else 0) < max_parallel
+
+    async def _is_next_in_runner_queue(self, ex: Execution) -> bool:
+        """True if `ex` is the oldest execution contending for `ex.runner`.
+
+        Ensures a freed slot goes to the longest-waiting candidate (by created_at)
+        instead of whichever asyncio task happens to win the lock race. Since the
+        frontend submits a batch sequentially in phase/variant priority order, this
+        also makes earlier phases/lower variant numbers go first, and a later batch
+        ("tanda") queue behind an earlier one still pending for the same runner.
+        """
+        pending = ('queued', 'waiting_runner')
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                f"SELECT id FROM executions WHERE runner=? AND status IN ({','.join('?'*len(pending))}) "
+                f"ORDER BY created_at ASC, id ASC LIMIT 1",
+                (ex.runner, *pending),
+            ) as cursor:
+                row = await cursor.fetchone()
+        return bool(row) and row[0] == ex.id
 
     async def _dispatch(self, ex: Execution) -> None:
         if ex.id in _ACTIVE_DISPATCHES:
@@ -255,23 +324,38 @@ class ExecutionService:
         if not _parent_exists(ex, parent_required):
             await self._update_status(ex.id, ExecutionStatus.waiting_parent)
             while True:
-                await asyncio.sleep(POLL_PARENT_SECS)
+                pending = await _pending_count(ex.runner)
+                await asyncio.sleep(_poll_parent_secs(pending))
                 current = await self.get(ex.id)
                 if current is None or current.status == ExecutionStatus.canceled:
                     return
                 if _parent_exists(ex, parent_required):
                     break
+            # Clear the stale 'waiting_parent' status so the queue-priority check in
+            # step 2 immediately sees this execution as a candidate for the runner.
+            await self._update_status(ex.id, ExecutionStatus.queued)
 
-        # 2. Wait for runner slot (exclude self so waiting_runner doesn't block itself)
-        if not await self._runner_has_slot(ex.runner, exclude_id=ex.id):
-            await self._update_status(ex.id, ExecutionStatus.waiting_runner)
-            while True:
-                await asyncio.sleep(POLL_RUNNER_SECS)
-                current = await self.get(ex.id)
-                if current is None or current.status == ExecutionStatus.canceled:
-                    return
-                if await self._runner_has_slot(ex.runner, exclude_id=ex.id):
+        # 2. Claim a runner slot atomically (check+claim serialized per runner to
+        #    avoid a TOCTOU race when many executions are dispatched at once).
+        # Priority goes to the oldest pending execution for this runner — see
+        # _is_next_in_runner_queue — not to whichever asyncio task wins the lock race.
+        lock = _get_runner_lock(ex.runner)
+        slot_event = _get_runner_slot_event(ex.runner)
+        while True:
+            async with lock:
+                if await self._runner_has_slot(ex.runner, exclude_id=ex.id) and await self._is_next_in_runner_queue(ex):
+                    await self._update_status(ex.id, ExecutionStatus.dispatching)
                     break
+                await self._update_status(ex.id, ExecutionStatus.waiting_runner)
+            slot_event.clear()
+            pending = await _pending_count(ex.runner)
+            try:
+                await asyncio.wait_for(slot_event.wait(), timeout=_poll_runner_secs(pending))
+            except asyncio.TimeoutError:
+                pass
+            current = await self.get(ex.id)
+            if current is None or current.status == ExecutionStatus.canceled:
+                return
 
         # 3. Pause gate
         while _PAUSED:
@@ -285,13 +369,12 @@ class ExecutionService:
             await self._dispatch_local(ex)
             return
         try:
-            await self._update_status(ex.id, ExecutionStatus.dispatching)
             proj = get_pipeline_project(ex.pipeline_id)
             repo = proj["repo"]
             branch = proj.get("branch")
             gh_fase = fase_cfg.get("gh_fase", ex.fase)
             runner_json = _get_runner_json(ex.runner)
-            gh_run_id = await dispatch_phase(repo, gh_fase, ex.variant, ex.parent, ex.params, runner_json, branch=branch, token=get_pipeline_token(ex.pipeline_id))
+            gh_run_id = await dispatch_phase(repo, gh_fase, ex.variant, ex.parent, ex.params, runner_json, branch=branch, token=get_pipeline_token(ex.pipeline_id), runner_name=ex.runner)
             if gh_run_id:
                 await self._set_gh_run_id(ex.id, gh_run_id)
             await self._update_status(ex.id, ExecutionStatus.running)
@@ -302,7 +385,6 @@ class ExecutionService:
         from app.services.local_runner_service import run_local_phase
         from app.services import local_log_store as log_store
         try:
-            await self._update_status(ex.id, ExecutionStatus.dispatching)
             await self._update_status(ex.id, ExecutionStatus.running)
             success = await run_local_phase(ex)
             status = ExecutionStatus.success if success else ExecutionStatus.failed
@@ -352,6 +434,8 @@ class ExecutionService:
                     (execution_id,)
                 ) as _cur:
                     _row = await _cur.fetchone()
+            if _row and _row["runner"]:
+                _signal_runner_slot_free(_row["runner"])
             if _row and _row["pipeline_id"]:
                 _pid = _row["pipeline_id"]
                 asyncio.ensure_future(
@@ -398,6 +482,17 @@ class ExecutionService:
             ) as cursor:
                 row = await cursor.fetchone()
         return _row_to_execution(row) if row else None
+
+    async def get_latest_run_id(self, pipeline_id: str, fase: str, variant: str) -> str | None:
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                "SELECT gh_run_id FROM executions "
+                "WHERE pipeline_id=? AND fase=? AND variant=? AND gh_run_id IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT 1",
+                (pipeline_id, fase, variant),
+            ) as cursor:
+                row = await cursor.fetchone()
+        return row[0] if row else None
 
     async def reconcile_stale(self) -> None:
         """On startup: sync active records against GH API and reactivate waiting tasks."""
