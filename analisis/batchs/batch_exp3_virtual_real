@@ -1,0 +1,115 @@
+# Experimento 3 — Validación virtual vs. real (f07 y f08)
+# Pregunta: ¿Son fiables los resultados del entorno virtualizado vs. hardware físico?
+# Diseño: mismos params en 3 entornos (Local físico, K8s virtual QEMU, ESP32 real).
+# Parent f07: v6_0001. Parent f08: el f07 correspondiente a cada entorno.
+# Gráfica: latencia de inferencia virtual vs. física (separar build time de inference time).
+
+#f07_modval
+
+{
+  "variant": "v7_3101",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": false
+  },
+  "parent": "v6_0001",
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v7_3301",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": 10000,
+    "virtual": false
+  },
+  "parent": "v6_0001",
+  "selected_runner": "ESP32-v1"
+}
+
+{
+  "variant": "v7_3501",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": 10000,
+    "virtual": true
+  },
+  "parent": "v6_0001",
+  "selected_runner": "ESP32-v3-virtual"
+}
+
+
+#f08_sysval
+
+{
+  "variant": "v8_3101",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 300,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": false
+  },
+  "parent": ["v7_3102"],
+  "selected_runner": "Local"
+}
+
+{
+  "variant": "v8_3301",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 300,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": false
+  },
+  "parent": ["v7_3301"],
+  "selected_runner": "ESP32-v1"
+}
+
+{
+  "variant": "v8_3501",
+  "params": {
+    "selection_mode": "manual",
+    "objective": null,
+    "solver_time_limit_sec": null,
+    "time_scale_factor": null,
+    "MTI_MS": 300,
+    "platform": "esp32",
+    "max_rows": null,
+    "memory_budget_bytes": null,
+    "max_models": null,
+    "min_quality_score": null,
+    "min_precision": null,
+    "min_recall": null,
+    "virtual": false
+  },
+  "parent": ["v7_3501"],
+  "selected_runner": "ESP32-v3-virtual"
+}

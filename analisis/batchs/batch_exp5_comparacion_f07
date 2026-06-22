@@ -1,0 +1,37 @@
+# Experimento 5 — Comparar ESP32 físico vs. virtualizado (solo f07)
+# Pregunta: ¿Producen los mismos resultados y tiempos la ESP32 real y el emulador?
+# Diseño: mismo parent (v6_0001), mismos params, entornos distintos.
+# Análisis: resultados (predicciones, quality_score), tiempos de inferencia,
+#           ficheros generados. El tiempo de ejecución debería ser similar
+#           al estar regulado por MTI_MS; la diferencia real está en el build.
+# Nota: v7_5501 es el reference run en hardware; v7_5301 es el virtual baseline.
+
+#f07_modval
+
+{
+  "variant": "v7_5501",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": false
+  },
+  "parent": "v6_0001",
+  "selected_runner": "ESP32-v1"
+}
+
+{
+  "variant": "v7_5301",
+  "params": {
+    "platform": "esp32",
+    "MTI_MS": 100,
+    "time_scale_factor": 0.01,
+    "ITmax": null,
+    "max_rows": null,
+    "virtual": true
+  },
+  "parent": "v6_0001",
+  "selected_runner": "K8s-8gb"
+}

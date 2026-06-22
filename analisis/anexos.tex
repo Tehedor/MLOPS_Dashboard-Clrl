@@ -1,0 +1,222 @@
+\appendix
+
+\section{Parámetros de los experimentos de validación}
+\label{anexo:parametros-experimentos}
+
+Este anexo recoge la configuración utilizada para lanzar los experimentos de validación. Para cada lote se indican las variantes ejecutadas, la fase del pipeline, el runner asignado, la variante padre y los parámetros principales. Los ficheros originales empleados para definir los lotes se encuentran en el directorio \texttt{batchs/}; en este anexo se presenta una versión resumida y legible de dichos parámetros.
+
+\subsection{Lote base software}
+\label{anexo:batch-exp0-root}
+
+El lote base software construye la cadena inicial de variantes desde F01 hasta F04. Estas variantes sirven como prerequisito para otros experimentos, especialmente aquellos que comparan runners en fases posteriores.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del lote base software definido en \texttt{batch\_exp0\_root}.}
+    \label{tab:params-batch-exp0-root}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v1\_0001 & F01 & GitHub Actions & -- & \texttt{raw\_path=data/raw.csv}, limpieza básica, \texttt{nan\_values=[-999999]} \\
+        v2\_0002 & F02 & GitHub Actions & v1\_0001 & \texttt{strategy=transitions}, \texttt{bands=[10,90]}, \texttt{nan\_mode=discard} \\
+        v3\_0001 & F03 & GitHub Actions & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v4\_0001 & F04 & GitHub Actions & v3\_0001 & \texttt{prediction\_name=battery\_overheat}, operador OR, eventos de potencia activa de batería \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Lote base edge}
+\label{anexo:batch-exp0-edge}
+
+El lote base edge completa la cadena hacia las fases de despliegue y validación sobre ESP32. Incluye el entrenamiento, la cuantización y las fases F07--F08 en entornos local, virtual y físico.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del lote base edge definido en \texttt{batch\_exp0\_edge}.}
+    \label{tab:params-batch-exp0-edge}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v5\_0001 & F05 & GitHub Actions & v4\_0001 & \texttt{model\_family=cnn1d}, AutoML activo, 5 trials, \texttt{epochs=10}, split 70/15/15 \\
+        v6\_0001 & F06 & GitHub Actions & v5\_0001 & destino ESP32, \texttt{esp-tflite-micro}, INT8, 512 muestras de calibración, \texttt{memory\_limit=327680} \\
+        v7\_0101 & F07 & Local & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v7\_0301 & F07 & K8s-8gb & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=true} \\
+        v7\_0501 & F07 & ESP32-v1 & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v8\_0101 & F08 & Local & v7\_0101 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        v8\_0301 & F08 & K8s-8gb & v7\_0301 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=true} \\
+        v8\_0501 & F08 & ESP32-v1 & v7\_0501 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 1: eficiencia de recursos}
+\label{anexo:exp1-eficiencia}
+
+Este experimento compara el impacto del runner en dos componentes del pipeline: una fase ligera de construcción de ventanas y una fase pesada de modelado. Los parámetros de cada fase se mantienen constantes y se modifica únicamente el entorno de ejecución.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del Experimento 1 definido en \texttt{batch\_exp1\_eficiencia}.}
+    \label{tab:params-exp1-eficiencia}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v3\_1101 & F03 & Local & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v3\_1201 & F03 & GitHub Actions & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v3\_1301 & F03 & K8s-8gb & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v3\_1401 & F03 & K8s-24gb & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v5\_1101 & F05 & Local & v4\_0001 & \texttt{cnn1d}, AutoML activo, 5 trials, \texttt{epochs=10}, split 70/15/15 \\
+        v5\_1201 & F05 & GitHub Actions & v4\_0001 & \texttt{cnn1d}, AutoML activo, 5 trials, \texttt{epochs=10}, split 70/15/15 \\
+        v5\_1301 & F05 & K8s-8gb & v4\_0001 & \texttt{cnn1d}, AutoML activo, 5 trials, \texttt{epochs=10}, split 70/15/15 \\
+        v5\_1401 & F05 & K8s-24gb & v4\_0001 & \texttt{cnn1d}, AutoML activo, 5 trials, \texttt{epochs=10}, split 70/15/15 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 1.5: eficiencia de recursos en fases edge}
+\label{anexo:exp15-eficiencia-edge}
+
+Este lote compara las fases F07 y F08 en tres entornos: ejecución local física, ejecución virtualizada sobre Kubernetes y ejecución sobre ESP32 real. El parámetro \texttt{virtual=true} activa el uso del entorno virtual en lugar del hardware físico.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del Experimento 1.5 definido en \texttt{batch\_exp15\_eficiencia\_edge}.}
+    \label{tab:params-exp15-eficiencia-edge}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v7\_1101 & F07 & Local & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v7\_1301 & F07 & K8s-8gb & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=true} \\
+        v7\_1501 & F07 & ESP32-v1 & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v8\_1101 & F08 & Local & v7\_1101 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        v8\_1301 & F08 & K8s-8gb & v7\_1301 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=true} \\
+        v8\_1501 & F08 & ESP32-v1 & v7\_1501 & selección manual, \texttt{MTI\_MS=100}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 2: saturación y colas}
+\label{anexo:exp2-saturacion}
+
+El segundo experimento lanza ocho variantes equivalentes de F03 sobre el perfil \texttt{K8s-8gb}. El objetivo es superar el límite de paralelismo disponible, configurado en cinco runners simultáneos, y comprobar que las variantes restantes quedan en cola sin perder trazabilidad.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del Experimento 2 definido en \texttt{batch\_exp2\_saturacion}.}
+    \label{tab:params-exp2-saturacion}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v3\_2301 & F03 & K8s-8gb & v2\_0002 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100}, \texttt{window\_strategy=synchro} \\
+        v3\_2302 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2303 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2304 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2305 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2306 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2307 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        v3\_2308 & F03 & K8s-8gb & v2\_0002 & mismos parámetros que v3\_2301 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 3: validación virtual frente a real}
+\label{anexo:exp3-virtual-real}
+
+Este experimento compara las fases F07 y F08 en entornos físico y virtualizado. La fase F07 parte de \texttt{v6\_0001}; la fase F08 toma como padre la variante F07 correspondiente a cada entorno.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del Experimento 3 definido en \texttt{batch\_exp3\_virtual\_real}.}
+    \label{tab:params-exp3-virtual-real}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v7\_3101 & F07 & Local & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v7\_3301 & F07 & ESP32-v1 & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{max\_rows=10000}, \texttt{virtual=false} \\
+        v7\_3501 & F07 & ESP32-v3-virtual & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{max\_rows=10000}, \texttt{virtual=true} \\
+        v8\_3101 & F08 & Local & v7\_3102 & selección manual, \texttt{MTI\_MS=300}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        v8\_3301 & F08 & ESP32-v1 & v7\_3301 & selección manual, \texttt{MTI\_MS=300}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        v8\_3501 & F08 & ESP32-v3-virtual & v7\_3501 & selección manual, \texttt{MTI\_MS=300}, \texttt{platform=esp32}, \texttt{virtual=false} \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 4: valor de la paralelización}
+\label{anexo:exp4-gantt}
+
+El cuarto experimento compara el tiempo de finalización de un árbol de variantes ejecutado de forma secuencial en local frente al mismo árbol ejecutado en paralelo sobre \texttt{K8s-8gb}. La estructura genera una variante F01, dos variantes F02, cuatro variantes F03 y seis variantes F04.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración secuencial local del Experimento 4 definido en \texttt{batch\_exp4\_gantt}.}
+    \label{tab:params-exp4-gantt-local}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v1\_4101 & F01 & Local & -- & \texttt{raw\_path=data/raw.csv}, limpieza básica \\
+        v2\_4101 & F02 & Local & v1\_4101 & \texttt{strategy=transitions}, \texttt{bands=[10,90]} \\
+        v2\_4102 & F02 & Local & v1\_4101 & \texttt{strategy=levels}, \texttt{bands=[5,95]} \\
+        v3\_4101 & F03 & Local & v2\_4101 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100} \\
+        v3\_4102 & F03 & Local & v2\_4101 & \texttt{OW=300}, \texttt{LT=50}, \texttt{PW=50} \\
+        v3\_4103 & F03 & Local & v2\_4102 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100} \\
+        v3\_4104 & F03 & Local & v2\_4102 & \texttt{OW=900}, \texttt{LT=150}, \texttt{PW=150} \\
+        v4\_4101 & F04 & Local & v3\_4101 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4102 & F04 & Local & v3\_4102 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4103 & F04 & Local & v3\_4102 & \texttt{prediction\_name=battery\_critical}, operador OR \\
+        v4\_4104 & F04 & Local & v3\_4103 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4105 & F04 & Local & v3\_4104 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4106 & F04 & Local & v3\_4104 & \texttt{prediction\_name=battery\_critical}, operador OR \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración paralela sobre K8s-8gb del Experimento 4 definido en \texttt{batch\_exp4\_gantt}.}
+    \label{tab:params-exp4-gantt-k8s}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v1\_4301 & F01 & K8s-8gb & -- & \texttt{raw\_path=data/raw.csv}, limpieza básica \\
+        v2\_4301 & F02 & K8s-8gb & v1\_4301 & \texttt{strategy=transitions}, \texttt{bands=[10,90]} \\
+        v2\_4302 & F02 & K8s-8gb & v1\_4301 & \texttt{strategy=levels}, \texttt{bands=[5,95]} \\
+        v3\_4301 & F03 & K8s-8gb & v2\_4301 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100} \\
+        v3\_4302 & F03 & K8s-8gb & v2\_4301 & \texttt{OW=300}, \texttt{LT=50}, \texttt{PW=50} \\
+        v3\_4303 & F03 & K8s-8gb & v2\_4302 & \texttt{OW=600}, \texttt{LT=100}, \texttt{PW=100} \\
+        v3\_4304 & F03 & K8s-8gb & v2\_4302 & \texttt{OW=900}, \texttt{LT=150}, \texttt{PW=150} \\
+        v4\_4301 & F04 & K8s-8gb & v3\_4301 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4302 & F04 & K8s-8gb & v3\_4302 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4303 & F04 & K8s-8gb & v3\_4302 & \texttt{prediction\_name=battery\_critical}, operador OR \\
+        v4\_4304 & F04 & K8s-8gb & v3\_4303 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4305 & F04 & K8s-8gb & v3\_4304 & \texttt{prediction\_name=battery\_overheat}, operador OR \\
+        v4\_4306 & F04 & K8s-8gb & v3\_4304 & \texttt{prediction\_name=battery\_critical}, operador OR \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Experimento 5: comparación de F07 en ESP32 físico y virtualizado}
+\label{anexo:exp5-comparacion-f07}
+
+El quinto experimento compara únicamente la fase F07 sobre hardware ESP32 físico y sobre entorno virtualizado. Ambas variantes comparten el mismo padre y los mismos parámetros de ejecución, cambiando el runner y el valor de \texttt{virtual}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Configuración del Experimento 5 definido en \texttt{batch\_exp5\_comparacion\_f07}.}
+    \label{tab:params-exp5-comparacion-f07}
+    \begin{tabular}{p{0.12\textwidth}p{0.09\textwidth}p{0.15\textwidth}p{0.12\textwidth}p{0.34\textwidth}}
+        \hline
+        \textbf{Variante} & \textbf{Fase} & \textbf{Runner} & \textbf{Padre} & \textbf{Parámetros principales} \\
+        \hline
+        v7\_5501 & F07 & ESP32-v1 & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=false} \\
+        v7\_5301 & F07 & K8s-8gb & v6\_0001 & \texttt{platform=esp32}, \texttt{MTI\_MS=100}, \texttt{time\_scale\_factor=0.01}, \texttt{virtual=true} \\
+        \hline
+    \end{tabular}
+\end{table}
