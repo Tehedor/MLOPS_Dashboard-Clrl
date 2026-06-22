@@ -27,10 +27,10 @@ fases:
   gh_fase: f06_quant
   parent_required: true
 - fase: f07_modval
-  runner: ESP32-self-hosted, Local
+  runner: ESP32-v1, ESP32-v2, ESP32-v3-virtual, ESP32-v4-virtual, Local
   gh_fase: f07_modval
   parent_required: true
 - fase: f08_sysval
-  runner: ESP32-self-hosted, Local
+  runner: ESP32-v1, ESP32-v2, ESP32-v3-virtual, ESP32-v4-virtual, Local
   gh_fase: f08_sysval
   parent_required: true

@@ -46,6 +46,6 @@ phases:
 
   - name: f08_sysval
     label: "F08 SysVal"
-    parent_keys: [["parameters", "parents"]]
+    parent_keys: [["parameters", "parent_variant"]]
     metadata: ["metadata.yaml"]
     color: {bg: "#F9FBE7", border: "#E6EE9C", text: "#827717"}

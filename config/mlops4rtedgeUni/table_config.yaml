@@ -261,6 +261,9 @@ phases:
     - id: exports_n_windows_neg
       source_path: exports.n_windows_neg
       type: int
+    - id: exports_target_compatible
+      source_path: exports.target_compatible
+      type: bool
     - id: metrics_execution_time
       source_path: metrics.execution_time
       type: float

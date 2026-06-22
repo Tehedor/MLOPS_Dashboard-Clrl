@@ -13,11 +13,19 @@ validation_mode:
   output_csv: "analisis/validacion_variants.csv"
 
 TERMINAL_RUNNERS:
-  runner1-ESP321:
+  runner1-ESP32-1:
     url: RUNNER1_URL
     username: RUNNER1_USERNAME
     password: RUNNER1_PASSWORD
-  runner2:
+  runner2-ESP32-2:
     url: RUNNER2_URL
     username: RUNNER2_USERNAME
     password: RUNNER2_PASSWORD
+  runner2-ESP32-3-virtual:
+    url: RUNNER3_URL
+    username: RUNNER3_USERNAME
+    password: RUNNER3_PASSWORD
+  runner2-ESP32-4-virtual:
+    url: RUNNER4_URL
+    username: RUNNER4_USERNAME
+    password: RUNNER4_PASSWORD

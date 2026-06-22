@@ -6,8 +6,17 @@ runners:
     # max-parallel: 2
     max-parallel: 20
     labels: [ubuntu-latest]
-  - ESP32-self-hosted:
-    labels: [self-hosted, Linux, X64, self-hosted-tehelab, ESP32v1]
+  - ESP32-v1:
+    labels: [self-hosted, Linux, X64, self-hosted-tehelab, esp32v1]
+    max-parallel: 1
+  - ESP32-v2:
+    labels: [self-hosted, Linux, X64, self-hosted-tehelab, esp32v2]
+    max-parallel: 1
+  - ESP32-v3-virtual:
+    labels: [self-hosted, Linux, X64, self-hosted-tehelab, esp32v3]
+    max-parallel: 1
+  - ESP32-v4-virtual:
+    labels: [self-hosted, Linux, X64, self-hosted-tehelab, esp32v4]
     max-parallel: 1
   - Local:
     max-parallel: 1
@@ -18,3 +27,6 @@ runners:
   - K8s-24gb:
     max-parallel: 3
     labels: [runner-24gb]
+
+
+url_ctrl_runners: "https://github.com/organizations/TeheORG/settings/actions/runners"

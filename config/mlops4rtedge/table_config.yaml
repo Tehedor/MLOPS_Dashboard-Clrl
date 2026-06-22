@@ -261,6 +261,9 @@ phases:
           - id: n_windows_neg
             source_path: exports.n_windows_neg 
             type: int
+          - id: target_compatible
+            source_path: exports.target_compatible
+            type: bool
           - id: execution_time 
             source_path: metrics.execution_time 
             type: float
@@ -598,13 +601,13 @@ phases:
 
 
 
-  - id: f07_modval  
+  - id: f07_modval
     base_columns:
       - id: variant
         color: "#b3ffc3"
         type: str
         indexed: true
-    sources: 
+    sources:
       - file: params.yaml
         color: "#bae7f5"
         columns:
@@ -627,10 +630,32 @@ phases:
           - id: platform
             source_path: parameters.platform
             type: str
+          - id: time_scale_factor
+            source_path: parameters.time_scale_factor
+            type: float
+          - id: max_rows
+            source_path: parameters.max_rows
+            type: int
+          - id: virtual
+            source_path: parameters.virtual
+            type: bool
 
       - file: output.yaml
         color: "#ffb3b3"
         columns:
+          - id: edge_capable
+            source_path: exports.edge_capable
+            type: bool
+            color: "#d4f5d4"
+          - id: incompatibility_reason
+            source_path: exports.incompatibility_reason
+            type: str
+          - id: model_id
+            source_path: exports.model_id
+            type: str
+          - id: runtime_model_name
+            source_path: exports.runtime_model_name
+            type: str
           - id: Tu
             source_path: exports.Tu
             type: int
@@ -643,14 +668,14 @@ phases:
           - id: PW
             source_path: exports.PW
             type: int
-          - id: event_type_count 
-            source_path: exports.event_type_count  
-            type : int  
-          - id: operators 
-            source_path: exports.operators  
+          - id: event_type_count
+            source_path: exports.event_type_count
+            type: int
+          - id: operators
+            source_path: exports.operators
             type: list
-          - id: decision_threshold 
-            source_path: exports.decision_threshold  
+          - id: decision_threshold
+            source_path: exports.decision_threshold
             type: float
           - id: arena_bytes
             source_path: exports.arena_bytes
@@ -667,27 +692,82 @@ phases:
           - id: MTI_MS
             source_path: exports.MTI_MS
             type: int
-          - id: quality_score
-            source_path: exports.quality_score
-            type: float
-          - id: n_inferences
-            source_path: exports.n_inferences
-            type: int
-          - id: ok_rate
-            source_path: exports.ok_rate
-            type: float
-          - id: offload_rate
-            source_path: exports.offload_rate
-            type: float
-          - id: watchdog_rate
-            source_path: exports.watchdog_rate
-            type: float
           - id: edge_run_completed
             source_path: exports.edge_run_completed
             type: bool
           - id: phase_status_reason
             source_path: exports.phase_status_reason
             type: str
+          # model_stats
+          - id: quality_score
+            source_path: exports.model_stats.quality_score
+            type: float
+          - id: n_inferences
+            source_path: exports.model_stats.n_inferences
+            type: int
+          - id: ok_rate
+            source_path: exports.model_stats.ok_rate
+            type: float
+          - id: offload_rate
+            source_path: exports.model_stats.offload_rate
+            type: float
+          - id: watchdog_rate
+            source_path: exports.model_stats.watchdog_rate
+            type: float
+          - id: n_attempts
+            source_path: exports.model_stats.n_attempts
+            type: int
+          - id: n_ok
+            source_path: exports.model_stats.n_ok
+            type: int
+          - id: n_fail
+            source_path: exports.model_stats.n_fail
+            type: int
+          # model_stats.timing
+          - id: edge_mean_latency_ms
+            source_path: exports.model_stats.timing.edge_mean_latency_ms
+            type: float
+          - id: edge_max_latency_ms
+            source_path: exports.model_stats.timing.edge_max_latency_ms
+            type: float
+          - id: edge_jitter_ms
+            source_path: exports.model_stats.timing.edge_jitter_ms
+            type: float
+          # model_stats.memory
+          - id: edge_memory_peak_bytes
+            source_path: exports.model_stats.memory.edge_memory_peak_bytes
+            type: int
+          # model_stats.quality
+          - id: tp
+            source_path: exports.model_stats.quality.tp
+            type: int
+          - id: fp
+            source_path: exports.model_stats.quality.fp
+            type: int
+          - id: tn
+            source_path: exports.model_stats.quality.tn
+            type: int
+          - id: fn
+            source_path: exports.model_stats.quality.fn
+            type: int
+          - id: accuracy
+            source_path: exports.model_stats.quality.accuracy
+            type: float
+          - id: precision
+            source_path: exports.model_stats.quality.precision
+            type: float
+          - id: recall
+            source_path: exports.model_stats.quality.recall
+            type: float
+          - id: f1
+            source_path: exports.model_stats.quality.f1
+            type: float
+          - id: false_negative_rate
+            source_path: exports.model_stats.quality.false_negative_rate
+            type: float
+          - id: pc_esp_agreement
+            source_path: exports.model_stats.quality.pc_esp_agreement
+            type: float
 
 
 
@@ -697,12 +777,12 @@ phases:
         color: "#b3ffc3"
         type: str
         indexed: true
-    sources: 
+    sources:
       - file: params.yaml
         color: "#bae7f5"
         columns:
           - id: parents
-            source_path: parameters.parents
+            source_path: parameters.parent_variant
             type: list
             color: "#fce1fb"
           - id: selection_mode
@@ -720,15 +800,56 @@ phases:
           - id: platform
             source_path: parameters.platform
             type: str
-      - file: output.yaml 
+          - id: virtual
+            source_path: parameters.virtual
+            type: bool
+      - file: output.yaml
         color: "#ffb3b3"
         columns:
+          - id: phase_status
+            source_path: exports.phase_status
+            type: str
+            color: "#ffe0b3"
+          - id: phase_status_reason
+            source_path: exports.phase_status_reason
+            type: str
+          - id: system_viable
+            source_path: exports.system_viable
+            type: bool
+            color: "#d4f5d4"
+          - id: configuration_edge_capable
+            source_path: exports.configuration_edge_capable
+            type: bool
+          - id: edge_run_completed
+            source_path: exports.edge_run_completed
+            type: bool
+          - id: esp_run_completed
+            source_path: exports.esp_run_completed
+            type: bool
+          - id: selection_completed
+            source_path: exports.selection_completed
+            type: bool
           - id: objective
             source_path: exports.objective
             type: str
           - id: solver_status
             source_path: exports.solver_status
             type: str
+          - id: selection_global_precision
+            source_path: exports.selection_global_precision
+            type: float
+          - id: selection_global_recall
+            source_path: exports.selection_global_recall
+            type: float
+          - id: requested_parent_variants
+            source_path: exports.requested_parent_variants
+            type: list
+          - id: selected_variants
+            source_path: exports.selected_variants
+            type: list
+          - id: model_ids
+            source_path: exports.model_ids
+            type: list
           - id: Tu
             source_path: exports.Tu
             type: int
@@ -744,6 +865,9 @@ phases:
           - id: event_type_count
             source_path: exports.event_type_count
             type: int
+          - id: MTI_MS
+            source_path: exports.MTI_MS
+            type: int
           - id: total_models_requested
             source_path: exports.total_models_requested
             type: int
@@ -756,6 +880,78 @@ phases:
           - id: total_model_size_bytes
             source_path: exports.total_model_size_bytes
             type: int
+          - id: required_arena_bytes
+            source_path: exports.required_arena_bytes
+            type: int
+          - id: max_exec_time_ms
+            source_path: exports.max_exec_time_ms
+            type: float
           - id: operators_union
             source_path: exports.operators_union
             type: list
+          - id: compatible_input_signature
+            source_path: exports.compatible_input_signature
+            type: bool
+          - id: unique_windows_count
+            source_path: exports.unique_windows_count
+            type: int
+          - id: duplicate_windows_removed
+            source_path: exports.duplicate_windows_removed
+            type: int
+          - id: execution_time
+            source_path: metrics.execution_time
+            type: float
+          - id: n_inferences
+            source_path: metrics.n_inferences
+            type: int
+          - id: models_evaluated
+            source_path: metrics.models_evaluated
+            type: int
+          - id: throughput_inf_per_sec
+            source_path: metrics.throughput_inf_per_sec
+            type: float
+          - id: edge_mean_latency_ms
+            source_path: metrics.edge_mean_latency_ms
+            type: float
+          - id: edge_max_latency_ms
+            source_path: metrics.edge_max_latency_ms
+            type: float
+          - id: edge_jitter_ms
+            source_path: metrics.edge_jitter_ms
+            type: float
+          - id: esp_mean_latency_ms
+            source_path: metrics.esp_mean_latency_ms
+            type: float
+          - id: esp_max_latency_ms
+            source_path: metrics.esp_max_latency_ms
+            type: float
+          - id: esp_jitter_ms
+            source_path: metrics.esp_jitter_ms
+            type: float
+          - id: ok_rate
+            source_path: metrics.ok_rate
+            type: float
+          - id: offload_rate
+            source_path: metrics.offload_rate
+            type: float
+          - id: watchdog_rate
+            source_path: metrics.watchdog_rate
+            type: float
+          - id: system_quality_score
+            source_path: metrics.system_quality_score
+            type: float
+          - id: mean_model_quality_score
+            source_path: metrics.mean_model_quality_score
+            type: float
+          - id: edge_memory_peak_bytes
+            source_path: metrics.edge_memory_peak_bytes
+            type: int
+          - id: esp_memory_peak_bytes
+            source_path: metrics.esp_memory_peak_bytes
+            type: int
+          - id: pc_esp_agreement
+            source_path: metrics.pc_esp_agreement
+            type: float
+          - id: evaluated_rows_total
+            source_path: metrics.evaluated_rows_total
+            type: int
