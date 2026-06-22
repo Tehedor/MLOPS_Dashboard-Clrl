@@ -1,8 +1,29 @@
 .DEFAULT_GOAL := help
 
+# LOCAL: usa el Python instalado en el sistema.
+# VENV:  usa un entorno virtual en .venv/ (se crea al instalar dependencias).
+MODE ?= VENV
+
 BACKEND_DIR  := backend
 FRONTEND_DIR := fronted
 PID_DIR      := .pids
+VENV_DIR     := .venv
+
+SYSTEM_PYTHON ?= python3
+
+ifeq ($(MODE),LOCAL)
+PYTHON_CMD  := $(SYSTEM_PYTHON)
+PIP_CMD     := $(PYTHON_CMD) -m pip
+UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
+RUFF_CMD    := $(PYTHON_CMD) -m ruff
+else ifeq ($(MODE),VENV)
+PYTHON_CMD  := $(abspath $(VENV_DIR)/bin/python)
+PIP_CMD     := $(PYTHON_CMD) -m pip
+UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
+RUFF_CMD    := $(PYTHON_CMD) -m ruff
+else
+$(error MODE debe ser LOCAL o VENV; valor recibido: $(MODE))
+endif
 
 BACKEND_PID  := $(PID_DIR)/backend.pid
 FRONTEND_PID := $(PID_DIR)/frontend.pid
@@ -19,6 +40,7 @@ BOLD  := \033[1m
 .PHONY: help
 help: ## Muestra esta ayuda
 	@printf "\n$(BOLD)MLOps Control Dashboard$(RESET)\n\n"
+	@printf "  Modo Python: $(CYAN)$(MODE)$(RESET) ($(PYTHON_CMD))\n\n"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-24s$(RESET) %s\n", $$1, $$2}' \
 		| sort
@@ -26,11 +48,21 @@ help: ## Muestra esta ayuda
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
-.PHONY: install install-backend install-frontend env
+.PHONY: install install-backend install-frontend python-env env
 install: install-backend install-frontend ## Instala todas las dependencias
 
-install-backend: ## Instala dependencias Python (pip)
-	cd $(BACKEND_DIR) && pip install -r requirements.txt
+python-env: ## Prepara Python según MODE (crea .venv si MODE=VENV)
+ifeq ($(MODE),VENV)
+	@test -x $(PYTHON_CMD) || $(SYSTEM_PYTHON) -m venv $(VENV_DIR)
+else
+	@command -v $(SYSTEM_PYTHON) >/dev/null || { \
+		echo "No se encontró $(SYSTEM_PYTHON) en PATH"; \
+		exit 1; \
+	}
+endif
+
+install-backend: python-env ## Instala dependencias Python según MODE
+	cd $(BACKEND_DIR) && $(PIP_CMD) install -r requirements.txt
 
 install-frontend: ## Instala dependencias Node (npm)
 	cd $(FRONTEND_DIR) && npm install
@@ -66,7 +98,7 @@ dev-backend: ## Arranca el backend (uvicorn --reload) en background
 		echo "Backend ya corriendo (PID $$PID)"; \
 	else \
 		cd $(BACKEND_DIR) || exit 1; \
-		uvicorn app.main:app --reload --port 8000 > ../$(BACKEND_LOG) 2>&1 & \
+		$(UVICORN_CMD) app.main:app --reload --port 8000 > ../$(BACKEND_LOG) 2>&1 & \
 		PID=$$!; \
 		sleep 1; \
 		if kill -0 $$PID 2>/dev/null; then \
@@ -178,7 +210,7 @@ logs-frontend: ## Sigue los logs del frontend
 	@tail -f $(FRONTEND_LOG)
 
 logs-localRunner: ## Logs del runner local en tiempo real (EXEC=<id_prefix> para uno específico)
-	@python3 scripts/local_runner_logs.py $(EXEC)
+	@$(PYTHON_CMD) scripts/local_runner_logs.py $(EXEC)
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 
@@ -228,7 +260,7 @@ db-dump: ## Vuelca toda la tabla executions a stdout
 lint: lint-backend lint-frontend ## Lint de backend + frontend
 
 lint-backend: ## Lint Python con ruff (pip install ruff si no está)
-	cd $(BACKEND_DIR) && ruff check app/
+	cd $(BACKEND_DIR) && $(RUFF_CMD) check app/
 
 lint-frontend: ## Lint JS con eslint
 	cd $(FRONTEND_DIR) && npm run lint --if-present
@@ -236,7 +268,7 @@ lint-frontend: ## Lint JS con eslint
 fmt: fmt-backend fmt-frontend ## Formatea backend + frontend
 
 fmt-backend: ## Formatea Python con ruff format
-	cd $(BACKEND_DIR) && ruff format app/
+	cd $(BACKEND_DIR) && $(RUFF_CMD) format app/
 
 fmt-frontend: ## Formatea JS/JSX con prettier
 	cd $(FRONTEND_DIR) && npx prettier --write "src/**/*.{js,jsx}"
