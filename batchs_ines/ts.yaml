@@ -1,0 +1,3342 @@
+pipeline: ts
+repo_path: C:/Users/inesv/Desktop/STRAST/mlops4rtedgeTS
+selected_runner: GithubActions
+variants:
+  f01:
+  - phase: f01_explore
+    variant: v1_0000
+    parent: null
+    parameters:
+      raw_path: data/raw.csv
+      cleaning: basic
+      nan_values:
+      - -999999
+      error_values:
+        MG-LV-MSB_AC_Voltage:
+        - 0.0
+        Receiving_Point_AC_Voltage:
+        - 0.0
+        Island_mode_MCCB_AC_Voltage:
+        - 0.0
+        Island_mode_MCCB_Frequency:
+        - -327.679993
+        - 0.0
+        MG-LV-MSB_Frequency:
+        - -327.679993
+        - 0.0
+        Outlet_Temperature:
+        - -52.5
+        Inlet_Temperature_of_Chilled_Water:
+        - -52.5
+        - -52.400002
+        - -52.299999
+    selected_runner: GithubActions
+  f02:
+  - variant: v2_0001
+    params:
+      measure: GE_Active_Power
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0002
+    params:
+      measure: Outlet_Temperature
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0003
+    params:
+      measure: PVPCS_Active_Power
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0004
+    params:
+      measure: MG-LV-MSB_AC_Voltage
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0005
+    params:
+      measure: Inlet_Temperature_of_Chilled_Water
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0006
+    params:
+      measure: Battery_Active_Power
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0007
+    params:
+      measure: FC_Active_Power
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0008
+    params:
+      measure: Island_mode_MCCB_AC_Voltage
+    parent: v1_0000
+    selected_runner: GithubActions
+  - variant: v2_0009
+    params:
+      measure: Island_mode_MCCB_Active_Power
+    parent: v1_0000
+    selected_runner: GithubActions
+  f03:
+  - variant: v3_0001
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0001
+    selected_runner: GithubActions
+  - variant: v3_0002
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0002
+    selected_runner: GithubActions
+  - variant: v3_0003
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0003
+    selected_runner: GithubActions
+  - variant: v3_0004
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0004
+    selected_runner: GithubActions
+  - variant: v3_0005
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0005
+    selected_runner: GithubActions
+  - variant: v3_0006
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0006
+    selected_runner: GithubActions
+  - variant: v3_0007
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0007
+    selected_runner: GithubActions
+  - variant: v3_0008
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0008
+    selected_runner: GithubActions
+  - variant: v3_0009
+    params:
+      OW: 50
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0009
+    selected_runner: GithubActions
+  - variant: v3_0010
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0001
+    selected_runner: GithubActions
+  - variant: v3_0011
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0002
+    selected_runner: GithubActions
+  - variant: v3_0012
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0003
+    selected_runner: GithubActions
+  - variant: v3_0013
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0004
+    selected_runner: GithubActions
+  - variant: v3_0014
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0005
+    selected_runner: GithubActions
+  - variant: v3_0015
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0006
+    selected_runner: GithubActions
+  - variant: v3_0016
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0007
+    selected_runner: GithubActions
+  - variant: v3_0017
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0008
+    selected_runner: GithubActions
+  - variant: v3_0018
+    params:
+      OW: 90
+      LT: 10
+      PW: 10
+      window_strategy: synchro
+      nan_mode: discard
+    parent: v2_0009
+    selected_runner: GithubActions
+  f04:
+  - variant: v4_0001
+    params:
+      threshold: 90
+      direction: high
+      name: ge_active_power_high_90
+    parent: v3_0001
+    selected_runner: GithubActions
+  - variant: v4_0002
+    params:
+      threshold: 80
+      direction: high
+      name: ge_active_power_high_80
+    parent: v3_0001
+    selected_runner: GithubActions
+  - variant: v4_0003
+    params:
+      threshold: 10
+      direction: low
+      name: ge_active_power_low_10
+    parent: v3_0001
+    selected_runner: GithubActions
+  - variant: v4_0004
+    params:
+      threshold: 20
+      direction: low
+      name: ge_active_power_low_20
+    parent: v3_0001
+    selected_runner: GithubActions
+  - variant: v4_0005
+    params:
+      threshold: 90
+      direction: high
+      name: outlet_temperature_high_90
+    parent: v3_0002
+    selected_runner: GithubActions
+  - variant: v4_0006
+    params:
+      threshold: 80
+      direction: high
+      name: outlet_temperature_high_80
+    parent: v3_0002
+    selected_runner: GithubActions
+  - variant: v4_0007
+    params:
+      threshold: 10
+      direction: low
+      name: outlet_temperature_low_10
+    parent: v3_0002
+    selected_runner: GithubActions
+  - variant: v4_0008
+    params:
+      threshold: 20
+      direction: low
+      name: outlet_temperature_low_20
+    parent: v3_0002
+    selected_runner: GithubActions
+  - variant: v4_0009
+    params:
+      threshold: 90
+      direction: high
+      name: pvpcs_active_power_high_90
+    parent: v3_0003
+    selected_runner: GithubActions
+  - variant: v4_0010
+    params:
+      threshold: 80
+      direction: high
+      name: pvpcs_active_power_high_80
+    parent: v3_0003
+    selected_runner: GithubActions
+  - variant: v4_0011
+    params:
+      threshold: 10
+      direction: low
+      name: pvpcs_active_power_low_10
+    parent: v3_0003
+    selected_runner: GithubActions
+  - variant: v4_0012
+    params:
+      threshold: 20
+      direction: low
+      name: pvpcs_active_power_low_20
+    parent: v3_0003
+    selected_runner: GithubActions
+  - variant: v4_0013
+    params:
+      threshold: 90
+      direction: high
+      name: mg_lv_msb_ac_voltage_high_90
+    parent: v3_0004
+    selected_runner: GithubActions
+  - variant: v4_0014
+    params:
+      threshold: 80
+      direction: high
+      name: mg_lv_msb_ac_voltage_high_80
+    parent: v3_0004
+    selected_runner: GithubActions
+  - variant: v4_0015
+    params:
+      threshold: 10
+      direction: low
+      name: mg_lv_msb_ac_voltage_low_10
+    parent: v3_0004
+    selected_runner: GithubActions
+  - variant: v4_0016
+    params:
+      threshold: 20
+      direction: low
+      name: mg_lv_msb_ac_voltage_low_20
+    parent: v3_0004
+    selected_runner: GithubActions
+  - variant: v4_0017
+    params:
+      threshold: 90
+      direction: high
+      name: inlet_temperature_of_chilled_water_high_90
+    parent: v3_0005
+    selected_runner: GithubActions
+  - variant: v4_0018
+    params:
+      threshold: 80
+      direction: high
+      name: inlet_temperature_of_chilled_water_high_80
+    parent: v3_0005
+    selected_runner: GithubActions
+  - variant: v4_0019
+    params:
+      threshold: 10
+      direction: low
+      name: inlet_temperature_of_chilled_water_low_10
+    parent: v3_0005
+    selected_runner: GithubActions
+  - variant: v4_0020
+    params:
+      threshold: 20
+      direction: low
+      name: inlet_temperature_of_chilled_water_low_20
+    parent: v3_0005
+    selected_runner: GithubActions
+  - variant: v4_0021
+    params:
+      threshold: 90
+      direction: high
+      name: battery_active_power_high_90
+    parent: v3_0006
+    selected_runner: GithubActions
+  - variant: v4_0022
+    params:
+      threshold: 80
+      direction: high
+      name: battery_active_power_high_80
+    parent: v3_0006
+    selected_runner: GithubActions
+  - variant: v4_0023
+    params:
+      threshold: 10
+      direction: low
+      name: battery_active_power_low_10
+    parent: v3_0006
+    selected_runner: GithubActions
+  - variant: v4_0024
+    params:
+      threshold: 20
+      direction: low
+      name: battery_active_power_low_20
+    parent: v3_0006
+    selected_runner: GithubActions
+  - variant: v4_0025
+    params:
+      threshold: 90
+      direction: high
+      name: fc_active_power_high_90
+    parent: v3_0007
+    selected_runner: GithubActions
+  - variant: v4_0026
+    params:
+      threshold: 80
+      direction: high
+      name: fc_active_power_high_80
+    parent: v3_0007
+    selected_runner: GithubActions
+  - variant: v4_0027
+    params:
+      threshold: 10
+      direction: low
+      name: fc_active_power_low_10
+    parent: v3_0007
+    selected_runner: GithubActions
+  - variant: v4_0028
+    params:
+      threshold: 20
+      direction: low
+      name: fc_active_power_low_20
+    parent: v3_0007
+    selected_runner: GithubActions
+  - variant: v4_0029
+    params:
+      threshold: 90
+      direction: high
+      name: island_mode_mccb_ac_voltage_high_90
+    parent: v3_0008
+    selected_runner: GithubActions
+  - variant: v4_0030
+    params:
+      threshold: 80
+      direction: high
+      name: island_mode_mccb_ac_voltage_high_80
+    parent: v3_0008
+    selected_runner: GithubActions
+  - variant: v4_0031
+    params:
+      threshold: 10
+      direction: low
+      name: island_mode_mccb_ac_voltage_low_10
+    parent: v3_0008
+    selected_runner: GithubActions
+  - variant: v4_0032
+    params:
+      threshold: 20
+      direction: low
+      name: island_mode_mccb_ac_voltage_low_20
+    parent: v3_0008
+    selected_runner: GithubActions
+  - variant: v4_0033
+    params:
+      threshold: 90
+      direction: high
+      name: island_mode_mccb_active_power_high_90
+    parent: v3_0009
+    selected_runner: GithubActions
+  - variant: v4_0034
+    params:
+      threshold: 80
+      direction: high
+      name: island_mode_mccb_active_power_high_80
+    parent: v3_0009
+    selected_runner: GithubActions
+  - variant: v4_0035
+    params:
+      threshold: 10
+      direction: low
+      name: island_mode_mccb_active_power_low_10
+    parent: v3_0009
+    selected_runner: GithubActions
+  - variant: v4_0036
+    params:
+      threshold: 20
+      direction: low
+      name: island_mode_mccb_active_power_low_20
+    parent: v3_0009
+    selected_runner: GithubActions
+  - variant: v4_0037
+    params:
+      threshold: 90
+      direction: high
+      name: ge_active_power_high_90
+    parent: v3_0010
+    selected_runner: GithubActions
+  - variant: v4_0038
+    params:
+      threshold: 80
+      direction: high
+      name: ge_active_power_high_80
+    parent: v3_0010
+    selected_runner: GithubActions
+  - variant: v4_0039
+    params:
+      threshold: 10
+      direction: low
+      name: ge_active_power_low_10
+    parent: v3_0010
+    selected_runner: GithubActions
+  - variant: v4_0040
+    params:
+      threshold: 20
+      direction: low
+      name: ge_active_power_low_20
+    parent: v3_0010
+    selected_runner: GithubActions
+  - variant: v4_0041
+    params:
+      threshold: 90
+      direction: high
+      name: outlet_temperature_high_90
+    parent: v3_0011
+    selected_runner: GithubActions
+  - variant: v4_0042
+    params:
+      threshold: 80
+      direction: high
+      name: outlet_temperature_high_80
+    parent: v3_0011
+    selected_runner: GithubActions
+  - variant: v4_0043
+    params:
+      threshold: 10
+      direction: low
+      name: outlet_temperature_low_10
+    parent: v3_0011
+    selected_runner: GithubActions
+  - variant: v4_0044
+    params:
+      threshold: 20
+      direction: low
+      name: outlet_temperature_low_20
+    parent: v3_0011
+    selected_runner: GithubActions
+  - variant: v4_0045
+    params:
+      threshold: 90
+      direction: high
+      name: pvpcs_active_power_high_90
+    parent: v3_0012
+    selected_runner: GithubActions
+  - variant: v4_0046
+    params:
+      threshold: 80
+      direction: high
+      name: pvpcs_active_power_high_80
+    parent: v3_0012
+    selected_runner: GithubActions
+  - variant: v4_0047
+    params:
+      threshold: 10
+      direction: low
+      name: pvpcs_active_power_low_10
+    parent: v3_0012
+    selected_runner: GithubActions
+  - variant: v4_0048
+    params:
+      threshold: 20
+      direction: low
+      name: pvpcs_active_power_low_20
+    parent: v3_0012
+    selected_runner: GithubActions
+  - variant: v4_0049
+    params:
+      threshold: 90
+      direction: high
+      name: mg_lv_msb_ac_voltage_high_90
+    parent: v3_0013
+    selected_runner: GithubActions
+  - variant: v4_0050
+    params:
+      threshold: 80
+      direction: high
+      name: mg_lv_msb_ac_voltage_high_80
+    parent: v3_0013
+    selected_runner: GithubActions
+  - variant: v4_0051
+    params:
+      threshold: 10
+      direction: low
+      name: mg_lv_msb_ac_voltage_low_10
+    parent: v3_0013
+    selected_runner: GithubActions
+  - variant: v4_0052
+    params:
+      threshold: 20
+      direction: low
+      name: mg_lv_msb_ac_voltage_low_20
+    parent: v3_0013
+    selected_runner: GithubActions
+  - variant: v4_0053
+    params:
+      threshold: 90
+      direction: high
+      name: inlet_temperature_of_chilled_water_high_90
+    parent: v3_0014
+    selected_runner: GithubActions
+  - variant: v4_0054
+    params:
+      threshold: 80
+      direction: high
+      name: inlet_temperature_of_chilled_water_high_80
+    parent: v3_0014
+    selected_runner: GithubActions
+  - variant: v4_0055
+    params:
+      threshold: 10
+      direction: low
+      name: inlet_temperature_of_chilled_water_low_10
+    parent: v3_0014
+    selected_runner: GithubActions
+  - variant: v4_0056
+    params:
+      threshold: 20
+      direction: low
+      name: inlet_temperature_of_chilled_water_low_20
+    parent: v3_0014
+    selected_runner: GithubActions
+  - variant: v4_0057
+    params:
+      threshold: 90
+      direction: high
+      name: battery_active_power_high_90
+    parent: v3_0015
+    selected_runner: GithubActions
+  - variant: v4_0058
+    params:
+      threshold: 80
+      direction: high
+      name: battery_active_power_high_80
+    parent: v3_0015
+    selected_runner: GithubActions
+  - variant: v4_0059
+    params:
+      threshold: 10
+      direction: low
+      name: battery_active_power_low_10
+    parent: v3_0015
+    selected_runner: GithubActions
+  - variant: v4_0060
+    params:
+      threshold: 20
+      direction: low
+      name: battery_active_power_low_20
+    parent: v3_0015
+    selected_runner: GithubActions
+  - variant: v4_0061
+    params:
+      threshold: 90
+      direction: high
+      name: fc_active_power_high_90
+    parent: v3_0016
+    selected_runner: GithubActions
+  - variant: v4_0062
+    params:
+      threshold: 80
+      direction: high
+      name: fc_active_power_high_80
+    parent: v3_0016
+    selected_runner: GithubActions
+  - variant: v4_0063
+    params:
+      threshold: 10
+      direction: low
+      name: fc_active_power_low_10
+    parent: v3_0016
+    selected_runner: GithubActions
+  - variant: v4_0064
+    params:
+      threshold: 20
+      direction: low
+      name: fc_active_power_low_20
+    parent: v3_0016
+    selected_runner: GithubActions
+  - variant: v4_0065
+    params:
+      threshold: 90
+      direction: high
+      name: island_mode_mccb_ac_voltage_high_90
+    parent: v3_0017
+    selected_runner: GithubActions
+  - variant: v4_0066
+    params:
+      threshold: 80
+      direction: high
+      name: island_mode_mccb_ac_voltage_high_80
+    parent: v3_0017
+    selected_runner: GithubActions
+  - variant: v4_0067
+    params:
+      threshold: 10
+      direction: low
+      name: island_mode_mccb_ac_voltage_low_10
+    parent: v3_0017
+    selected_runner: GithubActions
+  - variant: v4_0068
+    params:
+      threshold: 20
+      direction: low
+      name: island_mode_mccb_ac_voltage_low_20
+    parent: v3_0017
+    selected_runner: GithubActions
+  - variant: v4_0069
+    params:
+      threshold: 90
+      direction: high
+      name: island_mode_mccb_active_power_high_90
+    parent: v3_0018
+    selected_runner: GithubActions
+  - variant: v4_0070
+    params:
+      threshold: 80
+      direction: high
+      name: island_mode_mccb_active_power_high_80
+    parent: v3_0018
+    selected_runner: GithubActions
+  - variant: v4_0071
+    params:
+      threshold: 10
+      direction: low
+      name: island_mode_mccb_active_power_low_10
+    parent: v3_0018
+    selected_runner: GithubActions
+  - variant: v4_0072
+    params:
+      threshold: 20
+      direction: low
+      name: island_mode_mccb_active_power_low_20
+    parent: v3_0018
+    selected_runner: GithubActions
+  f05:
+  - variant: v5_0001
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0001
+    selected_runner: GithubActions
+  - variant: v5_0002
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0002
+    selected_runner: GithubActions
+  - variant: v5_0003
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0003
+    selected_runner: GithubActions
+  - variant: v5_0004
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0004
+    selected_runner: GithubActions
+  - variant: v5_0005
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0005
+    selected_runner: GithubActions
+  - variant: v5_0006
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0006
+    selected_runner: GithubActions
+  - variant: v5_0007
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0007
+    selected_runner: GithubActions
+  - variant: v5_0008
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0008
+    selected_runner: GithubActions
+  - variant: v5_0009
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0009
+    selected_runner: GithubActions
+  - variant: v5_0010
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0010
+    selected_runner: GithubActions
+  - variant: v5_0011
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0011
+    selected_runner: GithubActions
+  - variant: v5_0012
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0012
+    selected_runner: GithubActions
+  - variant: v5_0013
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0013
+    selected_runner: GithubActions
+  - variant: v5_0014
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0014
+    selected_runner: GithubActions
+  - variant: v5_0015
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0015
+    selected_runner: GithubActions
+  - variant: v5_0016
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0016
+    selected_runner: GithubActions
+  - variant: v5_0017
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0017
+    selected_runner: GithubActions
+  - variant: v5_0018
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0018
+    selected_runner: GithubActions
+  - variant: v5_0019
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0019
+    selected_runner: GithubActions
+  - variant: v5_0020
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0020
+    selected_runner: GithubActions
+  - variant: v5_0021
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0021
+    selected_runner: GithubActions
+  - variant: v5_0022
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0022
+    selected_runner: GithubActions
+  - variant: v5_0023
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0023
+    selected_runner: GithubActions
+  - variant: v5_0024
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0024
+    selected_runner: GithubActions
+  - variant: v5_0025
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0025
+    selected_runner: GithubActions
+  - variant: v5_0026
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0026
+    selected_runner: GithubActions
+  - variant: v5_0027
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0027
+    selected_runner: GithubActions
+  - variant: v5_0028
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0028
+    selected_runner: GithubActions
+  - variant: v5_0029
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0029
+    selected_runner: GithubActions
+  - variant: v5_0030
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0030
+    selected_runner: GithubActions
+  - variant: v5_0031
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0031
+    selected_runner: GithubActions
+  - variant: v5_0032
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0032
+    selected_runner: GithubActions
+  - variant: v5_0033
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0033
+    selected_runner: GithubActions
+  - variant: v5_0034
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0034
+    selected_runner: GithubActions
+  - variant: v5_0035
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0035
+    selected_runner: GithubActions
+  - variant: v5_0036
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0036
+    selected_runner: GithubActions
+  - variant: v5_0037
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0037
+    selected_runner: GithubActions
+  - variant: v5_0038
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0038
+    selected_runner: GithubActions
+  - variant: v5_0039
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0039
+    selected_runner: GithubActions
+  - variant: v5_0040
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0040
+    selected_runner: GithubActions
+  - variant: v5_0041
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0041
+    selected_runner: GithubActions
+  - variant: v5_0042
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0042
+    selected_runner: GithubActions
+  - variant: v5_0043
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0043
+    selected_runner: GithubActions
+  - variant: v5_0044
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0044
+    selected_runner: GithubActions
+  - variant: v5_0045
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0045
+    selected_runner: GithubActions
+  - variant: v5_0046
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0046
+    selected_runner: GithubActions
+  - variant: v5_0047
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0047
+    selected_runner: GithubActions
+  - variant: v5_0048
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0048
+    selected_runner: GithubActions
+  - variant: v5_0049
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0049
+    selected_runner: GithubActions
+  - variant: v5_0050
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0050
+    selected_runner: GithubActions
+  - variant: v5_0051
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0051
+    selected_runner: GithubActions
+  - variant: v5_0052
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0052
+    selected_runner: GithubActions
+  - variant: v5_0053
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0053
+    selected_runner: GithubActions
+  - variant: v5_0054
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0054
+    selected_runner: GithubActions
+  - variant: v5_0055
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0055
+    selected_runner: GithubActions
+  - variant: v5_0056
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0056
+    selected_runner: GithubActions
+  - variant: v5_0057
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0057
+    selected_runner: GithubActions
+  - variant: v5_0058
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0058
+    selected_runner: GithubActions
+  - variant: v5_0059
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0059
+    selected_runner: GithubActions
+  - variant: v5_0060
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0060
+    selected_runner: GithubActions
+  - variant: v5_0061
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0061
+    selected_runner: GithubActions
+  - variant: v5_0062
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0062
+    selected_runner: GithubActions
+  - variant: v5_0063
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0063
+    selected_runner: GithubActions
+  - variant: v5_0064
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0064
+    selected_runner: GithubActions
+  - variant: v5_0065
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0065
+    selected_runner: GithubActions
+  - variant: v5_0066
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0066
+    selected_runner: GithubActions
+  - variant: v5_0067
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0067
+    selected_runner: GithubActions
+  - variant: v5_0068
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0068
+    selected_runner: GithubActions
+  - variant: v5_0069
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0069
+    selected_runner: GithubActions
+  - variant: v5_0070
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0070
+    selected_runner: GithubActions
+  - variant: v5_0071
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0071
+    selected_runner: GithubActions
+  - variant: v5_0072
+    params:
+      model_family: cnn1d
+      automl:
+        enabled: true
+        max_trials: 3
+        seed: 42
+      training:
+        epochs: 5
+        max_samples: null
+      evaluation:
+        val_max_samples: 20000
+        test_max_samples: 20000
+      imbalance_strategy: rare_events
+      imbalance_max_majority_samples: 20000
+      deduplication_mode: none
+      seed: 42
+    parent: v4_0072
+    selected_runner: GithubActions
+  f06:
+  - variant: v6_0001
+    params: {}
+    parent: v5_0001
+    selected_runner: GithubActions
+  - variant: v6_0002
+    params: {}
+    parent: v5_0002
+    selected_runner: GithubActions
+  - variant: v6_0003
+    params: {}
+    parent: v5_0003
+    selected_runner: GithubActions
+  - variant: v6_0004
+    params: {}
+    parent: v5_0004
+    selected_runner: GithubActions
+  - variant: v6_0005
+    params: {}
+    parent: v5_0005
+    selected_runner: GithubActions
+  - variant: v6_0006
+    params: {}
+    parent: v5_0006
+    selected_runner: GithubActions
+  - variant: v6_0007
+    params: {}
+    parent: v5_0007
+    selected_runner: GithubActions
+  - variant: v6_0008
+    params: {}
+    parent: v5_0008
+    selected_runner: GithubActions
+  - variant: v6_0009
+    params: {}
+    parent: v5_0009
+    selected_runner: GithubActions
+  - variant: v6_0010
+    params: {}
+    parent: v5_0010
+    selected_runner: GithubActions
+  - variant: v6_0011
+    params: {}
+    parent: v5_0011
+    selected_runner: GithubActions
+  - variant: v6_0012
+    params: {}
+    parent: v5_0012
+    selected_runner: GithubActions
+  - variant: v6_0013
+    params: {}
+    parent: v5_0013
+    selected_runner: GithubActions
+  - variant: v6_0014
+    params: {}
+    parent: v5_0014
+    selected_runner: GithubActions
+  - variant: v6_0015
+    params: {}
+    parent: v5_0015
+    selected_runner: GithubActions
+  - variant: v6_0016
+    params: {}
+    parent: v5_0016
+    selected_runner: GithubActions
+  - variant: v6_0017
+    params: {}
+    parent: v5_0017
+    selected_runner: GithubActions
+  - variant: v6_0018
+    params: {}
+    parent: v5_0018
+    selected_runner: GithubActions
+  - variant: v6_0019
+    params: {}
+    parent: v5_0019
+    selected_runner: GithubActions
+  - variant: v6_0020
+    params: {}
+    parent: v5_0020
+    selected_runner: GithubActions
+  - variant: v6_0021
+    params: {}
+    parent: v5_0021
+    selected_runner: GithubActions
+  - variant: v6_0022
+    params: {}
+    parent: v5_0022
+    selected_runner: GithubActions
+  - variant: v6_0023
+    params: {}
+    parent: v5_0023
+    selected_runner: GithubActions
+  - variant: v6_0024
+    params: {}
+    parent: v5_0024
+    selected_runner: GithubActions
+  - variant: v6_0025
+    params: {}
+    parent: v5_0025
+    selected_runner: GithubActions
+  - variant: v6_0026
+    params: {}
+    parent: v5_0026
+    selected_runner: GithubActions
+  - variant: v6_0027
+    params: {}
+    parent: v5_0027
+    selected_runner: GithubActions
+  - variant: v6_0028
+    params: {}
+    parent: v5_0028
+    selected_runner: GithubActions
+  - variant: v6_0029
+    params: {}
+    parent: v5_0029
+    selected_runner: GithubActions
+  - variant: v6_0030
+    params: {}
+    parent: v5_0030
+    selected_runner: GithubActions
+  - variant: v6_0031
+    params: {}
+    parent: v5_0031
+    selected_runner: GithubActions
+  - variant: v6_0032
+    params: {}
+    parent: v5_0032
+    selected_runner: GithubActions
+  - variant: v6_0033
+    params: {}
+    parent: v5_0033
+    selected_runner: GithubActions
+  - variant: v6_0034
+    params: {}
+    parent: v5_0034
+    selected_runner: GithubActions
+  - variant: v6_0035
+    params: {}
+    parent: v5_0035
+    selected_runner: GithubActions
+  - variant: v6_0036
+    params: {}
+    parent: v5_0036
+    selected_runner: GithubActions
+  - variant: v6_0037
+    params: {}
+    parent: v5_0037
+    selected_runner: GithubActions
+  - variant: v6_0038
+    params: {}
+    parent: v5_0038
+    selected_runner: GithubActions
+  - variant: v6_0039
+    params: {}
+    parent: v5_0039
+    selected_runner: GithubActions
+  - variant: v6_0040
+    params: {}
+    parent: v5_0040
+    selected_runner: GithubActions
+  - variant: v6_0041
+    params: {}
+    parent: v5_0041
+    selected_runner: GithubActions
+  - variant: v6_0042
+    params: {}
+    parent: v5_0042
+    selected_runner: GithubActions
+  - variant: v6_0043
+    params: {}
+    parent: v5_0043
+    selected_runner: GithubActions
+  - variant: v6_0044
+    params: {}
+    parent: v5_0044
+    selected_runner: GithubActions
+  - variant: v6_0045
+    params: {}
+    parent: v5_0045
+    selected_runner: GithubActions
+  - variant: v6_0046
+    params: {}
+    parent: v5_0046
+    selected_runner: GithubActions
+  - variant: v6_0047
+    params: {}
+    parent: v5_0047
+    selected_runner: GithubActions
+  - variant: v6_0048
+    params: {}
+    parent: v5_0048
+    selected_runner: GithubActions
+  - variant: v6_0049
+    params: {}
+    parent: v5_0049
+    selected_runner: GithubActions
+  - variant: v6_0050
+    params: {}
+    parent: v5_0050
+    selected_runner: GithubActions
+  - variant: v6_0051
+    params: {}
+    parent: v5_0051
+    selected_runner: GithubActions
+  - variant: v6_0052
+    params: {}
+    parent: v5_0052
+    selected_runner: GithubActions
+  - variant: v6_0053
+    params: {}
+    parent: v5_0053
+    selected_runner: GithubActions
+  - variant: v6_0054
+    params: {}
+    parent: v5_0054
+    selected_runner: GithubActions
+  - variant: v6_0055
+    params: {}
+    parent: v5_0055
+    selected_runner: GithubActions
+  - variant: v6_0056
+    params: {}
+    parent: v5_0056
+    selected_runner: GithubActions
+  - variant: v6_0057
+    params: {}
+    parent: v5_0057
+    selected_runner: GithubActions
+  - variant: v6_0058
+    params: {}
+    parent: v5_0058
+    selected_runner: GithubActions
+  - variant: v6_0059
+    params: {}
+    parent: v5_0059
+    selected_runner: GithubActions
+  - variant: v6_0060
+    params: {}
+    parent: v5_0060
+    selected_runner: GithubActions
+  - variant: v6_0061
+    params: {}
+    parent: v5_0061
+    selected_runner: GithubActions
+  - variant: v6_0062
+    params: {}
+    parent: v5_0062
+    selected_runner: GithubActions
+  - variant: v6_0063
+    params: {}
+    parent: v5_0063
+    selected_runner: GithubActions
+  - variant: v6_0064
+    params: {}
+    parent: v5_0064
+    selected_runner: GithubActions
+  - variant: v6_0065
+    params: {}
+    parent: v5_0065
+    selected_runner: GithubActions
+  - variant: v6_0066
+    params: {}
+    parent: v5_0066
+    selected_runner: GithubActions
+  - variant: v6_0067
+    params: {}
+    parent: v5_0067
+    selected_runner: GithubActions
+  - variant: v6_0068
+    params: {}
+    parent: v5_0068
+    selected_runner: GithubActions
+  - variant: v6_0069
+    params: {}
+    parent: v5_0069
+    selected_runner: GithubActions
+  - variant: v6_0070
+    params: {}
+    parent: v5_0070
+    selected_runner: GithubActions
+  - variant: v6_0071
+    params: {}
+    parent: v5_0071
+    selected_runner: GithubActions
+  - variant: v6_0072
+    params: {}
+    parent: v5_0072
+    selected_runner: GithubActions
+jobs:
+- job_key: 9e1d3721c931
+  measure: GE_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0001
+    f04: v4_0001
+    f05: v5_0001
+    f06: v6_0001
+- job_key: 641c1522178c
+  measure: GE_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0001
+    f04: v4_0002
+    f05: v5_0002
+    f06: v6_0002
+- job_key: 14a84c6e1b40
+  measure: GE_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0001
+    f04: v4_0003
+    f05: v5_0003
+    f06: v6_0003
+- job_key: 5aae0885927a
+  measure: GE_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0001
+    f04: v4_0004
+    f05: v5_0004
+    f06: v6_0004
+- job_key: 00819b41dc25
+  measure: Outlet_Temperature
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0002
+    f04: v4_0005
+    f05: v5_0005
+    f06: v6_0005
+- job_key: 3ab8d50c36ca
+  measure: Outlet_Temperature
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0002
+    f04: v4_0006
+    f05: v5_0006
+    f06: v6_0006
+- job_key: 1d971fb4ccec
+  measure: Outlet_Temperature
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0002
+    f04: v4_0007
+    f05: v5_0007
+    f06: v6_0007
+- job_key: e6385dc57d6b
+  measure: Outlet_Temperature
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0002
+    f04: v4_0008
+    f05: v5_0008
+    f06: v6_0008
+- job_key: 73f1092229b4
+  measure: PVPCS_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0003
+    f04: v4_0009
+    f05: v5_0009
+    f06: v6_0009
+- job_key: 2e95c5e3dfb6
+  measure: PVPCS_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0003
+    f04: v4_0010
+    f05: v5_0010
+    f06: v6_0010
+- job_key: 2d24da81321d
+  measure: PVPCS_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0003
+    f04: v4_0011
+    f05: v5_0011
+    f06: v6_0011
+- job_key: ba22fc7781d3
+  measure: PVPCS_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0003
+    f04: v4_0012
+    f05: v5_0012
+    f06: v6_0012
+- job_key: ca380570adc0
+  measure: MG-LV-MSB_AC_Voltage
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0004
+    f04: v4_0013
+    f05: v5_0013
+    f06: v6_0013
+- job_key: ba17096536ed
+  measure: MG-LV-MSB_AC_Voltage
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0004
+    f04: v4_0014
+    f05: v5_0014
+    f06: v6_0014
+- job_key: 9b56028095b3
+  measure: MG-LV-MSB_AC_Voltage
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0004
+    f04: v4_0015
+    f05: v5_0015
+    f06: v6_0015
+- job_key: 3da4c7efc789
+  measure: MG-LV-MSB_AC_Voltage
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0004
+    f04: v4_0016
+    f05: v5_0016
+    f06: v6_0016
+- job_key: 06f7d2f8be62
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0005
+    f04: v4_0017
+    f05: v5_0017
+    f06: v6_0017
+- job_key: baea175b7c5b
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0005
+    f04: v4_0018
+    f05: v5_0018
+    f06: v6_0018
+- job_key: f47755394e19
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0005
+    f04: v4_0019
+    f05: v5_0019
+    f06: v6_0019
+- job_key: ad5f1a9926a2
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0005
+    f04: v4_0020
+    f05: v5_0020
+    f06: v6_0020
+- job_key: 4b30b11f3c60
+  measure: Battery_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0006
+    f04: v4_0021
+    f05: v5_0021
+    f06: v6_0021
+- job_key: 372928e8b114
+  measure: Battery_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0006
+    f04: v4_0022
+    f05: v5_0022
+    f06: v6_0022
+- job_key: ef5fcdbc90a5
+  measure: Battery_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0006
+    f04: v4_0023
+    f05: v5_0023
+    f06: v6_0023
+- job_key: 311a5ab70cdd
+  measure: Battery_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0006
+    f04: v4_0024
+    f05: v5_0024
+    f06: v6_0024
+- job_key: 85e46bae7393
+  measure: FC_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0007
+    f04: v4_0025
+    f05: v5_0025
+    f06: v6_0025
+- job_key: d83ea7ccf9b2
+  measure: FC_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0007
+    f04: v4_0026
+    f05: v5_0026
+    f06: v6_0026
+- job_key: 79834e589a36
+  measure: FC_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0007
+    f04: v4_0027
+    f05: v5_0027
+    f06: v6_0027
+- job_key: 4effe714a5e1
+  measure: FC_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0007
+    f04: v4_0028
+    f05: v5_0028
+    f06: v6_0028
+- job_key: 7d1f6e5f403e
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0008
+    f04: v4_0029
+    f05: v5_0029
+    f06: v6_0029
+- job_key: d14d749df937
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0008
+    f04: v4_0030
+    f05: v5_0030
+    f06: v6_0030
+- job_key: d4550f95e96c
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0008
+    f04: v4_0031
+    f05: v5_0031
+    f06: v6_0031
+- job_key: 287dc8280036
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0008
+    f04: v4_0032
+    f05: v5_0032
+    f06: v6_0032
+- job_key: ea4d7157290a
+  measure: Island_mode_MCCB_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0009
+    f04: v4_0033
+    f05: v5_0033
+    f06: v6_0033
+- job_key: 38d41c5265af
+  measure: Island_mode_MCCB_Active_Power
+  direction: high
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0009
+    f04: v4_0034
+    f05: v5_0034
+    f06: v6_0034
+- job_key: bd8e587cafe5
+  measure: Island_mode_MCCB_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0009
+    f04: v4_0035
+    f05: v5_0035
+    f06: v6_0035
+- job_key: 48dfd8550f53
+  measure: Island_mode_MCCB_Active_Power
+  direction: low
+  temporal_id: ow50_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0009
+    f04: v4_0036
+    f05: v5_0036
+    f06: v6_0036
+- job_key: ff6e5fdae983
+  measure: GE_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0010
+    f04: v4_0037
+    f05: v5_0037
+    f06: v6_0037
+- job_key: 774ffc648202
+  measure: GE_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0010
+    f04: v4_0038
+    f05: v5_0038
+    f06: v6_0038
+- job_key: c847dee5f031
+  measure: GE_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0010
+    f04: v4_0039
+    f05: v5_0039
+    f06: v6_0039
+- job_key: 24d84e822279
+  measure: GE_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0001
+    f03: v3_0010
+    f04: v4_0040
+    f05: v5_0040
+    f06: v6_0040
+- job_key: 02a3ee702032
+  measure: Outlet_Temperature
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0011
+    f04: v4_0041
+    f05: v5_0041
+    f06: v6_0041
+- job_key: 0da6a2a5e282
+  measure: Outlet_Temperature
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0011
+    f04: v4_0042
+    f05: v5_0042
+    f06: v6_0042
+- job_key: 24417fd3b615
+  measure: Outlet_Temperature
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0011
+    f04: v4_0043
+    f05: v5_0043
+    f06: v6_0043
+- job_key: 5900a8f6a316
+  measure: Outlet_Temperature
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0002
+    f03: v3_0011
+    f04: v4_0044
+    f05: v5_0044
+    f06: v6_0044
+- job_key: a3579949002a
+  measure: PVPCS_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0012
+    f04: v4_0045
+    f05: v5_0045
+    f06: v6_0045
+- job_key: d84d8eb5c908
+  measure: PVPCS_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0012
+    f04: v4_0046
+    f05: v5_0046
+    f06: v6_0046
+- job_key: 2bb28503410d
+  measure: PVPCS_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0012
+    f04: v4_0047
+    f05: v5_0047
+    f06: v6_0047
+- job_key: 40b340f5bafa
+  measure: PVPCS_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0003
+    f03: v3_0012
+    f04: v4_0048
+    f05: v5_0048
+    f06: v6_0048
+- job_key: fe7357f6cfb1
+  measure: MG-LV-MSB_AC_Voltage
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0013
+    f04: v4_0049
+    f05: v5_0049
+    f06: v6_0049
+- job_key: 4230eb3d2275
+  measure: MG-LV-MSB_AC_Voltage
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0013
+    f04: v4_0050
+    f05: v5_0050
+    f06: v6_0050
+- job_key: 44c2f0412a5d
+  measure: MG-LV-MSB_AC_Voltage
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0013
+    f04: v4_0051
+    f05: v5_0051
+    f06: v6_0051
+- job_key: 50e30980ad75
+  measure: MG-LV-MSB_AC_Voltage
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0004
+    f03: v3_0013
+    f04: v4_0052
+    f05: v5_0052
+    f06: v6_0052
+- job_key: c14a27d57142
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0014
+    f04: v4_0053
+    f05: v5_0053
+    f06: v6_0053
+- job_key: f7466b9484eb
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0014
+    f04: v4_0054
+    f05: v5_0054
+    f06: v6_0054
+- job_key: 2b56d67b1e36
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0014
+    f04: v4_0055
+    f05: v5_0055
+    f06: v6_0055
+- job_key: 6bfe3f5b8d7a
+  measure: Inlet_Temperature_of_Chilled_Water
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0005
+    f03: v3_0014
+    f04: v4_0056
+    f05: v5_0056
+    f06: v6_0056
+- job_key: 116b710fc74a
+  measure: Battery_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0015
+    f04: v4_0057
+    f05: v5_0057
+    f06: v6_0057
+- job_key: 4c175878553f
+  measure: Battery_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0015
+    f04: v4_0058
+    f05: v5_0058
+    f06: v6_0058
+- job_key: dc19556540aa
+  measure: Battery_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0015
+    f04: v4_0059
+    f05: v5_0059
+    f06: v6_0059
+- job_key: af7b13327678
+  measure: Battery_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0006
+    f03: v3_0015
+    f04: v4_0060
+    f05: v5_0060
+    f06: v6_0060
+- job_key: 62843cfb76c5
+  measure: FC_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0016
+    f04: v4_0061
+    f05: v5_0061
+    f06: v6_0061
+- job_key: 41dc544131d9
+  measure: FC_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0016
+    f04: v4_0062
+    f05: v5_0062
+    f06: v6_0062
+- job_key: 03cdc54593f0
+  measure: FC_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0016
+    f04: v4_0063
+    f05: v5_0063
+    f06: v6_0063
+- job_key: cd45df8c59b0
+  measure: FC_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0007
+    f03: v3_0016
+    f04: v4_0064
+    f05: v5_0064
+    f06: v6_0064
+- job_key: 1ceae4e16d32
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0017
+    f04: v4_0065
+    f05: v5_0065
+    f06: v6_0065
+- job_key: 2a71f6b9084c
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0017
+    f04: v4_0066
+    f05: v5_0066
+    f06: v6_0066
+- job_key: 11ba64ece9c2
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0017
+    f04: v4_0067
+    f05: v5_0067
+    f06: v6_0067
+- job_key: 71afdf13b498
+  measure: Island_mode_MCCB_AC_Voltage
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0008
+    f03: v3_0017
+    f04: v4_0068
+    f05: v5_0068
+    f06: v6_0068
+- job_key: 84e97d220460
+  measure: Island_mode_MCCB_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 90
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0018
+    f04: v4_0069
+    f05: v5_0069
+    f06: v6_0069
+- job_key: bd2d84c05602
+  measure: Island_mode_MCCB_Active_Power
+  direction: high
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 80
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0018
+    f04: v4_0070
+    f05: v5_0070
+    f06: v6_0070
+- job_key: e87acbca427e
+  measure: Island_mode_MCCB_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 10
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0018
+    f04: v4_0071
+    f05: v5_0071
+    f06: v6_0071
+- job_key: eeec2f033622
+  measure: Island_mode_MCCB_Active_Power
+  direction: low
+  temporal_id: ow90_lt10_pw10
+  bands_id: ''
+  effective_threshold: 20
+  variants:
+    f01: v1_0000
+    f02: v2_0009
+    f03: v3_0018
+    f04: v4_0072
+    f05: v5_0072
+    f06: v6_0072

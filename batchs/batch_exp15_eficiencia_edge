@@ -45,7 +45,7 @@
     "virtual": false
   },
   "parent": "v6_0001",
-  "selected_runner": "ESP32-self-hosted"
+  "selected_runner": "ESP32-v1"
 }
 
 
@@ -111,5 +111,5 @@
     "virtual": false
   },
   "parent": ["v7_1501"],
-  "selected_runner": "ESP32-self-hosted"
+  "selected_runner": "ESP32-v1"
 }

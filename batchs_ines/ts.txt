@@ -1,0 +1,3131 @@
+#f01_explore
+
+{
+  "variant": "v1_0000",
+  "params": {
+    "raw_path": "data/raw.csv",
+    "cleaning": "basic",
+    "nan_values": [-999999],
+    "error_values": {
+      "MG-LV-MSB_AC_Voltage": [0.0],
+      "Receiving_Point_AC_Voltage": [0.0],
+      "Island_mode_MCCB_AC_Voltage": [0.0],
+      "Island_mode_MCCB_Frequency": [-327.679993, 0.0],
+      "MG-LV-MSB_Frequency": [-327.679993, 0.0],
+      "Outlet_Temperature": [-52.5],
+      "Inlet_Temperature_of_Chilled_Water": [-52.5, -52.400002, -52.299999]
+    }
+  },
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0001",
+  "params": {"measure_name": "GE_Active_Power"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0002",
+  "params": {"measure_name": "Outlet_Temperature"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0003",
+  "params": {"measure_name": "PVPCS_Active_Power"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0004",
+  "params": {"measure_name": "MG-LV-MSB_AC_Voltage"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0005",
+  "params": {"measure_name": "Inlet_Temperature_of_Chilled_Water"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0006",
+  "params": {"measure_name": "Battery_Active_Power"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0007",
+  "params": {"measure_name": "FC_Active_Power"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0008",
+  "params": {"measure_name": "Island_mode_MCCB_AC_Voltage"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f02_events
+
+{
+  "variant": "v2_0009",
+  "params": {"measure_name": "Island_mode_MCCB_Active_Power"},
+  "parent": "v1_0000",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0001",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0002",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0003",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0004",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0005",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0006",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0007",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0008",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0009",
+  "params": {"OW": 50, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0010",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0011",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0012",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0013",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0014",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0015",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0016",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0017",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f03_windows
+
+{
+  "variant": "v3_0018",
+  "params": {"OW": 90, "LT": 10, "PW": 10, "window_strategy": "synchro", "nan_mode": "discard"},
+  "parent": "v2_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0001",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "ge_active_power_high_90"},
+  "parent": "v3_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0002",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "ge_active_power_high_80"},
+  "parent": "v3_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0003",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "ge_active_power_low_10"},
+  "parent": "v3_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0004",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "ge_active_power_low_20"},
+  "parent": "v3_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0005",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "outlet_temperature_high_90"},
+  "parent": "v3_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0006",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "outlet_temperature_high_80"},
+  "parent": "v3_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0007",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "outlet_temperature_low_10"},
+  "parent": "v3_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0008",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "outlet_temperature_low_20"},
+  "parent": "v3_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0009",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "pvpcs_active_power_high_90"},
+  "parent": "v3_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0010",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "pvpcs_active_power_high_80"},
+  "parent": "v3_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0011",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "pvpcs_active_power_low_10"},
+  "parent": "v3_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0012",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "pvpcs_active_power_low_20"},
+  "parent": "v3_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0013",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "mg_lv_msb_ac_voltage_high_90"},
+  "parent": "v3_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0014",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "mg_lv_msb_ac_voltage_high_80"},
+  "parent": "v3_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0015",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "mg_lv_msb_ac_voltage_low_10"},
+  "parent": "v3_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0016",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "mg_lv_msb_ac_voltage_low_20"},
+  "parent": "v3_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0017",
+  "params": {
+    "threshold": 90,
+    "direction": "high",
+    "prediction_name": "inlet_temperature_of_chilled_water_high_90"
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0018",
+  "params": {
+    "threshold": 80,
+    "direction": "high",
+    "prediction_name": "inlet_temperature_of_chilled_water_high_80"
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0019",
+  "params": {
+    "threshold": 10,
+    "direction": "low",
+    "prediction_name": "inlet_temperature_of_chilled_water_low_10"
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0020",
+  "params": {
+    "threshold": 20,
+    "direction": "low",
+    "prediction_name": "inlet_temperature_of_chilled_water_low_20"
+  },
+  "parent": "v3_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0021",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "battery_active_power_high_90"},
+  "parent": "v3_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0022",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "battery_active_power_high_80"},
+  "parent": "v3_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0023",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "battery_active_power_low_10"},
+  "parent": "v3_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0024",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "battery_active_power_low_20"},
+  "parent": "v3_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0025",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "fc_active_power_high_90"},
+  "parent": "v3_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0026",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "fc_active_power_high_80"},
+  "parent": "v3_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0027",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "fc_active_power_low_10"},
+  "parent": "v3_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0028",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "fc_active_power_low_20"},
+  "parent": "v3_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0029",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "island_mode_mccb_ac_voltage_high_90"},
+  "parent": "v3_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0030",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "island_mode_mccb_ac_voltage_high_80"},
+  "parent": "v3_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0031",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "island_mode_mccb_ac_voltage_low_10"},
+  "parent": "v3_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0032",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "island_mode_mccb_ac_voltage_low_20"},
+  "parent": "v3_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0033",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "island_mode_mccb_active_power_high_90"},
+  "parent": "v3_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0034",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "island_mode_mccb_active_power_high_80"},
+  "parent": "v3_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0035",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "island_mode_mccb_active_power_low_10"},
+  "parent": "v3_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0036",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "island_mode_mccb_active_power_low_20"},
+  "parent": "v3_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0037",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "ge_active_power_high_90"},
+  "parent": "v3_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0038",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "ge_active_power_high_80"},
+  "parent": "v3_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0039",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "ge_active_power_low_10"},
+  "parent": "v3_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0040",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "ge_active_power_low_20"},
+  "parent": "v3_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0041",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "outlet_temperature_high_90"},
+  "parent": "v3_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0042",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "outlet_temperature_high_80"},
+  "parent": "v3_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0043",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "outlet_temperature_low_10"},
+  "parent": "v3_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0044",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "outlet_temperature_low_20"},
+  "parent": "v3_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0045",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "pvpcs_active_power_high_90"},
+  "parent": "v3_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0046",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "pvpcs_active_power_high_80"},
+  "parent": "v3_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0047",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "pvpcs_active_power_low_10"},
+  "parent": "v3_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0048",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "pvpcs_active_power_low_20"},
+  "parent": "v3_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0049",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "mg_lv_msb_ac_voltage_high_90"},
+  "parent": "v3_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0050",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "mg_lv_msb_ac_voltage_high_80"},
+  "parent": "v3_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0051",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "mg_lv_msb_ac_voltage_low_10"},
+  "parent": "v3_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0052",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "mg_lv_msb_ac_voltage_low_20"},
+  "parent": "v3_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0053",
+  "params": {
+    "threshold": 90,
+    "direction": "high",
+    "prediction_name": "inlet_temperature_of_chilled_water_high_90"
+  },
+  "parent": "v3_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0054",
+  "params": {
+    "threshold": 80,
+    "direction": "high",
+    "prediction_name": "inlet_temperature_of_chilled_water_high_80"
+  },
+  "parent": "v3_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0055",
+  "params": {
+    "threshold": 10,
+    "direction": "low",
+    "prediction_name": "inlet_temperature_of_chilled_water_low_10"
+  },
+  "parent": "v3_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0056",
+  "params": {
+    "threshold": 20,
+    "direction": "low",
+    "prediction_name": "inlet_temperature_of_chilled_water_low_20"
+  },
+  "parent": "v3_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0057",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "battery_active_power_high_90"},
+  "parent": "v3_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0058",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "battery_active_power_high_80"},
+  "parent": "v3_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0059",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "battery_active_power_low_10"},
+  "parent": "v3_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0060",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "battery_active_power_low_20"},
+  "parent": "v3_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0061",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "fc_active_power_high_90"},
+  "parent": "v3_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0062",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "fc_active_power_high_80"},
+  "parent": "v3_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0063",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "fc_active_power_low_10"},
+  "parent": "v3_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0064",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "fc_active_power_low_20"},
+  "parent": "v3_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0065",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "island_mode_mccb_ac_voltage_high_90"},
+  "parent": "v3_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0066",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "island_mode_mccb_ac_voltage_high_80"},
+  "parent": "v3_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0067",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "island_mode_mccb_ac_voltage_low_10"},
+  "parent": "v3_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0068",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "island_mode_mccb_ac_voltage_low_20"},
+  "parent": "v3_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0069",
+  "params": {"threshold": 90, "direction": "high", "prediction_name": "island_mode_mccb_active_power_high_90"},
+  "parent": "v3_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0070",
+  "params": {"threshold": 80, "direction": "high", "prediction_name": "island_mode_mccb_active_power_high_80"},
+  "parent": "v3_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0071",
+  "params": {"threshold": 10, "direction": "low", "prediction_name": "island_mode_mccb_active_power_low_10"},
+  "parent": "v3_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f04_targets
+
+{
+  "variant": "v4_0072",
+  "params": {"threshold": 20, "direction": "low", "prediction_name": "island_mode_mccb_active_power_low_20"},
+  "parent": "v3_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0001",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0002",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0003",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0004",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0005",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0006",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0007",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0008",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0009",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0010",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0011",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0012",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0013",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0014",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0015",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0016",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0017",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0018",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0019",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0020",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0020",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0021",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0021",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0022",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0022",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0023",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0023",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0024",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0024",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0025",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0025",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0026",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0026",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0027",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0027",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0028",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0028",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0029",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0029",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0030",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0030",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0031",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0031",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0032",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0032",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0033",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0033",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0034",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0034",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0035",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0035",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0036",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0036",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0037",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0037",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0038",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0038",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0039",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0039",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0040",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0040",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0041",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0041",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0042",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0042",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0043",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0043",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0044",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0044",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0045",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0045",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0046",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0046",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0047",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0047",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0048",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0048",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0049",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0049",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0050",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0050",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0051",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0051",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0052",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0052",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0053",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0053",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0054",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0054",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0055",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0055",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0056",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0056",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0057",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0057",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0058",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0058",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0059",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0059",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0060",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0060",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0061",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0061",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0062",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0062",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0063",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0063",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0064",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0064",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0065",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0065",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0066",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0066",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0067",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0067",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0068",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0068",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0069",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0069",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0070",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0070",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0071",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0071",
+  "selected_runner": "GithubActions"
+}
+
+
+#f05_modeling
+
+{
+  "variant": "v5_0072",
+  "params": {
+    "model_family": "cnn1d",
+    "automl": {"enabled": true, "max_trials": 3, "seed": 42},
+    "training": {"epochs": 5, "max_samples": null},
+    "evaluation": {"val_max_samples": 20000, "test_max_samples": 20000},
+    "imbalance_strategy": "rare_events",
+    "imbalance_max_majority_samples": 20000,
+    "deduplication_mode": "none",
+    "seed": 42
+  },
+  "parent": "v4_0072",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0001",
+  "params": {},
+  "parent": "v5_0001",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0002",
+  "params": {},
+  "parent": "v5_0002",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0003",
+  "params": {},
+  "parent": "v5_0003",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0004",
+  "params": {},
+  "parent": "v5_0004",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0005",
+  "params": {},
+  "parent": "v5_0005",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0006",
+  "params": {},
+  "parent": "v5_0006",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0007",
+  "params": {},
+  "parent": "v5_0007",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0008",
+  "params": {},
+  "parent": "v5_0008",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0009",
+  "params": {},
+  "parent": "v5_0009",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0010",
+  "params": {},
+  "parent": "v5_0010",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0011",
+  "params": {},
+  "parent": "v5_0011",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0012",
+  "params": {},
+  "parent": "v5_0012",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0013",
+  "params": {},
+  "parent": "v5_0013",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0014",
+  "params": {},
+  "parent": "v5_0014",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0015",
+  "params": {},
+  "parent": "v5_0015",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0016",
+  "params": {},
+  "parent": "v5_0016",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0017",
+  "params": {},
+  "parent": "v5_0017",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0018",
+  "params": {},
+  "parent": "v5_0018",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0019",
+  "params": {},
+  "parent": "v5_0019",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0020",
+  "params": {},
+  "parent": "v5_0020",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0021",
+  "params": {},
+  "parent": "v5_0021",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0022",
+  "params": {},
+  "parent": "v5_0022",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0023",
+  "params": {},
+  "parent": "v5_0023",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0024",
+  "params": {},
+  "parent": "v5_0024",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0025",
+  "params": {},
+  "parent": "v5_0025",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0026",
+  "params": {},
+  "parent": "v5_0026",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0027",
+  "params": {},
+  "parent": "v5_0027",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0028",
+  "params": {},
+  "parent": "v5_0028",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0029",
+  "params": {},
+  "parent": "v5_0029",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0030",
+  "params": {},
+  "parent": "v5_0030",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0031",
+  "params": {},
+  "parent": "v5_0031",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0032",
+  "params": {},
+  "parent": "v5_0032",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0033",
+  "params": {},
+  "parent": "v5_0033",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0034",
+  "params": {},
+  "parent": "v5_0034",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0035",
+  "params": {},
+  "parent": "v5_0035",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0036",
+  "params": {},
+  "parent": "v5_0036",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0037",
+  "params": {},
+  "parent": "v5_0037",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0038",
+  "params": {},
+  "parent": "v5_0038",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0039",
+  "params": {},
+  "parent": "v5_0039",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0040",
+  "params": {},
+  "parent": "v5_0040",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0041",
+  "params": {},
+  "parent": "v5_0041",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0042",
+  "params": {},
+  "parent": "v5_0042",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0043",
+  "params": {},
+  "parent": "v5_0043",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0044",
+  "params": {},
+  "parent": "v5_0044",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0045",
+  "params": {},
+  "parent": "v5_0045",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0046",
+  "params": {},
+  "parent": "v5_0046",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0047",
+  "params": {},
+  "parent": "v5_0047",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0048",
+  "params": {},
+  "parent": "v5_0048",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0049",
+  "params": {},
+  "parent": "v5_0049",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0050",
+  "params": {},
+  "parent": "v5_0050",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0051",
+  "params": {},
+  "parent": "v5_0051",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0052",
+  "params": {},
+  "parent": "v5_0052",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0053",
+  "params": {},
+  "parent": "v5_0053",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0054",
+  "params": {},
+  "parent": "v5_0054",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0055",
+  "params": {},
+  "parent": "v5_0055",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0056",
+  "params": {},
+  "parent": "v5_0056",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0057",
+  "params": {},
+  "parent": "v5_0057",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0058",
+  "params": {},
+  "parent": "v5_0058",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0059",
+  "params": {},
+  "parent": "v5_0059",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0060",
+  "params": {},
+  "parent": "v5_0060",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0061",
+  "params": {},
+  "parent": "v5_0061",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0062",
+  "params": {},
+  "parent": "v5_0062",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0063",
+  "params": {},
+  "parent": "v5_0063",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0064",
+  "params": {},
+  "parent": "v5_0064",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0065",
+  "params": {},
+  "parent": "v5_0065",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0066",
+  "params": {},
+  "parent": "v5_0066",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0067",
+  "params": {},
+  "parent": "v5_0067",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0068",
+  "params": {},
+  "parent": "v5_0068",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0069",
+  "params": {},
+  "parent": "v5_0069",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0070",
+  "params": {},
+  "parent": "v5_0070",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0071",
+  "params": {},
+  "parent": "v5_0071",
+  "selected_runner": "GithubActions"
+}
+
+
+#f06_quant
+
+{
+  "variant": "v6_0072",
+  "params": {},
+  "parent": "v5_0072",
+  "selected_runner": "GithubActions"
+}
+

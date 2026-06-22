@@ -27,11 +27,11 @@
     "MTI_MS": 100,
     "time_scale_factor": 0.01,
     "ITmax": null,
-    "max_rows": null,
-    "virtual": true
+    "max_rows": 10000,
+    "virtual": false
   },
   "parent": "v6_0001",
-  "selected_runner": "K8s-8gb"
+  "selected_runner": "ESP32-v1"
 }
 
 {
@@ -41,11 +41,11 @@
     "MTI_MS": 100,
     "time_scale_factor": 0.01,
     "ITmax": null,
-    "max_rows": null,
-    "virtual": false
+    "max_rows": 10000,
+    "virtual": true
   },
   "parent": "v6_0001",
-  "selected_runner": "ESP32-self-hosted"
+  "selected_runner": "ESP32-v3-virtual"
 }
 
 
@@ -58,7 +58,7 @@
     "objective": null,
     "solver_time_limit_sec": null,
     "time_scale_factor": null,
-    "MTI_MS": 100,
+    "MTI_MS": 300,
     "platform": "esp32",
     "max_rows": null,
     "memory_budget_bytes": null,
@@ -68,7 +68,7 @@
     "min_recall": null,
     "virtual": false
   },
-  "parent": ["v7_3101"],
+  "parent": ["v7_3102"],
   "selected_runner": "Local"
 }
 
@@ -79,7 +79,7 @@
     "objective": null,
     "solver_time_limit_sec": null,
     "time_scale_factor": null,
-    "MTI_MS": 100,
+    "MTI_MS": 300,
     "platform": "esp32",
     "max_rows": null,
     "memory_budget_bytes": null,
@@ -87,10 +87,10 @@
     "min_quality_score": null,
     "min_precision": null,
     "min_recall": null,
-    "virtual": true
+    "virtual": false
   },
   "parent": ["v7_3301"],
-  "selected_runner": "K8s-8gb"
+  "selected_runner": "ESP32-v1"
 }
 
 {
@@ -100,7 +100,7 @@
     "objective": null,
     "solver_time_limit_sec": null,
     "time_scale_factor": null,
-    "MTI_MS": 100,
+    "MTI_MS": 300,
     "platform": "esp32",
     "max_rows": null,
     "memory_budget_bytes": null,
@@ -111,5 +111,5 @@
     "virtual": false
   },
   "parent": ["v7_3501"],
-  "selected_runner": "ESP32-self-hosted"
+  "selected_runner": "ESP32-v3-virtual"
 }
