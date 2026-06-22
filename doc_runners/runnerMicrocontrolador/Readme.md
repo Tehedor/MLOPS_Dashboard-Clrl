@@ -24,6 +24,7 @@ Todo se configura de manera modular y se ejecuta en segundo plano como servicios
     - [Pausar la Infraestructura (Parada Temporal)](#pausar-la-infraestructura-parada-temporal)
     - [Limpieza Profunda (Borrado Total)](#limpieza-profunda-borrado-total)
     - [🔄 Renovación de Token de GitHub](#-renovación-de-token-de-github)
+    - [Permisos para la esp32](#permisos-para-la-esp32)
 
 
 ## 📁 Estructura del Proyecto
@@ -183,3 +184,33 @@ Si tu Runner queda inactivo y GitHub lo expulsa (o el token caduca), no necesita
 2. Actualiza `GITHUB_TOKEN=nuevo_token` en tu archivo `.env`.
 3. Ejecuta `make clean-runner`.
 4. Ejecuta `make install-runner` seguido de `make start-runner`.
+
+
+### Permisos para la esp32
+
+```bash 
+sudo chmod 660 /dev/ttyUSB0
+sudo chown root:dialout /dev/ttyUSB0
+sudo usermod -aG dialout runner 
+```
+
+```bash 
+sudo chmod 660 /dev/ttyUSB1
+sudo chown root:dialout /dev/ttyUSB1
+sudo usermod -aG dialout runner 
+```
+
+
+aplicar cambios y test rapido de acceso
+```bash 
+su - runner -c "cat < /dev/ttyUSB0" &   sleep 1 && kill %1
+```
+
+verify
+```bash 
+ls -l /dev/ttyUSB0 
+groups  runner # Should appear "... dialout ..."
+```
+
+
+
