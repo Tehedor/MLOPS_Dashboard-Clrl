@@ -23,97 +23,101 @@ Restricciones duras:
 
 ---
 
-## Evaluación de opciones
+## Decisión: Supabase
 
-### Opción 1 — Supabase (PostgreSQL + REST + Realtime)  ✅ ELEGIDA
+**Supabase** (PostgreSQL + REST + Realtime) es la opción elegida por:
+1. Escrituras ilimitadas desde GHA (REST sin límite de peticiones).
+2. Push real en el cliente (Realtime WS, no polling).
+3. Un solo servicio, SDK oficial para React/JS.
+4. Free tier sostenible con política de rotación de logs.
+5. Alineación con el patrón SSE/push ya establecido en el stack.
 
-| criterio         | valoración                                                  |
-|------------------|-------------------------------------------------------------|
-| escritura GHA    | `curl` directo a la REST API. Sin límite de peticiones.     |
-| lectura clientes | SDK Realtime (WebSocket). Push nativo, equivale a SSE.      |
-| límite escritura | ilimitado vía REST; solo cuenta almacenamiento (500 MB)     |
-| límite lectura   | 200 conexiones concurrentes simultáneas (suficiente)        |
-| logs             | riesgo: llenar 500 MB. Mitigado con rotación agresiva (7d). |
-| complejidad      | baja. Un solo servicio. SDK oficial para React.             |
-| alineación stack | Realtime ≡ SSE/WS que ya usa el proyecto.                   |
+El único cuello de botella es el almacenamiento (500 MB free tier),
+gestionable con rotación agresiva (7 días para logs, 30 días para runs).
 
-**Por qué gana:** el único cuello de botella es el almacenamiento, y es
-gestionable con una política de retención. Todos los demás ejes son
-superiores al resto de opciones.
+**Supabase es opcional.** Sin configurar, el dashboard funciona
+normalmente usando polling directo a la API de GitHub para detectar
+completions y sin la vista de logs de GHA.
 
 ---
 
-### Opción 2 — Cloudflare Workers + Upstash Redis  ✗ DESCARTADA
+## Arquitectura multi-repo
 
-Upstash Free Tier: **10 000 comandos/día**.
-
-Un job con 200 líneas de log = ~200 escrituras + ~200 lecturas de polling
-= 400 comandos. Con 25 jobs/día ya se agota. Inviable para logs.
-
----
-
-### Opción 3 — Cloudflare Workers + D1 + Polling  ⚠ SEGUNDA OPCIÓN
-
-D1 Free: 100 000 escrituras/día, 5 M lecturas/día. Workers: 100 000 req/día.
-
-Límites muy generosos. El problema es el modelo de acceso: requiere
-**polling** desde los clientes (no push), lo que introduce latencia
-configurable y tráfico constante aunque no haya cambios.
-
-Viable como fallback si Supabase no encaja, pero la UX es inferior.
-
----
-
-### Opción 4 — Firebase Firestore  ✗ DESCARTADA
-
-Free Tier: **20 000 escrituras/día**.
-
-Con logs granulares (línea a línea) se agota antes del mediodía en un
-día de entrenamiento intensivo. Las lecturas (50 000/día) también son
-ajustadas con múltiples instancias suscribiéndose.
-
----
-
-## Arquitectura elegida: Supabase
+El dashboard opera con múltiples repos de pipeline simultáneamente.
+Cada repo necesita su propio webhook apuntando a la misma Edge Function.
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  GitHub Actions (repo MLOps)                                 │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  step: notify-dashboard                              │   │
-│  │  curl POST /rest/v1/workflow_runs   (estado)         │   │
-│  │  curl POST /rest/v1/workflow_logs   (batch de logs)  │   │
-│  └──────────────────────────────────────────────────────┘   │
-└───────────────────────────┬──────────────────────────────────┘
-                            │  HTTPS + Service Key
-                            ▼
-              ┌─────────────────────────┐
-              │       SUPABASE          │
-              │  PostgreSQL             │
-              │  REST API (escritura)   │
-              │  Realtime WS (lectura)  │
-              └────────────┬────────────┘
-                           │  WebSocket (anon key)
-          ┌────────────────┼────────────────┐
-          ▼                ▼                ▼
-   instancia A      instancia B      instancia C
-   (self-hosted)   (self-hosted)   (self-hosted)
-   LogsRunners.jsx LogsRunners.jsx LogsRunners.jsx
+┌─────────────────────────────────────────────────────────────────────┐
+│  GitHub Actions                                                     │
+│                                                                     │
+│  TeheORG/mlops4rtedge       (ramas: test, mlops4rtedge_ines)       │
+│  TeheORG/mlops4rtedgeUni    (rama:  mlops4rtedgeUni_ines)          │
+│  TeheORG/mlops4rtedgeTS     (rama:  mlops4rtedgeTS_ines)           │
+│                                                                     │
+│  Cada repo tiene un webhook configurado ─────────────────────┐     │
+└──────────────────────────────────────────────────────────────┼─────┘
+                                                               │
+                                                               ▼
+                              ┌─────────────────────────┐
+                              │       SUPABASE          │
+                              │  Edge Function          │
+                              │    (github-webhook)     │
+                              │        ↓                │
+                              │  PostgreSQL             │
+                              │    workflow_runs        │
+                              │    workflow_logs         │
+                              │        ↓                │
+                              │  Realtime WS (push)     │
+                              └────────────┬────────────┘
+                                           │  WebSocket (anon key)
+                          ┌────────────────┼────────────────┐
+                          ▼                ▼                ▼
+                   instancia A      instancia B      instancia C
+                   (self-hosted)   (self-hosted)   (self-hosted)
 ```
 
-El broker es Supabase. No hay intermediario propio.
-El backend local **no participa** en este flujo.
+### Flujo de datos
+
+1. Un workflow completa en cualquiera de los 3 repos.
+2. GitHub envía un evento `workflow_run` al webhook de la Edge Function.
+3. La Edge Function extrae `repo`, `branch`, `fase` (prefijo `f0N`), `variant` y `conclusion`.
+4. Escribe/actualiza el registro en `workflow_runs` y los logs en `workflow_logs`.
+5. Supabase Realtime notifica a todas las instancias suscritas.
+6. El `supabase_sync_service.py` del backend recibe el evento, resuelve
+   el `pipeline_id` desde `repo+branch` (contra `pipelines.yaml`), y
+   ejecuta `force_pull(pipeline_id)` solo para ese pipeline.
+7. El frontend muestra el cambio de estado en tiempo real.
+
+### Inferencia de fase (dinámica, sin configuración)
+
+La Edge Function extrae el **número de fase** del nombre del job o workflow:
+- Job del orquestador: `trigger-fase5` → `5` → `f05`
+- Workflow reusable: `"Reusable: Fase 5 (Modeling)"` → `5` → `f05`
+
+Almacena solo el prefijo `f0N` en Supabase. El backend y frontend
+resuelven el nombre completo (`f05` → `f05_modeling`) desde sus YAMLs
+de configuración (`config/<pipeline>/fase_runners.yaml`).
+
+Esto elimina la necesidad de mantener una lista de fases sincronizada
+entre la Edge Function y el dashboard.
 
 ---
 
-## Configuración Supabase
+## Configuración paso a paso
 
-### Tablas (ver esquema completo en 30_Servicio3_logsRunners.md)
+### 1. Crear proyecto en Supabase
+
+1. Ir a [supabase.com](https://supabase.com) y crear un proyecto.
+2. Anotar:
+   - **Project URL**: `https://xxxxx.supabase.co`
+   - **anon key** (pública): `eyJ...` (Settings → API → anon public)
+   - **service_role key** (privada): `eyJ...` (Settings → API → service_role secret)
+
+### 2. Crear tablas
+
+Ejecutar en el SQL Editor de Supabase:
 
 ```sql
--- workflow_runs
--- run_id es el ID nativo de GitHub Actions (bigint) — usado directamente
--- como PK para que los scripts bash puedan hacer upsert sin resolver UUIDs.
 create table workflow_runs (
   run_id        bigint primary key,
   repo          text not null,
@@ -127,31 +131,26 @@ create table workflow_runs (
   updated_at    timestamptz default now()
 );
 
--- workflow_logs
 create table workflow_logs (
   id        uuid primary key default gen_random_uuid(),
   run_id    bigint not null references workflow_runs(run_id) on delete cascade,
   step_name text,
   line_no   int,
-  content   text,  -- bloque de texto del step completo
+  content   text,
   ts        timestamptz default now()
 );
 
--- índice para lecturas por run
 create index on workflow_logs(run_id, line_no);
 ```
 
-### Habilitar Realtime
+### 3. Habilitar Realtime
 
 ```sql
 ALTER PUBLICATION supabase_realtime ADD TABLE workflow_runs;
 ALTER PUBLICATION supabase_realtime ADD TABLE workflow_logs;
 ```
 
-### Row Level Security
-
-Para una app self-hosted simple, RLS puede desactivarse o usar una
-política abierta en la tabla:
+### 4. Row Level Security
 
 ```sql
 alter table workflow_runs enable row level security;
@@ -161,23 +160,15 @@ alter table workflow_logs enable row level security;
 create policy "anon read" on workflow_logs for select using (true);
 ```
 
-No se necesita política explícita para escritura con `service_role`:
-Supabase salta el RLS automáticamente cuando se usa la Service Key,
-por diseño. Añadir una política para ello sería redundante e incorrecto.
+Escritura con `service_role` key salta RLS automáticamente.
 
-### Rotación automática (trigger nativo)
-
-`pg_cron` se detiene si el proyecto entra en pausa por inactividad en el
-Free Tier. Se usa un trigger `AFTER INSERT` en `workflow_logs` para que
-la limpieza ocurra en cada inserción, sin depender de servicios externos.
+### 5. Rotación automática (trigger)
 
 ```sql
 create or replace function purge_old_logs()
 returns trigger language plpgsql as $$
 begin
-  -- borrar logs de más de 7 días
   delete from workflow_logs where ts < now() - interval '7 days';
-  -- borrar runs terminados de más de 30 días (cascade elimina sus logs)
   delete from workflow_runs
     where updated_at < now() - interval '30 days'
       and conclusion is not null;
@@ -190,99 +181,74 @@ after insert on workflow_logs
 for each statement execute function purge_old_logs();
 ```
 
-El trigger se dispara una vez por sentencia INSERT (no por fila), por lo
-que el coste es mínimo incluso en inserciones batch.
+### 6. Desplegar la Edge Function
+
+```bash
+cd supabase/
+supabase functions deploy github-webhook
+```
+
+Configurar secrets de la Edge Function:
+
+```bash
+supabase secrets set GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+supabase secrets set WEBHOOK_SECRET=un_secreto_aleatorio
+```
+
+> `PHASES_LIST` ya no es necesario — la Edge Function infiere la fase
+> dinámicamente desde el nombre del job/workflow.
+
+### 7. Configurar webhooks en GitHub
+
+En **cada uno** de los 3 repos, ir a Settings → Webhooks → Add webhook:
+
+| Campo | Valor |
+|---|---|
+| **Payload URL** | `https://<proyecto>.supabase.co/functions/v1/github-webhook` |
+| **Content type** | `application/json` |
+| **Secret** | El mismo valor configurado en `WEBHOOK_SECRET` |
+| **Events** | Seleccionar solo: **Workflow runs** |
+
+Repos que necesitan webhook:
+- `TeheORG/mlops4rtedge`
+- `TeheORG/mlops4rtedgeUni`
+- `TeheORG/mlops4rtedgeTS`
+
+### 8. Configurar variables en el dashboard
+
+En el `.env` del proyecto (raíz):
+
+```bash
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_PUBLISHABLE_KEY=eyJ...  # anon key (pública)
+```
+
+> La `service_role` key solo va en los secrets de Supabase/GitHub.
+> La `anon` key es pública por diseño — RLS controla el acceso.
 
 ---
 
-## Step de GitHub Actions
-
-Añadir al final de cada workflow que se quiera monitorizar:
-
-```yaml
-- name: Notify MLOps Dashboard
-  if: always()
-  env:
-    SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-    SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-    RUN_ID: ${{ github.run_id }}
-    REPO: ${{ github.repository }}
-    BRANCH: ${{ github.ref_name }}
-    WORKFLOW: ${{ github.workflow }}
-    STATUS: ${{ job.status }}
-  run: |
-    curl -s -X POST "$SUPABASE_URL/rest/v1/workflow_runs" \
-      -H "apikey: $SUPABASE_KEY" \
-      -H "Authorization: Bearer $SUPABASE_KEY" \
-      -H "Content-Type: application/json" \
-      -H "Prefer: resolution=merge-duplicates" \
-      -d "{
-        \"run_id\": $RUN_ID,
-        \"repo\": \"$REPO\",
-        \"branch\": \"$BRANCH\",
-        \"workflow_name\": \"$WORKFLOW\",
-        \"status\": \"$STATUS\",
-        \"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-      }"
-```
-
-Para enviar logs en batch (dentro del step que genera logs):
-
-```yaml
-- name: Train model
-  env:
-    SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-    SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-    RUN_ID: ${{ github.run_id }}
-  run: |
-    python train.py 2>&1 | tee /tmp/train.log
-    # enviar el bloque completo del step al finalizar (no línea a línea)
-    LOG_CONTENT=$(head -c 100000 /tmp/train.log)
-    curl -s -X POST "$SUPABASE_URL/rest/v1/workflow_logs" \
-      -H "apikey: $SUPABASE_KEY" \
-      -H "Authorization: Bearer $SUPABASE_KEY" \
-      -H "Content-Type: application/json" \
-      -d "[{
-        \"run_id\": $RUN_ID,
-        \"step_name\": \"train\",
-        \"content\": $(python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' < /tmp/train.log)
-      }]"
-```
-
----
-
-## Variables de entorno en el frontend
-
-```env
-# .env (self-hosted, no se sube al repo)
-VITE_SUPABASE_URL=https://<proyecto>.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJ...
-```
-
-La `ANON_KEY` es pública por diseño — RLS controla el acceso.
-La `SERVICE_KEY` solo va en los secrets de GitHub, nunca en el frontend.
-
----
-
-## Límites Free Tier Supabase — análisis realista
+## Límites Free Tier
 
 | recurso              | límite free | uso estimado (50 jobs/día, 500 líneas/job) |
 |----------------------|-------------|---------------------------------------------|
 | Almacenamiento BD    | 500 MB      | ~25 KB/job × 50 = 1.25 MB/día → 400 días   |
 | Ancho de banda       | 5 GB/mes    | marginal (payloads pequeños)                |
 | Conexiones Realtime  | 200         | 1 por instancia self-hosted activa          |
-| Edge Functions       | no usadas   | —                                           |
+| Edge Functions       | 500K inv/mes | ~150/día × 30 = 4.500/mes                  |
 
 Con la rotación a 7 días el almacenamiento se estabiliza en ~9 MB.
-El free tier no es un problema en condiciones normales de un TFM.
 
 ---
 
-## Decisión final
+## Sin Supabase (modo actual)
 
-**Supabase** es la opción correcta por:
-1. Escrituras ilimitadas desde GHA (REST sin límite de peticiones).
-2. Push real en el cliente (Realtime WS, no polling).
-3. Un solo servicio, SDK oficial para React/JS.
-4. Free tier sostenible con política de rotación de logs.
-5. Alineación con el patrón SSE/push ya establecido en el stack.
+Cuando `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` están vacíos:
+
+- **Backend**: `supabase_sync_service` se desactiva silenciosamente.
+  El polling de `execution_service._poll_gh_running()` detecta
+  completions cada `POLL_GH_SECS` consultando la API de GitHub.
+- **Frontend**: `isConfigured()` devuelve `false`, las queries de
+  Supabase devuelven `[]`, la vista LogsRunners queda sin datos de GHA.
+- **Funcionalidad intacta**: ejecuciones locales, dispatch, colas,
+  variantes, lineaje, terminal — todo funciona sin Supabase.

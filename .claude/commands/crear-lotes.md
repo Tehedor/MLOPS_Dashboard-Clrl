@@ -1,4 +1,4 @@
-# Skill: Generador de Lotes de Ejecución
+# Skill: Generador de Lotes de Ejecución (v2)
 
 Convierte comandos Makefile, bloques YAML o descripciones informales en lotes JSON
 listos para pegar en la vista de ejecuciones del dashboard.
@@ -9,10 +9,41 @@ No hay mapeos hardcodeados aquí.
 
 ---
 
+## Componentes del dataset
+
+Las 17 medidas (columnas) disponibles en el CSV de datos. Cada una genera eventos
+en f02 con su nombre como prefijo 
+
+Total componentes: 17
+Rango temporal disponible (leyendo primera y última línea)...
+
+   1. Battery_Active_Power
+   2. Battery_Active_Power_Set_Response
+   3. PVPCS_Active_Power
+   4. GE_Body_Active_Power
+   5. GE_Active_Power
+   6. GE_Body_Active_Power_Set_Response
+   7. FC_Active_Power_FC_END_Set
+   8. FC_Active_Power
+   9. FC_Active_Power_FC_end_Set_Response
+  10. Island_mode_MCCB_Active_Power
+  11. MG-LV-MSB_AC_Voltage
+  12. Receiving_Point_AC_Voltage
+  13. Island_mode_MCCB_AC_Voltage
+  14. Island_mode_MCCB_Frequency
+  15. MG-LV-MSB_Frequency
+  16. Inlet_Temperature_of_Chilled_Water
+  17. Outlet_Temperature
+
+---
+
 ## Paso 0 — Identificar el pipeline
 
-El usuario indica el pipeline (o se infiere del contexto).
-Los slugs disponibles están en `config/pipelines.yaml` bajo la clave `pipelines`.
+El usuario **debe** nombrar el pipeline (ej. "MLOps4RTEdge-I", "mlops4rtedgeTSI").
+Resolver el slug en `config/pipelines.yaml` bajo la clave `pipelines`.
+Confirmar al usuario qué pipeline se ha seleccionado con su `label` y `repo`.
+
+Si el usuario da un label impreciso, buscar por coincidencia parcial en `label` o `id`.
 
 ---
 
@@ -93,6 +124,37 @@ fases:
 
 ---
 
+## Paso 1.5 — Corrección automática de nombres de parámetros
+
+Cuando el input del usuario usa nombres de parámetros distintos a los del schema,
+corregirlos **automáticamente** y avisar al usuario de cada corrección.
+
+### Tabla de alias conocidos
+
+| Input del usuario      | Nombre en schema (varía por pipeline)  |
+|------------------------|----------------------------------------|
+| `event_strategy`       | `strategy` (mlops4rtedge, mlops4rtedgeUni) |
+| `measure`              | `measure_name` (mlops4rtedgeTS, mlops4rtedgeUni) |
+| `name` (en f04)        | `prediction_name`                      |
+| `operator` (en f04)    | `target_operator`                      |
+| `events` (en f04)      | `target_event_types`                   |
+
+### Regla general
+
+Para cualquier param del input que NO exista en el schema de la fase:
+1. Buscar coincidencia exacta case-insensitive (sin `_`).
+2. Si no hay match exacto, buscar por substring (`name` → `prediction_name`).
+3. Si se encuentra, renombrar y mostrar:
+   ```
+   ℹ️ Corregido: "event_strategy" → "strategy" (f02_events)
+   ```
+4. Si NO se encuentra ningún candidato → marcar como error:
+   ```
+   ⚠️ Param desconocido: "foo" en f02_events — no existe en el schema
+   ```
+
+---
+
 ## Paso 2 — Parsear el input del usuario
 
 Se aceptan tres formatos. Pueden mezclarse en el mismo mensaje.
@@ -117,7 +179,38 @@ El padre de la fase N **siempre** debe ser `v[N-1]_XXXX` (validado por el schema
 - Valores tipo `'[10, 90]'` → parsear como array JSON real
 - `EVENTS='["ev1,ev2"]'` con coma dentro del string → split por `,` → `["ev1","ev2"]`
 
-### Formato B — YAML
+### Formato B — YAML completo (lote de Inés)
+
+Formato donde el usuario pega un YAML con todas las fases y variantes:
+```yaml
+pipeline: events
+repo_path: C:/Users/inesv/Desktop/STRAST/mlops4rtedge
+selected_runner: GithubActions
+variants:
+  f01:
+  - phase: f01_explore
+    variant: v1_0000
+    parent: null
+    parameters:
+      raw_path: data/raw.csv
+      ...
+  f02:
+  - variant: v2_0001
+    params:
+      strategy: transitions
+      bands: [10, 20, 30, 40, 50, 60, 70, 80, 90]
+      nan_mode: discard
+    parent: v1_0000
+    selected_runner: GithubActions
+```
+
+**Reglas de parseo**:
+- Aceptar tanto `params` como `parameters` como clave de parámetros.
+- Ignorar `pipeline`, `repo_path`, `jobs` (metadatos del generador externo).
+- Cada entrada bajo `variants.f0N` es una variante de la fase N.
+- Aplicar la corrección de nombres del Paso 1.5 a cada variante.
+
+### Formato C — YAML por fase
 ```yaml
 phase: f03_windows
 variant: v302
@@ -128,23 +221,8 @@ params:
   window_strategy: synchro
   nan_mode: discard
 ```
-O lista de fases:
-```yaml
-- phase: f01_explore
-  variant: v001
-  params:
-    raw_path: data/raw.csv
-    cleaning: basic
 
-- phase: f02_events
-  variant: v202
-  parent: v001
-  params:
-    strategy: transitions
-    bands: [10, 90]
-```
-
-### Formato C — Lenguaje natural
+### Formato D — Lenguaje natural
 > "F03 con ventana 600, LT 100, PW 100, estrategia synchro, padre v202"
 
 Claude deduce la fase, busca los campos en el schema, y mapea los términos al nombre
@@ -184,7 +262,115 @@ Todos los bloques en un único bloque de código Markdown para copiar de una vez
 
 ---
 
-## Paso 4 — Detección de colisiones (opcional)
+## Paso 4 — Validación de `target_event_types` en f04 contra catálogo real
+
+**Este paso es OBLIGATORIO** para toda variante f04 que incluya `target_event_types`.
+
+### 4a. Trazar la cadena de parentesco
+
+Para cada variante f04:
+1. Su `parent` es una variante f03 (ej. `v3_0001`).
+2. Buscar esa variante f03 en el input → su `parent` es una variante f02 (ej. `v2_0001`).
+3. Anotar las `bands` de esa variante f02 (ej. `[10, 20, 30, ..., 90]`).
+
+### 4b. Localizar el catálogo de eventos
+
+El catálogo real se busca en el directorio de ejecuciones de la pipeline seleccionada:
+```
+external/{pipeline_id}/repo_actions/executions/f02_events/{v2_XXXX}/02_events_catalog.json
+```
+donde `{pipeline_id}` es el slug de la pipeline en `pipelines.yaml` (ej. `mlops4rtedgeI`)
+y `{v2_XXXX}` es la variante f02 ancestro.
+
+**Si el fichero existe** → leerlo. Las claves del dict son los nombres de evento válidos.
+**Si NO existe** → la variante f02 aún no se ha ejecutado. Avisar al usuario:
+```
+ℹ️ Catálogo no disponible para v2_XXXX (aún no ejecutada). Validación basada solo en lista generada.
+```
+
+### 4c. Generar la lista esperada de eventos
+
+A partir de la cadena trazada, generar los eventos que DEBERÍAN existir.
+Para una medida `M`, dirección `high`, umbral `T`, y bands `[B1, B2, ..., BN]`:
+
+**Regla de generación de nombres de evento (strategy=transitions)**:
+
+Las bandas definen intervalos: `[0, B1]`, `[B1, B2]`, ..., `[BN, 100]`.
+- `high` con umbral `T` → eventos cuyo destino incluye el rango del umbral.
+  Formato: `{M}_{FROM_LO}_{FROM_HI}-to-{TO_LO}_{TO_HI}`
+  donde `TO_LO >= T` (el rango destino está por encima del umbral).
+  Ejemplo con bands [10,20,...,90], M=GE_Active_Power, high, T=90:
+  → todos los `GE_Active_Power_X_Y-to-90_100` donde X_Y son bandas por debajo de 90.
+
+- `low` con umbral `T` → eventos cuyo destino está por debajo del umbral.
+  → todos los `{M}_X_Y-to-0_{T}` donde X_Y son bandas por encima de T.
+
+**Importante**: solo generar los patrones base (sin `_Set_Response_`).
+Los eventos `_Set_Response_` pueden o no existir en el catálogo según la medida.
+
+### 4d. Contraste de tres vías: usuario × generado × catálogo
+
+Se manejan tres conjuntos de eventos para cada variante f04:
+
+- **U** = lista que puso el usuario en `target_event_types`
+- **G** = lista generada por el skill (paso 4c) a partir de medida + dirección + umbral + bands
+- **C** = claves del catálogo JSON real (si existe; si no, se omite esta fuente)
+
+Producir el informe comparando las tres fuentes:
+
+| Situación | Símbolo | Significado |
+|-----------|---------|-------------|
+| En U, en C, en G | ✓ | Evento correcto y esperado |
+| En U, en C, NO en G | ℹ️ | Usuario añadió evento extra válido (existe en catálogo pero no era esperado por la lógica de bandas) |
+| En U, NO en C, en G | ⚠️ | **ANOMALÍA** — la lógica dice que debería existir pero el catálogo no lo tiene (posible bug en f02 o en la generación de eventos) |
+| En U, NO en C, NO en G | ❌ | **ERROR** — evento inventado, no existe ni debería. Hará fallar f04 |
+| NO en U, en C, en G | ℹ️ | Evento disponible que el usuario no incluyó (informativo) |
+| NO en U, en C, NO en G | — | Evento de otra medida/dirección, irrelevante |
+| NO en U, NO en C, en G | — | Generado pero no existe en catálogo (la lógica de generación predice más de lo que f02 creó) |
+
+**Regla**: si hay ❌ o ⚠️ → mostrar anomalías y pedir confirmación antes de generar.
+Si solo hay ✓ y ℹ️ → proceder sin preguntar.
+
+Si el catálogo no existe (variante f02 no ejecutada), el contraste se reduce a U vs G:
+- En U, en G → ✓ (probablemente correcto)
+- En U, NO en G → ℹ️ (extra, sin catálogo no se puede confirmar)
+- NO en U, en G → ℹ️ (faltante según lógica, sin catálogo no se puede confirmar)
+
+### 4e. Formato del informe de anomalías
+
+Mostrar ANTES de generar el .txt:
+
+```
+━━━ Validación f04 contra catálogo ━━━
+
+v4_0006 (parent: v3_0002 → v2_0002, catálogo: 340 eventos)
+  ⚠️ 4 eventos NO existen en catálogo:
+    - Outlet_Temperature_Set_Response_0_20-to-80_100
+    - Outlet_Temperature_Set_Response_20_40-to-80_100
+    - Outlet_Temperature_Set_Response_40_60-to-80_100
+    - Outlet_Temperature_Set_Response_60_80-to-80_100
+  ✓ 4 eventos OK:
+    - Outlet_Temperature_0_20-to-80_100
+    - Outlet_Temperature_20_40-to-80_100
+    - Outlet_Temperature_40_60-to-80_100
+    - Outlet_Temperature_60_80-to-80_100
+
+v4_0001 (parent: v3_0001 → v2_0001, catálogo: 1530 eventos)
+  ✓ 18 eventos, todos en catálogo
+```
+
+Si hay anomalías:
+```
+⚠️ Se detectaron anomalías en X variantes de f04.
+¿Quieres que elimine los eventos inválidos y genere el lote corregido,
+o prefieres revisar manualmente primero?
+```
+
+**No generar el .txt final hasta que el usuario confirme** qué hacer con las anomalías.
+
+---
+
+## Paso 5 — Detección de colisiones (opcional)
 
 Si el usuario adjunta la lista de variantes existentes (JSON array, YAML list, o texto
 separado por comas):
@@ -200,70 +386,44 @@ separado por comas):
 
 ## Ejemplo
 
-**Input** (pipeline: `mlops4rtedge`, Makefile):
-```bash
-make variant1 VARIANT=v001 RAW=./data/raw.csv CLEANING=basic NAN_VALUES='[-999999]'
-make variant2 VARIANT=v202 PARENT=v001 STRATEGY=transitions BANDS='[10, 90]' NAN_MODE=discard
-make variant5 VARIANT=v502 PARENT=v401 MODEL_FAMILY=cnn1d IMBALANCE_STRATEGY=rare_events
+**Input** (pipeline: `mlops4rtedgeI`, formato YAML de Inés):
+```yaml
+pipeline: events
+repo_path: C:/Users/inesv/Desktop/STRAST/mlops4rtedge
+variants:
+  f02:
+  - variant: v2_0001
+    params:
+      event_strategy: transitions    # ← nombre incorrecto
+      bands: [10, 20, 30, 40, 50, 60, 70, 80, 90]
+      nan_mode: discard
+    parent: v1_0000
+  f04:
+  - variant: v4_0006
+    params:
+      name: outlet_temperature_high_80_fine_4    # ← nombre incorrecto
+      operator: OR                                # ← nombre incorrecto
+      events:                                     # ← nombre incorrecto
+      - Outlet_Temperature_0_20-to-80_100
+      - Outlet_Temperature_Set_Response_0_20-to-80_100  # ← no existe en catálogo
+      ...
+    parent: v3_0002
 ```
 
 **Proceso**:
-1. `traceability_path` de `mlops4rtedge` en `pipelines.yaml` →
-   `external/mlops4rtedge/repo_actions/scripts/traceability_schema.yaml`
-2. Leer schema: f01 tiene `raw_path`, `cleaning`, `nan_values`, `error_values`,
-   `first_line`, `max_lines`. f02 tiene `parent_variant`, `Tu` (inherited), `strategy`,
-   `bands`, `nan_mode`. Etc.
-3. Leer `config/mlops4rtedge/fase_runners.yaml` → f01–f06=`GithubActions`, f07–f08=`ESP32-self-hosted`.
-4. Mapear: `RAW`→`raw_path`, `NAN_VALUES`→`nan_values`, `STRATEGY`→`strategy`, `BANDS`→`bands`,
-   `MODEL_FAMILY`→`model_family`, `IMBALANCE_STRATEGY`→`imbalance_strategy`.
-5. `Tu` en f02 es `inherited: true` y el usuario no lo da → omitir.
-
-**Output**:
-```json
-#f01_explore
-
-{
-  "variant": "v001",
-  "params": {
-    "raw_path": "data/raw.csv",
-    "cleaning": "basic",
-    "nan_values": [-999999],
-    "error_values": {},
-    "first_line": null,
-    "max_lines": null
-  },
-  "selected_runner": "GithubActions"
-}
-
-
-#f02_events
-
-{
-  "variant": "v202",
-  "params": {
-    "strategy": "transitions",
-    "bands": [10, 90],
-    "nan_mode": "discard"
-  },
-  "parent": "v001",
-  "selected_runner": "GithubActions"
-}
-
-
-#f05_modeling
-
-{
-  "variant": "v502",
-  "params": {
-    "model_family": "cnn1d",
-    "imbalance_strategy": "rare_events"
-    // campos inherited (Tu, OW, LT, PW, prediction_name, event_type_count) omitidos
-    // campos no dados con required:false → omitidos o null según schema
-  },
-  "parent": "v401",
-  "selected_runner": "GithubActions"
-}
-```
+1. Pipeline: `mlops4rtedgeI` → schema en `external/mlops4rtedge/...`
+2. Correcciones automáticas:
+   ```
+   ℹ️ f02: "event_strategy" → "strategy"
+   ℹ️ f04: "name" → "prediction_name"
+   ℹ️ f04: "operator" → "target_operator"
+   ℹ️ f04: "events" → "target_event_types"
+   ```
+3. Validación f04 contra catálogo `v2_0002/02_events_catalog.json`:
+   ```
+   ⚠️ v4_0006: 4 eventos no existen en catálogo (todos son _Set_Response_)
+   ```
+4. Usuario confirma → se eliminan los eventos inválidos → se genera el .txt
 
 > Si el schema de otro pipeline (mlops4rtedgeTS, mlops4rtedgeUni) tiene parámetros
 > distintos, el output cambia en consecuencia — eso es el comportamiento correcto.

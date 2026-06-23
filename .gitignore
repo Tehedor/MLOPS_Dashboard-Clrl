@@ -49,6 +49,7 @@ docker-compose.override.yml
 external/*
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
+supabase/.temp/
 .supabase/.temp/
 .supabase/.deployed
 

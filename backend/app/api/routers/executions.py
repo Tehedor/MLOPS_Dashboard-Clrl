@@ -9,11 +9,11 @@ from fastapi.responses import StreamingResponse
 from app.core.config import phases_runner_path, fase_runners_path, get_pipeline_project, get_pipeline_token, resolve_project_path
 from app.schemas.execution import Execution, ExecutionCreate
 from app.services.execution_service import ExecutionService, is_paused, set_paused
+from app.services import execution_event_service
 from app.services.github import fetch_run_logs
 
 router = APIRouter()
 _service = ExecutionService()
-_sse_queues: list[asyncio.Queue] = []
 
 
 def _fase_label(fase_id: str) -> str:
@@ -204,17 +204,15 @@ async def list_executions(pipeline_id: str | None = Query(None)):
 
 @router.get("/stream")
 async def stream_executions():
-    q: asyncio.Queue = asyncio.Queue()
-    _sse_queues.append(q)
+    q = execution_event_service.subscribe()
 
     async def generator() -> AsyncGenerator[str, None]:
         try:
             while True:
                 data = await q.get()
                 yield f"data: {data}\n\n"
-        except asyncio.CancelledError:
-            if q in _sse_queues:
-                _sse_queues.remove(q)
+        finally:
+            execution_event_service.unsubscribe(q)
 
     return StreamingResponse(generator(), media_type="text/event-stream")
 
@@ -240,14 +238,12 @@ async def get_execution(execution_id: str):
 @router.post("/{execution_id}/cancel", response_model=Execution)
 async def cancel_execution(execution_id: str):
     ex = await _service.cancel(execution_id)
-    await _broadcast(ex)
     return ex
 
 
 @router.post("/{execution_id}/retry", response_model=Execution)
 async def retry_execution(execution_id: str):
     ex = await _service.retry(execution_id)
-    await _broadcast(ex)
     return ex
 
 
@@ -304,6 +300,4 @@ async def stream_local_logs(execution_id: str):
 
 
 async def _broadcast(execution: Execution) -> None:
-    payload = json.dumps(execution.model_dump())
-    for q in _sse_queues:
-        await q.put(payload)
+    await execution_event_service.publish(execution)

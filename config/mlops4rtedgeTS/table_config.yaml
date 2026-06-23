@@ -562,6 +562,21 @@ phases:
           - id: decision_threshold
             source_path: exports.decision_threshold
             type: float
+          - id: tflite_eval_threshold
+            source_path: exports.tflite_eval_threshold
+            type: float
+          - id: tflite_test_precision
+            source_path: exports.tflite_test_precision
+            type: float
+          - id: tflite_test_recall
+            source_path: exports.tflite_test_recall
+            type: float
+          - id: tflite_test_f1
+            source_path: exports.tflite_test_f1
+            type: float
+          - id: tflite_test_pr_auc
+            source_path: exports.tflite_test_pr_auc
+            type: float
           - id: model_size_bytes
             source_path: exports.model_size_bytes
             type: int

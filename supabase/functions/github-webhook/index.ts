@@ -13,21 +13,32 @@ const supabase = createClient(
 )
 
 const GITHUB_TOKEN   = Deno.env.get('GITHUB_TOKEN') ?? ''
+const REPOSITORY_TOKENS: Record<string, string> = {
+  'teheorg/mlops4rtedge':    Deno.env.get('GITHUB_TOKEN_EDGE') ?? '',
+  'teheorg/mlops4rtedgets':  Deno.env.get('GITHUB_TOKEN_EDGE_TS') ?? '',
+  'teheorg/mlops4rtedgeuni': Deno.env.get('GITHUB_TOKEN_EDGE_UNI') ?? '',
+}
 const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET') ?? ''
 
-const GH_HEADERS = {
-  'Authorization': `Bearer ${GITHUB_TOKEN}`,
-  'Accept': 'application/vnd.github.v3+json',
-  'User-Agent': 'mlops-dashboard',
+function githubToken(repoFullName: string): string {
+  return REPOSITORY_TOKENS[repoFullName.toLowerCase()] || GITHUB_TOKEN
 }
 
-// Mapeo: nombre de job en el trigger workflow → fase interna del dashboard.
-// Se construye dinámicamente desde el secret PHASES_LIST (CSV ordenado de IDs de fase).
-// Generado por setup_supabase.sh leyendo config/fases_execution_runners.yaml.
-const _phasesList = (Deno.env.get('PHASES_LIST') ?? '').split(',').map(s => s.trim()).filter(Boolean)
-const TRIGGER_JOB_TO_FASE: Record<string, string> = Object.fromEntries(
-  _phasesList.map((fase: string, i: number) => [`trigger-fase${i + 1}`, fase])
-)
+function githubHeaders(repoFullName: string): Record<string, string> {
+  const token = githubToken(repoFullName)
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'mlops-dashboard',
+  }
+}
+
+// Extrae el prefijo de fase (f01, f02, …) a partir del número de posición.
+// Los consumers (backend/frontend) resuelven f0N → f0N_xxx desde sus YAMLs.
+function fasePrefix(n: number): string | null {
+  if (n < 1 || n > 99) return null
+  return `f${String(n).padStart(2, '0')}`
+}
 
 // ── Verificación de firma HMAC ───────────────────────────────────────────────
 async function verifySignature(body: string, sigHeader: string | null): Promise<boolean> {
@@ -47,7 +58,7 @@ async function verifySignature(body: string, sigHeader: string | null): Promise<
 async function fetchJobs(repoFullName: string, runId: number): Promise<any[]> {
   const res = await fetch(
     `https://api.github.com/repos/${repoFullName}/actions/runs/${runId}/jobs`,
-    { headers: GH_HEADERS }
+    { headers: githubHeaders(repoFullName) }
   )
   if (!res.ok) return []
   const data = await res.json()
@@ -57,7 +68,7 @@ async function fetchJobs(repoFullName: string, runId: number): Promise<any[]> {
 async function fetchJobLogs(repoFullName: string, jobId: number): Promise<string> {
   const res = await fetch(
     `https://api.github.com/repos/${repoFullName}/actions/jobs/${jobId}/logs`,
-    { headers: GH_HEADERS, redirect: 'follow' }
+    { headers: githubHeaders(repoFullName), redirect: 'follow' }
   )
   if (!res.ok) return ''
   return (await res.text()).slice(0, 150_000)
@@ -65,27 +76,24 @@ async function fetchJobLogs(repoFullName: string, jobId: number): Promise<string
 
 // ── Inferencia de fase desde los jobs ───────────────────────────────────────
 // El trigger workflow tiene jobs "trigger-fase1..8"; solo uno no está "skipped".
+// Devuelve el prefijo f0N; el backend resuelve el nombre completo desde sus YAMLs.
 function inferFaseFromJobs(jobs: any[]): string | null {
   for (const job of jobs) {
-    // GH API devuelve "trigger-fase1 / ejecutar-fase-1" para jobs de reusable workflows.
-    // Tomamos solo la parte antes de " /" para hacer el lookup.
     const baseName = job.name.split(' /')[0].trim()
-    const fase = TRIGGER_JOB_TO_FASE[baseName]
-    if (fase && job.conclusion !== 'skipped' &&
+    const m = baseName.match(/^trigger-fase(\d+)$/)
+    if (m && job.conclusion !== 'skipped' &&
         (job.status === 'in_progress' || job.status === 'completed')) {
-      return fase
+      return fasePrefix(parseInt(m[1], 10))
     }
   }
   return null
 }
 
-// Fallback para los runs de los workflows reusables: extrae el número de fase
-// del nombre del workflow ("Reusable: Fase 1 (Explore)" → _phasesList[0]).
+// Fallback para runs de workflows reusables: "Reusable: Fase 5 (Modeling)" → "f05".
 function inferFaseFromWorkflowName(name: string): string | null {
   const m = name.match(/Fase\s+(\d+)/i)
   if (!m) return null
-  const idx = parseInt(m[1], 10) - 1
-  return _phasesList[idx] ?? null
+  return fasePrefix(parseInt(m[1], 10))
 }
 
 // ── Extracción de variant del log de validar-payload ───────────────────────
@@ -152,7 +160,7 @@ Deno.serve(async (req) => {
       let variant: string | null = null
       let jobs: any[] = []
 
-      if (GITHUB_TOKEN) {
+      if (githubToken(repoFullName)) {
         try {
           jobs = await fetchJobs(repoFullName, run.id)
           fase = inferFaseFromJobs(jobs) ?? inferFaseFromWorkflowName(run.name ?? '')
@@ -182,7 +190,7 @@ Deno.serve(async (req) => {
       }
 
       // Almacenar logs de todos los jobs
-      if (GITHUB_TOKEN && jobs.length) {
+      if (githubToken(repoFullName) && jobs.length) {
         try {
           const logRows = (await Promise.all(
             jobs.map(async (job: any) => {
@@ -214,7 +222,7 @@ Deno.serve(async (req) => {
       let variant: string | null = null
       if (action === 'in_progress') {
         fase = inferFaseFromWorkflowName(run.name ?? '')
-        if (GITHUB_TOKEN) {
+        if (githubToken(repoFullName)) {
           try {
             const jobs = await fetchJobs(repoFullName, run.id)
             if (!fase) fase = inferFaseFromJobs(jobs)

@@ -18,6 +18,7 @@ from app.core.config import phases_runner_path, fase_runners_path, load_app_conf
 from app.core.db import connect
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
+from app.services import execution_event_service
 
 
 _FASE_CONFIG_CACHE: dict[str, dict] = {}
@@ -460,25 +461,41 @@ class ExecutionService:
                 (gh_run_id, execution_id),
             )
             await db.commit()
+        updated = await self.get(execution_id)
+        if updated:
+            from app.services.supabase_sync_service import enrich_workflow_run
+            asyncio.create_task(enrich_workflow_run(
+                str(gh_run_id), updated.fase, updated.variant
+            ))
+            await execution_event_service.publish(updated)
 
     async def _update_status(
-        self, execution_id: str, status: ExecutionStatus, error_code: str | None = None
-    ) -> None:
+        self,
+        execution_id: str,
+        status: ExecutionStatus,
+        error_code: str | None = None,
+        *,
+        allow_terminal_reset: bool = False,
+    ) -> bool:
         now = datetime.now(timezone.utc).isoformat()
         _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
         _row = None
         async with connect() as db:
             if status == ExecutionStatus.running:
-                await db.execute(
-                    "UPDATE executions SET status=?, error_code=?, updated_at=?, started_at=COALESCE(started_at, ?) WHERE id=?",
-                    (status.value, error_code, now, now, execution_id),
+                cursor = await db.execute(
+                    "UPDATE executions SET status=?, error_code=?, updated_at=?, "
+                    "started_at=COALESCE(started_at, ?) "
+                    "WHERE id=? AND (status NOT IN ('success','failed','canceled') OR ?=1)",
+                    (status.value, error_code, now, now, execution_id, int(allow_terminal_reset)),
                 )
             else:
-                await db.execute(
-                    "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
-                    (status.value, error_code, now, execution_id),
+                cursor = await db.execute(
+                    "UPDATE executions SET status=?, error_code=?, updated_at=? "
+                    "WHERE id=? AND (status NOT IN ('success','failed','canceled') OR ?=1)",
+                    (status.value, error_code, now, execution_id, int(allow_terminal_reset)),
                 )
-            if status in _TERMINAL:
+            changed = cursor.rowcount > 0
+            if changed and status in _TERMINAL:
                 db.row_factory = aiosqlite.Row
                 async with db.execute(
                     "SELECT pipeline_id, fase, variant, runner, parent, created_at, started_at FROM executions WHERE id=?",
@@ -486,6 +503,15 @@ class ExecutionService:
                 ) as _cur:
                     _row = await _cur.fetchone()
             await db.commit()
+        if not changed:
+            log.debug(
+                "Ignored non-monotonic status transition execution=%s target=%s",
+                execution_id, status.value,
+            )
+            return False
+        updated = await self.get(execution_id)
+        if updated:
+            await execution_event_service.publish(updated)
         if status in _TERMINAL:
             from app.services import repo_sync_service, lineage_registry_service
             asyncio.create_task(repo_sync_service.force_pull())
@@ -514,6 +540,7 @@ class ExecutionService:
                     )
                 except Exception as _csv_exc:
                     log.warning("validation_csv hook failed: %s", _csv_exc)
+        return True
 
     async def list_all(self, pipeline_id: str | None = None) -> list[Execution]:
         async with connect() as db:
@@ -625,7 +652,9 @@ class ExecutionService:
         if not ex:
             from fastapi import HTTPException
             raise HTTPException(404, "Not found")
-        await self._update_status(execution_id, ExecutionStatus.queued, None)
+        await self._update_status(
+            execution_id, ExecutionStatus.queued, None, allow_terminal_reset=True
+        )
         updated = await self.get(execution_id)
         asyncio.create_task(self._dispatch(updated))
         return updated
@@ -637,48 +666,40 @@ async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     """Update local execution status from a completed GitHub run (matched by gh_run_id)."""
     async with connect() as db:
         async with db.execute(
-            "SELECT id, pipeline_id, fase, variant, runner, parent, created_at, started_at "
-            "FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
+            "SELECT id FROM executions "
+            "WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
             (str(gh_run_id),),
         ) as cursor:
             row = await cursor.fetchone()
     if not row:
         return False
-    execution_id, pipeline_id, fase, variant, runner, parent, created_at, started_at = row
+    execution_id = row[0]
     if conclusion == "success":
         new_status, error_code = ExecutionStatus.success, None
     elif conclusion in ("cancelled", "skipped"):
         new_status, error_code = ExecutionStatus.canceled, None
     else:
         new_status, error_code = ExecutionStatus.failed, f"GH_{conclusion.upper()}"
-    now = datetime.now(timezone.utc).isoformat()
-    async with connect() as db:
-        await db.execute(
-            "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
-            (new_status.value, error_code, now, execution_id),
-        )
-        await db.commit()
-    _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
-    if new_status in _TERMINAL:
-        from app.services import repo_sync_service
-        asyncio.create_task(repo_sync_service.force_pull())
-        # Validation CSV
-        try:
-            from app.services.validation_csv_service import append_row as _csv_append
-            _csv_append(
-                pipeline_id=pipeline_id,
-                variant=variant,
-                phase=fase,
-                runner=runner,
-                parent=parent,
-                created_at=created_at,
-                started_at=started_at,
-                completed_at=now,
-                status=new_status.value,
-            )
-        except Exception as _csv_exc:
-            log.warning("validation_csv hook failed: %s", _csv_exc)
+    changed = await ExecutionService()._update_status(execution_id, new_status, error_code)
+    if not changed:
+        return False
     log.info("update_from_gh_run: %s → %s (%s)", gh_run_id, new_status.value, error_code)
+    return True
+
+
+async def update_running_from_gh_run(gh_run_id: str) -> bool:
+    """Promote a matched local dispatch to running from a Supabase in_progress event."""
+    async with connect() as db:
+        async with db.execute(
+            "SELECT id FROM executions "
+            "WHERE gh_run_id=? AND status IN ('queued','dispatching')",
+            (str(gh_run_id),),
+        ) as cursor:
+            row = await cursor.fetchone()
+    if not row:
+        return False
+    await ExecutionService()._update_status(row[0], ExecutionStatus.running)
+    log.info("update_running_from_gh_run: %s → running", gh_run_id)
     return True
 
 

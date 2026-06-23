@@ -450,6 +450,21 @@ phases:
     - id: exports_decision_threshold
       source_path: exports.decision_threshold
       type: float
+    - id: exports_tflite_eval_threshold
+      source_path: exports.tflite_eval_threshold
+      type: float
+    - id: exports_tflite_test_precision
+      source_path: exports.tflite_test_precision
+      type: float
+    - id: exports_tflite_test_recall
+      source_path: exports.tflite_test_recall
+      type: float
+    - id: exports_tflite_test_f1
+      source_path: exports.tflite_test_f1
+      type: float
+    - id: exports_tflite_test_pr_auc
+      source_path: exports.tflite_test_pr_auc
+      type: float
     - id: exports_edge_capable
       source_path: exports.edge_capable
       type: bool

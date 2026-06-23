@@ -18,6 +18,16 @@ const MIN_W       = 180
 const COLLAPSE_AT = 130
 const TOGGLE_W    = 28
 const HANDLE_W    = 4
+const STATUS_PROGRESS = {
+  queued: 0,
+  waiting_parent: 0,
+  waiting_runner: 0,
+  dispatching: 1,
+  running: 2,
+  success: 3,
+  failed: 3,
+  canceled: 3,
+}
 
 function loadNum(key, fallback) {
   const v = localStorage.getItem(key)
@@ -170,6 +180,11 @@ export default function Vista2() {
       if (!e.gh_run_id) return e  // no gh_run_id yet — don't touch status
       const sup = supabaseById.get(String(e.gh_run_id))
       if (!sup || sup.status === e.status) return e
+      // Supabase is authoritative when it advances the execution. A stale cache
+      // must never move the UI backwards (success -> running, running -> queued).
+      const localProgress = STATUS_PROGRESS[e.status] ?? 0
+      const supProgress = STATUS_PROGRESS[sup.status] ?? 0
+      if (supProgress < localProgress) return e
       return { ...e, status: sup.status, updated_at: sup.updated_at }
     })
     return [...mergedLocal, ...externalRuns]

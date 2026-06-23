@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from app.core.config import settings
@@ -52,6 +52,24 @@ _HEADERS = {
 }
 
 _DISPATCH_LOCK = asyncio.Lock()
+_RUN_WAITERS: dict[str, tuple[asyncio.Future[str], datetime]] = {}
+
+
+def notify_workflow_run(repo: str, run_id: str, created_at: str) -> None:
+    """Resolve the active dispatch waiter when Realtime announces its GitHub run."""
+    pending = _RUN_WAITERS.get(repo.lower())
+    if pending is None:
+        return
+    waiter, dispatched_at = pending
+    try:
+        run_created_at = _parse_ts(created_at)
+    except (TypeError, ValueError):
+        return
+    # GitHub timestamps have lower precision than the local dispatch timestamp.
+    if run_created_at < dispatched_at - timedelta(seconds=2):
+        return
+    if not waiter.done():
+        waiter.set_result(str(run_id))
 
 # Param keys that don't map to simple .upper() of their schema name
 _PARAM_KEY_REMAP = {
@@ -185,10 +203,23 @@ async def dispatch_phase(
         }
         headers = _auth_headers(t)
         _log_curl(dispatch_url, headers, payload, t)
-        dispatch_ts = datetime.now(timezone.utc).isoformat()
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(dispatch_url, json=payload, headers=headers)
-            resp.raise_for_status()
+        dispatched_at = datetime.now(timezone.utc)
+        dispatch_ts = dispatched_at.isoformat()
+        waiter = asyncio.get_running_loop().create_future()
+        waiter_key = repo.lower()
+        _RUN_WAITERS[waiter_key] = (waiter, dispatched_at)
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(dispatch_url, json=payload, headers=headers)
+                resp.raise_for_status()
+
+            try:
+                return await asyncio.wait_for(asyncio.shield(waiter), timeout=5)
+            except asyncio.TimeoutError:
+                pass
+        finally:
+            if _RUN_WAITERS.get(waiter_key, (None, None))[0] is waiter:
+                _RUN_WAITERS.pop(waiter_key, None)
 
         for delay in (3, 5, 8, 12):
             await asyncio.sleep(delay)

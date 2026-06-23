@@ -24,13 +24,13 @@ for _f in _ENV_FILES:
 
 class Settings(BaseSettings):
     github_token: str = ""
-    github_repo: str = ""  # legacy — kept for supabase_sync_service backward compat
     database_url: str = "executions.db"
     queue_limit: int = 50
     dagshub_user: str = ""
     dagshub_token: str = ""
     supabase_url: str = ""
     supabase_publishable_key: str = ""
+    service_role_key: str = ""
 
     class Config:
         env_file = _ENV_FILES

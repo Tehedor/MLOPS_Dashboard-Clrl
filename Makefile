@@ -84,7 +84,7 @@ supabase-redeploy: ## Fuerza redeploy de la Edge Function eliminando el centinel
 # ── Dev (procesos locales) ────────────────────────────────────────────────────
 
 .PHONY: dev dev-backend dev-frontend
-dev: supabase-deploy dev-backend dev-frontend ## Arranca backend + frontend en background (metal: despliega Edge Function si es necesario)
+dev: supabase-deploy dev-backend wait-backend dev-frontend ## Arranca backend + frontend en background (metal: despliega Edge Function si es necesario)
 	@printf "\n$(BOLD)Servicios arrancados$(RESET)\n"
 	@printf "  Backend:  $(CYAN)http://localhost:8000$(RESET)\n"
 	@printf "  Frontend: $(CYAN)http://localhost:5173$(RESET)\n"
@@ -113,6 +113,25 @@ dev-backend: ## Arranca el backend (uvicorn --reload) en background
 			exit 1; \
 		fi; \
 	fi
+
+wait-backend: ## Espera a que el backend esté listo (health check en /docs)
+	@SPINNER=( "⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏" ); \
+	TIMEOUT=120; \
+	ELAPSED=0; \
+	printf "$(CYAN)Esperando backend...$(RESET) "; \
+	while [ $$ELAPSED -lt $$TIMEOUT ]; do \
+		FRAME=$$(( ELAPSED % $${#SPINNER[@]} )); \
+		printf "\r$(CYAN)$${SPINNER[$$FRAME]} Esperando backend... ($$ELAPSED/$$TIMEOUT)s$(RESET) "; \
+		if curl -sf http://localhost:8000/docs > /dev/null 2>&1; then \
+			printf "\r$(GREEN)✓ Backend listo$(RESET)\n"; \
+			exit 0; \
+		fi; \
+		sleep 0.5; \
+		ELAPSED=$$(( ELAPSED + 1 )); \
+	done; \
+	printf "\r$(RESET)"; \
+	echo "⚠ Backend no respondió en $$TIMEOUT segundos"; \
+	exit 1
 
 dev-frontend: ## Arranca el frontend (vite) en background
 	@mkdir -p $(PID_DIR); \
@@ -292,9 +311,9 @@ open: ## Abre el frontend en el navegador
 open-api: ## Abre la documentación OpenAPI
 	@xdg-open http://localhost:8000/docs 2>/dev/null || open http://localhost:8000/docs 2>/dev/null || true
 
-open-gh: ## Abre el repositorio de GitHub Actions
-	@xdg-open https://github.com/Tehedor/MLOps_actions_v2 2>/dev/null \
-		|| open https://github.com/Tehedor/MLOps_actions_v2 2>/dev/null || true
+open-gh: ## Abre la organización de repositorios GitHub
+	@xdg-open https://github.com/TeheORG 2>/dev/null \
+		|| open https://github.com/TeheORG 2>/dev/null || true
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 

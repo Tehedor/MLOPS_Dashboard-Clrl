@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
     sync_task = asyncio.create_task(repo_sync_service.polling_loop())
     realtime_task = asyncio.create_task(
-        supabase_sync_service.listen_completions(repo_sync_service.force_pull)
+        supabase_sync_service.listen_workflow_runs(repo_sync_service.force_pull)
     )
     poll_task = start_gh_poll()
     dvc_worker = variants_service.start_worker()

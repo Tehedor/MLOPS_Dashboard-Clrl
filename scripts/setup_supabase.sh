@@ -11,24 +11,35 @@
 set -euo pipefail
 
 SENTINEL=".supabase/.deployed"
-ENV_FILE="backend/.env"
 FUNCTION="github-webhook"
+PIPELINES_FILE="config/pipelines.yaml"
 
-# Leer variables del .env con grep (robusto ante caracteres especiales en otros valores)
+# Leer variables del .env (intenta raíz primero, luego backend/.env)
 _env() {
   local key="$1"
-  if [[ -f "$ENV_FILE" ]]; then
-    local val
-    val=$(grep -m1 "^${key}=" "$ENV_FILE" | cut -d= -f2-)
-    # quitar comillas simples o dobles envolventes
-    val="${val#\"}" ; val="${val%\"}"
-    val="${val#\'}" ; val="${val%\'}"
-    printf '%s' "$val"
+  local val=""
+
+  # Buscar en .env de raíz primero
+  if [[ -f ".env" ]]; then
+    val=$(grep -m1 "^${key}=" ".env" | cut -d= -f2-)
   fi
+
+  # Si no encontró, buscar en backend/.env
+  if [[ -z "$val" ]] && [[ -f "backend/.env" ]]; then
+    val=$(grep -m1 "^${key}=" "backend/.env" | cut -d= -f2-)
+  fi
+
+  # quitar comillas simples o dobles envolventes
+  val="${val#\"}" ; val="${val%\"}"
+  val="${val#\'}" ; val="${val%\'}"
+  printf '%s' "$val"
 }
 
 SUPABASE_URL="${SUPABASE_URL:-$(_env SUPABASE_URL)}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-$(_env GITHUB_TOKEN)}"
+GITHUB_TOKEN_EDGE="${GITHUB_TOKEN_EDGE:-$(_env GITHUB_TOKEN_EDGE)}"
+GITHUB_TOKEN_EDGE_TS="${GITHUB_TOKEN_EDGE_TS:-$(_env GITHUB_TOKEN_EDGE_TS)}"
+GITHUB_TOKEN_EDGE_UNI="${GITHUB_TOKEN_EDGE_UNI:-$(_env GITHUB_TOKEN_EDGE_UNI)}"
 WEBHOOK_SECRET="${WEBHOOK_SECRET:-$(_env WEBHOOK_SECRET)}"
 SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY:-$(_env SERVICE_ROLE_KEY)}"
 
@@ -108,6 +119,14 @@ else
   echo "[supabase] ⚠ GITHUB_TOKEN no definido — la función no descargará logs de GitHub."
 fi
 
+for token_name in GITHUB_TOKEN_EDGE GITHUB_TOKEN_EDGE_TS GITHUB_TOKEN_EDGE_UNI; do
+  token_value="${!token_name:-}"
+  if [[ -n "$token_value" ]]; then
+    supabase secrets set "${token_name}=${token_value}"
+    echo "[supabase] Secret ${token_name} configurado."
+  fi
+done
+
 if [[ -n "$WEBHOOK_SECRET" ]]; then
   supabase secrets set WEBHOOK_SECRET="$WEBHOOK_SECRET"
   echo "[supabase] Secret WEBHOOK_SECRET configurado."
@@ -148,14 +167,40 @@ fi
 mkdir -p .supabase
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SENTINEL"
 
-REPO_URL="https://github.com/Tehedor/MLOps_actions_v2"
+# Obtener los repositorios activos desde la misma configuración que usa el backend.
+# Varias pipelines pueden compartir repositorio; cada URL de webhook se muestra una sola vez.
+mapfile -t GITHUB_REPOSITORIES < <(
+  python3 - "$PIPELINES_FILE" <<'PY' 2>/dev/null || true
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as config_file:
+    config = yaml.safe_load(config_file) or {}
+
+repositories = {
+    pipeline.get("repo", "").strip()
+    for pipeline in config.get("pipelines", {}).values()
+    if isinstance(pipeline, dict) and pipeline.get("repo", "").strip()
+}
+
+for repository in sorted(repositories, key=str.casefold):
+    print(repository)
+PY
+)
 
 echo ""
 echo "[supabase] ✓ Edge Function desplegada."
 echo "   URL webhook: https://${PROJECT_REF}.supabase.co/functions/v1/$FUNCTION"
 echo ""
-echo "   Último paso — configura el webhook en GitHub:"
-echo "   ${REPO_URL}/settings/hooks"
+echo "   Último paso — configura el webhook en cada repositorio de GitHub:"
+if (( ${#GITHUB_REPOSITORIES[@]} > 0 )); then
+  for repository in "${GITHUB_REPOSITORIES[@]}"; do
+    echo "   https://github.com/${repository}/settings/hooks"
+  done
+else
+  echo "   ⚠ No se encontraron repositorios en $PIPELINES_FILE."
+fi
 echo "   → Payload URL: https://${PROJECT_REF}.supabase.co/functions/v1/$FUNCTION"
 echo "   → Content type: application/json"
 echo "   → Events: Workflow runs"
