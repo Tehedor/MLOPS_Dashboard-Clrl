@@ -7,11 +7,9 @@ local_log_store (live SSE) without blocking the event loop.
 import asyncio
 import json
 import os
-import pty
 import re
 import shutil
 import signal
-import termios
 import time
 from pathlib import Path
 
@@ -19,6 +17,13 @@ import yaml
 
 from app.core.config import load_app_config, settings, PROJECT_ROOT, get_pipeline_project, get_pipeline_token, resolve_pipeline_config_path
 from app.services import local_log_store as log_store
+
+if os.name != "nt":
+    import pty
+    import termios
+else:
+    pty = None
+    termios = None
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +99,28 @@ async def _run(
     lines in real time instead of waiting for a newline.
     """
     log_store.push(execution_id, step, f"$ {cmd}")
+
+    if pty is None:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=cwd,
+            env=env,
+        )
+        _ACTIVE_PROCS[execution_id] = proc
+        assert proc.stdout is not None
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            log_store.push(execution_id, step, line.rstrip(b"\r\n").decode(errors="replace"))
+        await proc.wait()
+        _ACTIVE_PROCS.pop(execution_id, None)
+        rc = proc.returncode
+        marker = "✓ OK" if rc == 0 else f"✗ FAILED (rc={rc})"
+        log_store.push(execution_id, step, marker)
+        return rc
 
     master_fd, slave_fd = pty.openpty()
 

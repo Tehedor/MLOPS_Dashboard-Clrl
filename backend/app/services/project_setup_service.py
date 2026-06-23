@@ -7,14 +7,19 @@ Cycle 2: clone/pull the branch locally and run `make setup SETUP_CFG=setup/remot
 import asyncio
 import logging
 import os
-import pty
 import shutil
-import termios
 from pathlib import Path
 
 import httpx
 
 from app.core.config import get_pipeline_project, get_pipeline_token, PROJECT_ROOT, settings
+
+if os.name != "nt":
+    import pty
+    import termios
+else:
+    pty = None
+    termios = None
 
 log = logging.getLogger(__name__)
 
@@ -152,6 +157,23 @@ async def create_branch(pipeline_id: str, base_branch: str = "main") -> dict:
 async def _run_cmd(cmd: str, cwd: Path, env: dict, pipeline_id: str) -> int:
     """Run a shell command with PTY, streaming output to push_log."""
     push_log(pipeline_id, f"$ {cmd}")
+
+    if pty is None:
+        proc = await asyncio.create_subprocess_shell(
+            cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(cwd),
+            env=env,
+        )
+        assert proc.stdout is not None
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            push_log(pipeline_id, line.rstrip(b"\r\n").decode(errors="replace"))
+        await proc.wait()
+        return proc.returncode or 0
 
     master_fd, slave_fd = pty.openpty()
     try:

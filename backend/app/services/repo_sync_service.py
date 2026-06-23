@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,18 +83,39 @@ def _authed_url(url: str, token: str = "") -> str:
     return url
 
 
+def sanitize_error_detail(detail: str) -> str:
+    """Remove credentials embedded in HTTPS URLs before returning/logging errors."""
+    return re.sub(r"https://[^@\s]+@", "https://<redacted>@", str(detail))
+
+
+def _remote_names(local_path: Path) -> set[str]:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(local_path), "remote"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
 def _get_remote_name(local_path: Path) -> str:
-    """Read publish_remote_name from .mlops4ofp/setup.yaml, fallback to 'origin'."""
+    """Read publish_remote_name from setup.yaml, but only use it if that remote exists."""
+    remotes = _remote_names(local_path)
     setup = local_path / ".mlops4ofp" / "setup.yaml"
     if setup.exists():
         try:
             import yaml
             data = yaml.safe_load(setup.read_text(encoding="utf-8")) or {}
             name = data.get("git", {}).get("publish_remote_name", "") or ""
-            if name:
+            if name and name in remotes:
                 return name
         except Exception:
             pass
+    if "origin" in remotes:
+        return "origin"
     return "origin"
 
 
@@ -212,6 +234,7 @@ async def _force_pull_one(pipeline_id: str) -> None:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr or b""
         detail = (stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)).strip() or str(exc)
+        detail = sanitize_error_detail(detail)
         state["error"] = detail
         if "Remote branch" in detail and "not found" in detail:
             log.debug("force_pull skip [%s]: branch not yet initialized", pipeline_id)
@@ -257,6 +280,7 @@ async def polling_loop() -> None:
             except subprocess.CalledProcessError as exc:
                 stderr = exc.stderr or b""
                 detail = (stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)).strip() or str(exc)
+                detail = sanitize_error_detail(detail)
                 state["error"] = detail
                 if "Remote branch" in detail and "not found" in detail:
                     log.debug("repo_sync skip [%s]: branch not yet initialized", pipeline_id)

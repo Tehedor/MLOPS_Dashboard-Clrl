@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { paramsForPhase } from './phaseParams'
 
 export default function ParamsEditor({ faseId, pipelineId, phaseParams, suggestions = {}, onChange, externalKey = 0, externalParams = null }) {
-  const defs = paramsForPhase(phaseParams, faseId)
+  const defs = useMemo(() => paramsForPhase(phaseParams, faseId), [phaseParams, faseId])
   const storageKey = `pe_${pipelineId ?? 'default'}_${faseId}_form`
 
   const [formValues, setFormValues] = useState(() => {
@@ -29,24 +29,26 @@ export default function ParamsEditor({ faseId, pipelineId, phaseParams, suggesti
           if (def.type === 'select' && def.required && savedVal === '') continue
           next[def.id] = savedVal
         }
-        setFormValues(next)
+        setFormValues(prev => shallowEqual(prev, next) ? prev : next)
         return
       }
     } catch {}
-    setFormValues(initForm(defs))
+    const next = initForm(defs)
+    setFormValues(prev => shallowEqual(prev, next) ? prev : next)
   }, [storageKey, defs])
 
   // Aplicar preload externo cuando externalKey cambia (ignorar montaje inicial)
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return }
     if (!externalParams) return
-    setFormValues(paramsToForm(externalParams, defs))
-  }, [externalKey])
+    const next = paramsToForm(externalParams, defs)
+    setFormValues(prev => shallowEqual(prev, next) ? prev : next)
+  }, [externalKey, externalParams, defs])
 
   // Sincroniza hacia arriba
   useEffect(() => {
     onChange(formToParams(formValues, defs))
-  }, [formValues])
+  }, [formValues, defs, onChange])
 
   function setField(id, value) {
     setFormValues(prev => ({ ...prev, [id]: value }))
@@ -169,6 +171,13 @@ function initForm(defs) {
     if (d.type === 'boolean') return [d.id, false]
     return [d.id, '']
   }))
+}
+
+function shallowEqual(a, b) {
+  const aKeys = Object.keys(a ?? {})
+  const bKeys = Object.keys(b ?? {})
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every(k => a[k] === b[k])
 }
 
 function paramsToForm(params, defs) {

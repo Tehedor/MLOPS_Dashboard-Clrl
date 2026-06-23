@@ -9,7 +9,8 @@ FRONTEND_DIR := fronted
 PID_DIR      := .pids
 VENV_DIR     := .venv
 
-SYSTEM_PYTHON ?= python3
+#SYSTEM_PYTHON ?= python3
+SYSTEM_PYTHON ?= python
 
 ifeq ($(MODE),LOCAL)
 PYTHON_CMD  := $(SYSTEM_PYTHON)
@@ -17,7 +18,8 @@ PIP_CMD     := $(PYTHON_CMD) -m pip
 UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
 RUFF_CMD    := $(PYTHON_CMD) -m ruff
 else ifeq ($(MODE),VENV)
-PYTHON_CMD  := $(abspath $(VENV_DIR)/bin/python)
+#PYTHON_CMD  := $(abspath $(VENV_DIR)/bin/python)
+PYTHON_CMD  := $(abspath $(VENV_DIR)/Scripts/python)
 PIP_CMD     := $(PYTHON_CMD) -m pip
 UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
 RUFF_CMD    := $(PYTHON_CMD) -m ruff

@@ -45,7 +45,7 @@ if ! command -v supabase &>/dev/null; then
   _install_dir="${HOME}/.local/bin"
   mkdir -p "$_install_dir"
   _latest=$(curl -fsSL "https://api.github.com/repos/supabase/cli/releases/latest" \
-    | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+    | python -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
   if [[ -z "$_latest" ]]; then
     echo "[supabase] ⚠ No se pudo obtener la versión del CLI (sin conexión?). Omitiendo deploy."
     exit 0

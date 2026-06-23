@@ -37,7 +37,7 @@ async def refresh(pipeline_id: str = Query(...)):
         lineage_result = await lineage_service.refresh(pipeline_id, force=True)
         return {**lineage_result, "pulled": pull_result["pulled"]}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=repo_sync_service.sanitize_error_detail(str(exc)))
 
 
 # ── Registry endpoints ────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ async def sync_registry(pipeline_id: str = Query(...)):
         )
         return {**result, "pulled": pull_result.get("pulled", False)}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=repo_sync_service.sanitize_error_detail(str(exc)))
 
 
 @router.get("/config")
