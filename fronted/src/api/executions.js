@@ -46,6 +46,23 @@ export async function createExecution(data) {
   return res.json()
 }
 
+export async function createBatch(items) {
+  const res = await fetch(`${BASE}/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
+  if (!res.ok) {
+    let detail = `Error ${res.status}`
+    try {
+      const raw = (await res.json()).detail ?? detail
+      detail = typeof raw === 'string' ? raw : JSON.stringify(raw)
+    } catch {}
+    throw Object.assign(new Error(detail), { status: res.status })
+  }
+  return res.json()
+}
+
 export async function cancelExecution(id) {
   const res = await fetch(`${BASE}/${id}/cancel`, { method: 'POST' })
   if (!res.ok) throw new Error('Failed to cancel execution')

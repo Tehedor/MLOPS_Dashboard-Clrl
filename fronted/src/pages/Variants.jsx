@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPhases, getTableConfig, getRows,
@@ -577,13 +577,27 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
     localStorage.setItem(LS_KEY(phase), JSON.stringify([...hiddenCols]))
   }, [hiddenCols, phase])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['variant-rows', pipelineId, phase, q, sortBy, sortDir, offset, debouncedFilters],
-    queryFn: () => getRows({ phase, pipeline_id: pipelineId, limit: LIMIT, offset, q, sort_by: sortBy, sort_dir: sortDir, col_filters: debouncedFilters }),
+  const { data: rawData, isLoading } = useQuery({
+    queryKey: ['variant-rows', pipelineId, phase, q, debouncedFilters],
+    queryFn: () => getRows({ phase, pipeline_id: pipelineId, limit: 500, offset: 0, q, sort_by: 'variant', sort_dir: 'asc', col_filters: debouncedFilters }),
     keepPreviousData: true,
     refetchInterval: refetchIntervalMs,
     enabled: !!pipelineId,
   })
+
+  const data = useMemo(() => {
+    if (!rawData?.rows) return rawData
+    const sorted = [...rawData.rows].sort((a, b) => {
+      let va = a[sortBy], vb = b[sortBy]
+      if (va == null && vb == null) return 0
+      if (va == null) return 1
+      if (vb == null) return -1
+      if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va
+      va = String(va).toLowerCase(); vb = String(vb).toLowerCase()
+      return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+    return { total: sorted.length, rows: sorted.slice(offset, offset + LIMIT) }
+  }, [rawData, sortBy, sortDir, offset])
 
   const syncMut = useMutation({
     mutationFn: () => syncVariants(pipelineId, phase),

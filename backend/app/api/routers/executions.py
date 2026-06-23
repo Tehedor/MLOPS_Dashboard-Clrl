@@ -192,6 +192,11 @@ async def create_execution(body: ExecutionCreate):
     return ex
 
 
+@router.post("/batch", status_code=201)
+async def create_batch(items: list[ExecutionCreate]):
+    return await _service.create_batch(items)
+
+
 @router.get("", response_model=list[Execution])
 async def list_executions(pipeline_id: str | None = Query(None)):
     return await _service.list_all(pipeline_id=pipeline_id)

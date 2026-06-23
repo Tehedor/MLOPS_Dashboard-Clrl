@@ -2,7 +2,7 @@
 
 # LOCAL: usa el Python instalado en el sistema.
 # VENV:  usa un entorno virtual en .venv/ (se crea al instalar dependencias).
-MODE ?= VENV
+MODE ?= LOCAL
 
 BACKEND_DIR  := backend
 FRONTEND_DIR := fronted

@@ -18,9 +18,11 @@ from app.core.config import (
     load_app_config, PROJECT_ROOT, settings, get_pipeline_project, get_pipeline_token,
     load_pipelines_config, resolve_pipeline_config_path,
 )
-from app.core.db import DB_PATH
+from app.core.db import connect
 
 log = logging.getLogger(__name__)
+
+_sync_locks: dict[str, asyncio.Lock] = {}
 
 
 # ── Config helpers ────────────────────────────────────────────────────────────
@@ -203,7 +205,7 @@ ON CONFLICT(id) DO UPDATE SET
 
 async def sync_variant(phase_id: str, variant_id: str, pipeline_id: str) -> None:
     row = _parse_variant(phase_id, variant_id, pipeline_id)
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         await db.execute(_UPSERT, row)
         await db.commit()
 
@@ -211,13 +213,8 @@ async def sync_variant(phase_id: str, variant_id: str, pipeline_id: str) -> None
 async def sync_phase(phase_id: str, pipeline_id: str) -> int:
     variants = discover_variants(phase_id, pipeline_id)
     rows = [_parse_variant(phase_id, v, pipeline_id) for v in variants]
-    async with aiosqlite.connect(DB_PATH) as db:
-        for row in rows:
-            await db.execute(_UPSERT, row)
-        # Prune rows for variants no longer present on disk — without this, a
-        # folder removed by any path other than _run_variant_delete (a failed
-        # delete, or repo_sync_service's reset --hard after an upstream change)
-        # leaves a permanent ghost row that sync can never clear.
+    async with connect() as db:
+        await db.executemany(_UPSERT, rows)
         if variants:
             placeholders = ",".join("?" * len(variants))
             await db.execute(
@@ -236,20 +233,29 @@ async def sync_phase(phase_id: str, pipeline_id: str) -> int:
 
 async def sync_all(pipeline_id: str | None = None) -> dict:
     """Sync all phases for one or all pipeline-projects."""
-    if pipeline_id:
-        projects = {pipeline_id: None}
-    else:
-        projects = load_pipelines_config()
-    result = {}
-    for pid in projects:
-        try:
-            phases = discover_phases(pid)
-            for ph in phases:
-                count = await sync_phase(ph, pid)
-                result[f"{pid}/{ph}"] = count
-        except Exception as exc:
-            log.warning("sync_all error [%s]: %s", pid, exc)
-    return result
+    key = pipeline_id or "__all__"
+    lock = _sync_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _sync_locks[key] = lock
+    if lock.locked():
+        return {}
+
+    async with lock:
+        if pipeline_id:
+            projects = {pipeline_id: None}
+        else:
+            projects = load_pipelines_config()
+        result = {}
+        for pid in projects:
+            try:
+                phases = discover_phases(pid)
+                for ph in phases:
+                    count = await sync_phase(ph, pid)
+                    result[f"{pid}/{ph}"] = count
+            except Exception as exc:
+                log.warning("sync_all error [%s]: %s", pid, exc)
+        return result
 
 
 # ── Query ─────────────────────────────────────────────────────────────────────
@@ -356,7 +362,7 @@ async def get_rows(
 
     active_filters = {k: v for k, v in (col_filters or {}).items() if v}
 
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         db.row_factory = aiosqlite.Row
 
         if active_filters:
@@ -587,7 +593,7 @@ async def _run_variant_delete(phase: str, variant: str, pipeline_id: str) -> Non
         shutil.rmtree(variant_path)
 
     variant_id = f"{pipeline_id}/{phase}/{variant}"
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         await db.execute("DELETE FROM execution_variants WHERE id = ?", (variant_id,))
         await db.commit()
 
