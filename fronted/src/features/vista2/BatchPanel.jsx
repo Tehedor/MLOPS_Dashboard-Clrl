@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { createExecution } from '../../api/executions'
+import { createExecution, createBatch } from '../../api/executions'
 import { paramsForPhase } from './phaseParams'
 
 function phaseNum(phaseId) {
@@ -204,26 +204,19 @@ export default function BatchPanel({ phases, executions, onWarnings, pipelineId,
     setIsPending(true)
     setSubmitResults(null)
 
-    // Submitted sequentially (not Promise.all) and pre-sorted by phase/variant so the
-    // created_at order in the DB matches the intended dispatch priority — the backend's
-    // runner-slot queue is FIFO by created_at, so insertion order here is what decides
-    // who goes first when several executions compete for the same runner.
     const ordered = [...parsed.entries].sort(byPriority)
+    const items = ordered.map(entry => ({ pipeline_id: pipelineId, ...entry }))
 
-    const ok     = []
-    const errors = {}
-    for (const entry of ordered) {
-      const key = `${entry.fase} / ${entry.variant}`
-      try {
-        await createExecution({ pipeline_id: pipelineId, ...entry })
-        ok.push(key)
-      } catch (err) {
-        errors[key] = err?.message ?? 'Error'
-      }
+    try {
+      const results = await createBatch(items)
+      const ok     = results.filter(r => r.ok).map(r => r.key)
+      const errors = {}
+      for (const r of results.filter(r => !r.ok)) errors[r.key] = r.error
+      if (ok.length > 0) qc.invalidateQueries({ queryKey: ['executions'] })
+      setSubmitResults({ ok, errors })
+    } catch (err) {
+      setSubmitResults({ ok: [], errors: { batch: err?.message ?? 'Error' } })
     }
-
-    if (ok.length > 0) qc.invalidateQueries({ queryKey: ['executions'] })
-    setSubmitResults({ ok, errors })
     setIsPending(false)
   }
 

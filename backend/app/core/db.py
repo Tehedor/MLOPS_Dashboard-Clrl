@@ -2,6 +2,11 @@ import aiosqlite
 from app.core.config import settings
 
 DB_PATH = settings.database_url
+DB_TIMEOUT = 30
+
+
+def connect() -> aiosqlite.Connection:
+    return aiosqlite.connect(DB_PATH, timeout=DB_TIMEOUT)
 
 _CREATE_EXECUTIONS = """
 CREATE TABLE IF NOT EXISTS executions (
@@ -43,7 +48,9 @@ CREATE INDEX IF NOT EXISTS idx_ev_variant  ON execution_variants (variant);
 
 
 async def init_db() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA busy_timeout=30000")
         # Detect if executions table needs schema migration (missing pipeline_id column).
         # User accepted data loss for this one-time migration.
         async with db.execute("PRAGMA table_info(executions)") as cursor:

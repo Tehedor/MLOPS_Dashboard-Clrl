@@ -4,7 +4,7 @@ import logging
 import re
 import uuid
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -15,7 +15,7 @@ POLL_GH_SECS    = 10
 POLL_WAITING_SECS = 30   # re-check waiting_runner / waiting_parent every N seconds
 
 from app.core.config import phases_runner_path, fase_runners_path, load_app_config, PROJECT_ROOT, get_pipeline_project, get_pipeline_token
-from app.core.db import DB_PATH
+from app.core.db import connect
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
 from app.services.github import dispatch_phase
 
@@ -35,7 +35,7 @@ _BUSY_QUEUE_THRESHOLD = 5
 
 async def _pending_count(runner: str) -> int:
     pending = ('queued', 'waiting_runner')
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         async with db.execute(
             f"SELECT COUNT(*) FROM executions WHERE runner=? AND status IN ({','.join('?'*len(pending))})",
             (runner, *pending),
@@ -225,7 +225,7 @@ class ExecutionService:
 
         normalized = _normalize_variant(body.fase, body.variant)
         blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running')
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 f"SELECT status FROM executions WHERE pipeline_id=? AND fase=? AND variant=? "
                 f"AND status IN ({','.join('?'*len(blocked_statuses))})",
@@ -252,7 +252,7 @@ class ExecutionService:
             created_at=now,
             updated_at=now,
         )
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             await db.execute(
                 "INSERT INTO executions (id,pipeline_id,fase,variant,parent,runner,params,status,error_code,gh_run_id,created_at,updated_at,started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
@@ -265,6 +265,59 @@ class ExecutionService:
         asyncio.create_task(self._dispatch(ex))
         return ex
 
+    async def create_batch(self, items: list[ExecutionCreate]) -> list[dict]:
+        from fastapi import HTTPException
+        if not items:
+            return []
+
+        blocked_statuses = ('queued', 'waiting_parent', 'waiting_runner', 'dispatching', 'running')
+        results: list[dict] = []
+        executions: list[Execution] = []
+        rows_to_insert: list[tuple] = []
+        base = datetime.now(timezone.utc)
+
+        for idx, body in enumerate(items):
+            key = f"{body.fase} / {body.variant}"
+            try:
+                get_pipeline_project(body.pipeline_id)
+            except ValueError as e:
+                results.append({"key": key, "ok": False, "error": str(e)})
+                continue
+
+            normalized = _normalize_variant(body.fase, body.variant)
+            now = (base + timedelta(milliseconds=idx)).isoformat()
+            ex = Execution(
+                id=str(uuid.uuid4()),
+                pipeline_id=body.pipeline_id,
+                fase=body.fase,
+                variant=normalized,
+                parent=body.parent,
+                runner=body.selected_runner or _get_fase_config(body.pipeline_id).get(body.fase, {}).get("runner", "GithubActions"),
+                params=body.params,
+                status=ExecutionStatus.queued,
+                created_at=now,
+                updated_at=now,
+            )
+            rows_to_insert.append((
+                ex.id, ex.pipeline_id, ex.fase, ex.variant, ex.parent, ex.runner,
+                json.dumps(ex.params), ex.status.value, ex.error_code,
+                ex.gh_run_id, ex.created_at, ex.updated_at, ex.started_at,
+            ))
+            executions.append(ex)
+            results.append({"key": key, "ok": True, "id": ex.id})
+
+        if rows_to_insert:
+            async with connect() as db:
+                await db.executemany(
+                    "INSERT INTO executions (id,pipeline_id,fase,variant,parent,runner,params,status,error_code,gh_run_id,created_at,updated_at,started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    rows_to_insert,
+                )
+                await db.commit()
+            for ex in executions:
+                asyncio.create_task(self._dispatch(ex))
+
+        return results
+
     async def _runner_has_slot(self, runner_name: str, exclude_id: str | None = None) -> bool:
         max_parallel = _runner_max_parallel(runner_name)
         # 'waiting_runner' deliberately excluded: it means "wants a slot", not "holds one".
@@ -272,7 +325,7 @@ class ExecutionService:
         # so neither could ever proceed (livelock). The per-runner lock in _dispatch_inner
         # already serializes check+claim, so only 'running'/'dispatching' truly occupy a slot.
         active = ('running', 'dispatching')
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             if exclude_id:
                 async with db.execute(
                     f"SELECT COUNT(*) FROM executions WHERE runner=? AND id != ? AND status IN ({','.join('?'*len(active))})",
@@ -297,7 +350,7 @@ class ExecutionService:
         ("tanda") queue behind an earlier one still pending for the same runner.
         """
         pending = ('queued', 'waiting_runner')
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 f"SELECT id FROM executions WHERE runner=? AND status IN ({','.join('?'*len(pending))}) "
                 f"ORDER BY created_at ASC, id ASC LIMIT 1",
@@ -324,6 +377,11 @@ class ExecutionService:
         if not _parent_exists(ex, parent_required):
             await self._update_status(ex.id, ExecutionStatus.waiting_parent)
             while True:
+                while _PAUSED:
+                    await asyncio.sleep(5)
+                    current = await self.get(ex.id)
+                    if current is None or current.status == ExecutionStatus.canceled:
+                        return
                 pending = await _pending_count(ex.runner)
                 await asyncio.sleep(_poll_parent_secs(pending))
                 current = await self.get(ex.id)
@@ -348,18 +406,16 @@ class ExecutionService:
                     break
                 await self._update_status(ex.id, ExecutionStatus.waiting_runner)
             slot_event.clear()
+            while _PAUSED:
+                await asyncio.sleep(5)
+                current = await self.get(ex.id)
+                if current is None or current.status == ExecutionStatus.canceled:
+                    return
             pending = await _pending_count(ex.runner)
             try:
                 await asyncio.wait_for(slot_event.wait(), timeout=_poll_runner_secs(pending))
             except asyncio.TimeoutError:
                 pass
-            current = await self.get(ex.id)
-            if current is None or current.status == ExecutionStatus.canceled:
-                return
-
-        # 3. Pause gate
-        while _PAUSED:
-            await asyncio.sleep(5)
             current = await self.get(ex.id)
             if current is None or current.status == ExecutionStatus.canceled:
                 return
@@ -398,7 +454,7 @@ class ExecutionService:
             log_store.close(ex.id)
 
     async def _set_gh_run_id(self, execution_id: str, gh_run_id: str) -> None:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             await db.execute(
                 "UPDATE executions SET gh_run_id=? WHERE id=?",
                 (gh_run_id, execution_id),
@@ -409,9 +465,10 @@ class ExecutionService:
         self, execution_id: str, status: ExecutionStatus, error_code: str | None = None
     ) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        async with aiosqlite.connect(DB_PATH) as db:
+        _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
+        _row = None
+        async with connect() as db:
             if status == ExecutionStatus.running:
-                # Set started_at only the first time it enters running state
                 await db.execute(
                     "UPDATE executions SET status=?, error_code=?, updated_at=?, started_at=COALESCE(started_at, ?) WHERE id=?",
                     (status.value, error_code, now, now, execution_id),
@@ -421,19 +478,17 @@ class ExecutionService:
                     "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
                     (status.value, error_code, now, execution_id),
                 )
-            await db.commit()
-        _TERMINAL = {ExecutionStatus.success, ExecutionStatus.failed, ExecutionStatus.canceled}
-        if status in _TERMINAL:
-            from app.services import repo_sync_service, lineage_registry_service
-            asyncio.create_task(repo_sync_service.force_pull())
-            # Trigger incremental lineage registry sync for the affected pipeline
-            async with aiosqlite.connect(DB_PATH) as _db:
-                _db.row_factory = aiosqlite.Row
-                async with _db.execute(
+            if status in _TERMINAL:
+                db.row_factory = aiosqlite.Row
+                async with db.execute(
                     "SELECT pipeline_id, fase, variant, runner, parent, created_at, started_at FROM executions WHERE id=?",
                     (execution_id,)
                 ) as _cur:
                     _row = await _cur.fetchone()
+            await db.commit()
+        if status in _TERMINAL:
+            from app.services import repo_sync_service, lineage_registry_service
+            asyncio.create_task(repo_sync_service.force_pull())
             if _row and _row["runner"]:
                 _signal_runner_slot_free(_row["runner"])
             if _row and _row["pipeline_id"]:
@@ -461,7 +516,7 @@ class ExecutionService:
                     log.warning("validation_csv hook failed: %s", _csv_exc)
 
     async def list_all(self, pipeline_id: str | None = None) -> list[Execution]:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             if pipeline_id:
                 async with db.execute(
                     "SELECT * FROM executions WHERE pipeline_id=? ORDER BY created_at DESC",
@@ -476,7 +531,7 @@ class ExecutionService:
         return [_row_to_execution(r) for r in rows]
 
     async def get(self, execution_id: str) -> Execution | None:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 "SELECT * FROM executions WHERE id=?", (execution_id,)
             ) as cursor:
@@ -484,7 +539,7 @@ class ExecutionService:
         return _row_to_execution(row) if row else None
 
     async def get_latest_run_id(self, pipeline_id: str, fase: str, variant: str) -> str | None:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 "SELECT gh_run_id FROM executions "
                 "WHERE pipeline_id=? AND fase=? AND variant=? AND gh_run_id IS NOT NULL "
@@ -499,7 +554,7 @@ class ExecutionService:
         from app.services.github import fetch_run_status
 
         stale = ('running', 'dispatching', 'queued')
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 f"SELECT id, pipeline_id, gh_run_id FROM executions WHERE status IN ({','.join('?'*len(stale))})",
                 stale,
@@ -534,7 +589,7 @@ class ExecutionService:
                     )
 
         waiting = ('waiting_parent', 'waiting_runner')
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with connect() as db:
             async with db.execute(
                 f"SELECT * FROM executions WHERE status IN ({','.join('?'*len(waiting))})",
                 waiting,
@@ -580,7 +635,7 @@ class ExecutionService:
 
 async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     """Update local execution status from a completed GitHub run (matched by gh_run_id)."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         async with db.execute(
             "SELECT id, pipeline_id, fase, variant, runner, parent, created_at, started_at "
             "FROM executions WHERE gh_run_id=? AND status NOT IN ('success','failed','canceled')",
@@ -597,7 +652,7 @@ async def update_from_gh_run(gh_run_id: str, conclusion: str) -> bool:
     else:
         new_status, error_code = ExecutionStatus.failed, f"GH_{conclusion.upper()}"
     now = datetime.now(timezone.utc).isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
         await db.execute(
             "UPDATE executions SET status=?, error_code=?, updated_at=? WHERE id=?",
             (new_status.value, error_code, now, execution_id),
@@ -652,7 +707,7 @@ async def _poll_gh_running() -> None:
         await asyncio.sleep(POLL_GH_SECS)
         _tick += 1
         try:
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with connect() as db:
                 async with db.execute(
                     "SELECT gh_run_id, pipeline_id FROM executions "
                     "WHERE status='running' AND gh_run_id IS NOT NULL"
@@ -666,20 +721,21 @@ async def _poll_gh_running() -> None:
                     orphans = await cursor.fetchall()
             if rows:
                 await asyncio.gather(*(_check_run(r[0], r[1]) for r in rows))
-            for (eid,) in orphans:
-                log.warning("poll_gh_running: execution %s sin run_id tras 30 min → INTERRUPTED", eid)
+            if orphans:
                 now = datetime.now(timezone.utc).isoformat()
-                async with aiosqlite.connect(DB_PATH) as db:
-                    await db.execute(
+                for (eid,) in orphans:
+                    log.warning("poll_gh_running: execution %s sin run_id tras 30 min → INTERRUPTED", eid)
+                async with connect() as db:
+                    await db.executemany(
                         "UPDATE executions SET status='failed', error_code='INTERRUPTED', updated_at=? WHERE id=?",
-                        (now, eid),
+                        [(now, eid) for (eid,) in orphans],
                     )
                     await db.commit()
 
             # Periodically retry stuck waiting_runner / waiting_parent
             if _tick % _waiting_interval == 0:
                 waiting_statuses = ('waiting_parent', 'waiting_runner')
-                async with aiosqlite.connect(DB_PATH) as db:
+                async with connect() as db:
                     async with db.execute(
                         f"SELECT * FROM executions WHERE status IN ({','.join('?'*len(waiting_statuses))})",
                         waiting_statuses,

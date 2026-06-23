@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 _states: dict[str, dict] = {}  # keyed by pipeline_id
 _callbacks: list = []
+_pull_locks: dict[str, asyncio.Lock] = {}
 
 
 def _default_state() -> dict:
@@ -182,6 +183,13 @@ async def _latest_sha(owner: str, repo: str, branch: str, token: str = "") -> st
 def _pull(local_path: Path, branch: str) -> None:
     remote = _get_remote_name(local_path)
     subprocess.run(
+        ["git", "-C", str(local_path), "remote", "prune", remote],
+        capture_output=True,
+    )
+    lock_file = local_path / ".git" / "index.lock"
+    if lock_file.exists():
+        lock_file.unlink(missing_ok=True)
+    subprocess.run(
         ["git", "-C", str(local_path), "fetch", remote, branch],
         check=True, capture_output=True,
     )
@@ -213,7 +221,14 @@ async def force_pull(pipeline_id: str | None = None) -> None:
     projects = load_pipelines_config()
     targets = [pipeline_id] if pipeline_id else list(projects.keys())
     for pid in targets:
-        await _force_pull_one(pid)
+        lock = _pull_locks.get(pid)
+        if lock is None:
+            lock = asyncio.Lock()
+            _pull_locks[pid] = lock
+        if lock.locked():
+            continue
+        async with lock:
+            await _force_pull_one(pid)
 
 
 async def _force_pull_one(pipeline_id: str) -> None:
