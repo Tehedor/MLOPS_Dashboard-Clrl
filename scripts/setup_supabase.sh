@@ -51,21 +51,49 @@ if [[ -f "$SENTINEL" ]]; then
 fi
 
 # ── CLI instalado? (auto-descarga el binario si no está) ─────────────────────
-if ! command -v supabase &>/dev/null; then
+_install_dir="${HOME}/.local/bin"
+SUPABASE_BIN="$(command -v supabase 2>/dev/null || true)"
+
+if [[ -z "$SUPABASE_BIN" ]] || ! "$SUPABASE_BIN" --version &>/dev/null; then
   echo "[supabase] CLI no encontrado — descargando binario desde GitHub releases..."
-  _install_dir="${HOME}/.local/bin"
   mkdir -p "$_install_dir"
+
+  case "$(uname -s)" in
+    Linux*)               _os="linux";   _executable="supabase" ;;
+    Darwin*)              _os="darwin";  _executable="supabase" ;;
+    MINGW*|MSYS*|CYGWIN*) _os="windows"; _executable="supabase.exe" ;;
+    *)
+      echo "[supabase] ⚠ Sistema operativo no soportado: $(uname -s). Omitiendo deploy."
+      exit 0
+      ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64|amd64)  _arch="amd64" ;;
+    arm64|aarch64) _arch="arm64" ;;
+    *)
+      echo "[supabase] ⚠ Arquitectura no soportada: $(uname -m). Omitiendo deploy."
+      exit 0
+      ;;
+  esac
+
   _latest=$(curl -fsSL "https://api.github.com/repos/supabase/cli/releases/latest" \
     | python -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
   if [[ -z "$_latest" ]]; then
     echo "[supabase] ⚠ No se pudo obtener la versión del CLI (sin conexión?). Omitiendo deploy."
     exit 0
   fi
-  _url="https://github.com/supabase/cli/releases/download/${_latest}/supabase_linux_amd64.tar.gz"
+  _url="https://github.com/supabase/cli/releases/download/${_latest}/supabase_${_os}_${_arch}.tar.gz"
   echo "[supabase] Descargando ${_latest}..."
-  if curl -fsSL "$_url" | tar xz -C "$_install_dir" supabase 2>/dev/null; then
+  if curl -fsSL "$_url" | tar xz -C "$_install_dir" "$_executable" 2>/dev/null; then
     export PATH="$_install_dir:$PATH"
-    echo "[supabase] CLI instalado en $_install_dir/supabase"
+    SUPABASE_BIN="$_install_dir/$_executable"
+    chmod +x "$SUPABASE_BIN"
+    if ! "$SUPABASE_BIN" --version &>/dev/null; then
+      echo "[supabase] ⚠ El CLI descargado no se puede ejecutar. Omitiendo deploy."
+      exit 0
+    fi
+    echo "[supabase] CLI instalado en $SUPABASE_BIN"
   else
     echo "[supabase] ⚠ Descarga fallida. Omitiendo deploy."
     exit 0

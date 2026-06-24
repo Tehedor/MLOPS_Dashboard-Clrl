@@ -12,14 +12,19 @@ VENV_DIR     := .venv
 #SYSTEM_PYTHON ?= python3
 SYSTEM_PYTHON ?= python
 
+ifeq ($(OS),Windows_NT)
+VENV_PYTHON := $(abspath $(VENV_DIR)/Scripts/python.exe)
+else
+VENV_PYTHON := $(abspath $(VENV_DIR)/bin/python)
+endif
+
 ifeq ($(MODE),LOCAL)
 PYTHON_CMD  := $(SYSTEM_PYTHON)
 PIP_CMD     := $(PYTHON_CMD) -m pip
 UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
 RUFF_CMD    := $(PYTHON_CMD) -m ruff
 else ifeq ($(MODE),VENV)
-#PYTHON_CMD  := $(abspath $(VENV_DIR)/bin/python)
-PYTHON_CMD  := $(abspath $(VENV_DIR)/Scripts/python)
+PYTHON_CMD  := $(VENV_PYTHON)
 PIP_CMD     := $(PYTHON_CMD) -m pip
 UVICORN_CMD := $(PYTHON_CMD) -m uvicorn
 RUFF_CMD    := $(PYTHON_CMD) -m ruff
@@ -50,7 +55,7 @@ help: ## Muestra esta ayuda
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
-.PHONY: install install-backend install-frontend python-env env
+.PHONY: install install-backend install-frontend python-env env supabase-deploy supabase-redeploy
 install: install-backend install-frontend ## Instala todas las dependencias
 
 python-env: ## Prepara Python según MODE (crea .venv si MODE=VENV)
@@ -69,13 +74,13 @@ install-backend: python-env ## Instala dependencias Python según MODE
 install-frontend: ## Instala dependencias Node (npm)
 	cd $(FRONTEND_DIR) && npm install
 
-env: ## Crea backend/.env desde .env.example (no sobreescribe)
-	@[ -f $(BACKEND_DIR)/.env ] \
-		&& echo "$(BACKEND_DIR)/.env ya existe — no se sobreescribe" \
-		|| (cp $(BACKEND_DIR)/.env.example $(BACKEND_DIR)/.env \
-			&& printf "$(GREEN)$(BACKEND_DIR)/.env creado$(RESET) — edítalo y añade GITHUB_TOKEN\n")
+env: ## Crea .env desde .env.example (no sobreescribe)
+	@[ -f .env ] \
+		&& echo ".env ya existe — no se sobreescribe" \
+		|| (cp .env.example .env \
+			&& printf "$(GREEN).env creado$(RESET) — edítalo y añade GITHUB_TOKEN\n")
 
-supabase-deploy: ## Despliega la Edge Function de Supabase (auto si no está desplegada)
+supabase-deploy: ## Despliega la Edge Function opcional de Supabase
 	@bash scripts/setup_supabase.sh
 
 supabase-redeploy: ## Fuerza redeploy de la Edge Function eliminando el centinela
@@ -84,7 +89,7 @@ supabase-redeploy: ## Fuerza redeploy de la Edge Function eliminando el centinel
 # ── Dev (procesos locales) ────────────────────────────────────────────────────
 
 .PHONY: dev dev-backend dev-frontend
-dev: supabase-deploy dev-backend wait-backend dev-frontend ## Arranca backend + frontend en background (metal: despliega Edge Function si es necesario)
+dev: dev-backend wait-backend dev-frontend ## Arranca backend + frontend en background (Supabase no es necesario)
 	@printf "\n$(BOLD)Servicios arrancados$(RESET)\n"
 	@printf "  Backend:  $(CYAN)http://localhost:8000$(RESET)\n"
 	@printf "  Frontend: $(CYAN)http://localhost:5173$(RESET)\n"
@@ -239,7 +244,6 @@ logs-localRunner: ## Logs del runner local en tiempo real (EXEC=<id_prefix> para
         docker-logs docker-restart docker-ps docker-shell-backend
 
 docker-up: ## Levanta todos los servicios con Docker Compose (detached)
-	@echo "Nota: ejecuta 'make supabase-deploy' en el host antes del primer docker-up."
 	docker compose up -d
 
 docker-up-build: ## Build + up (fuerza rebuild de imágenes)
