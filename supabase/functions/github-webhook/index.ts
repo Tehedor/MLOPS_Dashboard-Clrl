@@ -26,11 +26,12 @@ function githubToken(repoFullName: string): string {
 
 function githubHeaders(repoFullName: string): Record<string, string> {
   const token = githubToken(repoFullName)
-  return {
-    'Authorization': `Bearer ${token}`,
+  const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3+json',
     'User-Agent': 'mlops-dashboard',
   }
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
 }
 
 // Extrae el prefijo de fase (f01, f02, …) a partir del número de posición.
@@ -56,11 +57,24 @@ async function verifySignature(body: string, sigHeader: string | null): Promise<
 
 // ── GitHub API helpers ───────────────────────────────────────────────────────
 async function fetchJobs(repoFullName: string, runId: number): Promise<any[]> {
-  const res = await fetch(
-    `https://api.github.com/repos/${repoFullName}/actions/runs/${runId}/jobs`,
-    { headers: githubHeaders(repoFullName) }
-  )
-  if (!res.ok) return []
+  const url = `https://api.github.com/repos/${repoFullName}/actions/runs/${runId}/jobs?per_page=100`
+  const headers = githubHeaders(repoFullName)
+  let res = await fetch(url, { headers })
+
+  // Un token expirado no debe impedir obtener la fase de un repositorio público.
+  if (!res.ok && headers.Authorization && (res.status === 401 || res.status === 403)) {
+    const detail = (await res.text()).slice(0, 500)
+    console.error(`fetch jobs authenticated error: repo=${repoFullName} run=${runId} status=${res.status}`, detail)
+    const publicHeaders = { ...headers }
+    delete publicHeaders.Authorization
+    res = await fetch(url, { headers: publicHeaders })
+  }
+
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 500)
+    console.error(`fetch jobs error: repo=${repoFullName} run=${runId} status=${res.status}`, detail)
+    return []
+  }
   const data = await res.json()
   return data.jobs ?? []
 }
@@ -70,7 +84,11 @@ async function fetchJobLogs(repoFullName: string, jobId: number): Promise<string
     `https://api.github.com/repos/${repoFullName}/actions/jobs/${jobId}/logs`,
     { headers: githubHeaders(repoFullName), redirect: 'follow' }
   )
-  if (!res.ok) return ''
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 500)
+    console.error(`fetch job logs error: repo=${repoFullName} job=${jobId} status=${res.status}`, detail)
+    return ''
+  }
   return (await res.text()).slice(0, 150_000)
 }
 
@@ -97,9 +115,9 @@ function inferFaseFromWorkflowName(name: string): string | null {
 }
 
 // ── Extracción de variant del log de validar-payload ───────────────────────
-// El step escribe "[OK] Payload válido → variant_id=v1_0001"
+// Admite los formatos usados por los pipelines: v1_0001, v202, v0402, etc.
 function extractVariantFromLog(content: string): string | null {
-  const match = content.match(/\[OK\].*?variant_id=(v\d_\d{4})/i)
+  const match = content.match(/\bvariant_id\s*=\s*["']?([a-z0-9][a-z0-9._-]*)/i)
   return match?.[1] ?? null
 }
 
@@ -160,28 +178,43 @@ Deno.serve(async (req) => {
       let variant: string | null = null
       let jobs: any[] = []
 
-      if (githubToken(repoFullName)) {
-        try {
-          jobs = await fetchJobs(repoFullName, run.id)
-          fase = inferFaseFromJobs(jobs) ?? inferFaseFromWorkflowName(run.name ?? '')
+      try {
+        // En repos públicos, la lista de jobs se puede consultar sin token y
+        // basta para inferir la fase. Los logs sí requieren autenticación.
+        jobs = await fetchJobs(repoFullName, run.id)
+        fase = inferFaseFromJobs(jobs) ?? inferFaseFromWorkflowName(run.name ?? '')
 
+        if (githubToken(repoFullName)) {
           const validarJob = jobs.find((j: any) => j.name === 'validar-payload')
           if (validarJob) {
             const logContent = await fetchJobLogs(repoFullName, validarJob.id)
             variant = extractVariantFromLog(logContent)
           }
-        } catch (e) {
-          console.error('jobs/logs fetch error:', e)
+        } else {
+          console.error(`variant unavailable: no GitHub token configured for repo=${repoFullName}`)
         }
+      } catch (e) {
+        console.error('jobs/logs fetch error:', e)
       }
+
+      // Si GitHub falla en completed, conservar fase/variant que ya se hubieran
+      // capturado durante in_progress o escrito por el backend.
+      const { data: existingRun, error: existingErr } = await supabase
+        .from('workflow_runs')
+        .select('fase, variant')
+        .eq('run_id', run.id)
+        .maybeSingle()
+      if (existingErr) console.error('select existing run error:', existingErr)
+      fase = fase ?? existingRun?.fase ?? null
+      variant = variant ?? existingRun?.variant ?? null
 
       const { error: runErr } = await supabase.from('workflow_runs').upsert({
         ...baseRow,
         status:     run.conclusion ?? 'failure',
         conclusion: run.conclusion,
         updated_at: updatedAt,
-        ...(fase    ? { fase }    : {}),
-        ...(variant ? { variant } : {}),
+        fase,
+        variant,
       }, { onConflict: 'run_id' })
 
       if (runErr) {
@@ -194,6 +227,7 @@ Deno.serve(async (req) => {
         try {
           const logRows = (await Promise.all(
             jobs.map(async (job: any) => {
+              if (job.conclusion === 'skipped') return null
               const content = await fetchJobLogs(repoFullName, job.id)
               if (!content) return null
               return {
@@ -222,17 +256,19 @@ Deno.serve(async (req) => {
       let variant: string | null = null
       if (action === 'in_progress') {
         fase = inferFaseFromWorkflowName(run.name ?? '')
-        if (githubToken(repoFullName)) {
-          try {
-            const jobs = await fetchJobs(repoFullName, run.id)
-            if (!fase) fase = inferFaseFromJobs(jobs)
+        try {
+          const jobs = await fetchJobs(repoFullName, run.id)
+          if (!fase) fase = inferFaseFromJobs(jobs)
+          if (githubToken(repoFullName)) {
             // validar-payload ya ha terminado en el 2º evento in_progress
             const validarJob = jobs.find((j: any) => j.name === 'validar-payload' && j.status === 'completed')
             if (validarJob) {
               const logContent = await fetchJobLogs(repoFullName, validarJob.id)
               variant = extractVariantFromLog(logContent)
             }
-          } catch {}
+          }
+        } catch (e) {
+          console.error('jobs/logs fetch error:', e)
         }
       }
 

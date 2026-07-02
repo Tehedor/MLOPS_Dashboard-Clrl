@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { List } from 'react-window'
 import AnsiToHtml from 'ansi-to-html'
 import { fetchLogs, getSupabase, subscribeLogs } from '../../api/supabase'
 
@@ -13,6 +14,7 @@ function AnsiBlock({ content }) {
     />
   )
 }
+
 
 export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Set(), onFetchGhLogs }) {
   const [logs, setLogs] = useState([])
@@ -32,8 +34,10 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
 
   function scrollToBottom() {
     const el = containerRef.current
-    if (el) el.scrollTop = el.scrollHeight
-    setShowScrollBtn(false)
+    if (el) {
+      el.scrollTop = el.scrollHeight
+      setShowScrollBtn(false)
+    }
   }
 
   function handleScroll() {
@@ -112,11 +116,11 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
     if (ghLogs && containerRef.current) containerRef.current.scrollTop = 0
   }, [ghLogs])
 
-  // Auto-scroll if at bottom
+  // Auto-scroll if at bottom (for new logs)
   useEffect(() => {
-    if (atBottomRef.current) {
+    if (atBottomRef.current && containerRef.current) {
       const el = containerRef.current
-      if (el) el.scrollTop = el.scrollHeight
+      el.scrollTop = el.scrollHeight
     }
   }, [logs, localGroups])
 
@@ -197,32 +201,39 @@ export default function LogViewer({ run, ghLogsCache = {}, ghLoadingSet = new Se
         </div>
       </div>
 
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto font-mono text-xs bg-gray-950 text-gray-300 p-3 relative"
-      >
-        {loading && <p className="text-gray-500 italic">Cargando logs…</p>}
+      {loading && (
+        <div className="flex-1 overflow-y-auto font-mono text-xs bg-gray-950 text-gray-300 p-3">
+          <p className="text-gray-500 italic">Cargando logs…</p>
+        </div>
+      )}
 
-        {!loading && !hasContent && (
+      {!loading && !hasContent && (
+        <div className="flex-1 overflow-y-auto font-mono text-xs bg-gray-950 text-gray-300 p-3">
           <p className="text-gray-600 italic">
             {isLive ? 'Esperando logs…' : 'Sin logs registrados para este run.'}
           </p>
-        )}
+        </div>
+      )}
 
-        {Object.entries(displayGroups).map(([step, stepLogs]) => (
-          <div key={step} className="mb-4">
-            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-1 border-b border-gray-800 pb-0.5">
-              ▶ {step}
+      {!loading && hasContent && (
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto font-mono text-xs bg-gray-950 text-gray-300 p-3 relative"
+        >
+          {Object.entries(displayGroups).map(([step, stepLogs]) => (
+            <div key={step} className="mb-4">
+              <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-1 border-b border-gray-800 pb-0.5">
+                ▶ {step}
+              </div>
+              {stepLogs.map((log) => (
+                <AnsiBlock key={log.id} content={log.content} />
+              ))}
             </div>
-            {stepLogs.map((log) => (
-              <AnsiBlock key={log.id} content={log.content} />
-            ))}
-          </div>
-        ))}
-
-        <div ref={bottomRef} />
-      </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      )}
 
       {showScrollBtn && (
         <button

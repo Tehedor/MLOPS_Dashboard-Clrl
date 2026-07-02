@@ -62,7 +62,7 @@ export async function fetchRunsAsExecutions(limit = 100, branchMap = {}) {
   }))
 }
 
-export async function fetchRuns(limit = 50) {
+export async function fetchRuns(limit = 20) {
   const { data, error } = await _client
     .from('workflow_runs')
     .select('*')

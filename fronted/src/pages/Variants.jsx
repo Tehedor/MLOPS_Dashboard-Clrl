@@ -509,7 +509,29 @@ function ResizeHandle({ colKey, getWidth, colElemsRef, tableRef, headerDivRefs, 
 const LS_KEY = (phase) => `variants_hidden_cols_${phase}`
 const LS_WIDTHS_KEY = (phase) => `variants_col_widths_${phase}`
 
-function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
+function rowsToCSV(rows, cols) {
+  if (!rows.length) return ''
+  const headers = cols.map(col => `"${(col.label || col.id).replace(/"/g, '""')}"`)
+  const lines = rows.map(row => {
+    return cols.map(col => {
+      let val = row[col.key]
+      if (Array.isArray(val)) val = val.join('; ')
+      if (val == null) val = ''
+      return `"${String(val).replace(/"/g, '""')}"`
+    }).join(',')
+  })
+  return [headers.join(','), ...lines].join('\n')
+}
+
+function downloadCSV(csvContent, filename) {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  link.click()
+}
+
+function PhaseTable({ phase, pipelineId, projectName = 'pipeline', refetchIntervalMs = 60_000 }) {
   const qc = useQueryClient()
   const [q, setQ] = useState('')
   const [sortBy, setSortBy] = useState('variant')
@@ -518,6 +540,7 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   const [colFilters, setColFilters] = useState({})
   const [debouncedFilters, setDebouncedFilters] = useState({})
   const [openFilters, setOpenFilters] = useState(new Set())
+  const [isExporting, setIsExporting] = useState(false)
 
   const [selected, setSelected]         = useState(new Set())
   const [bulkConfirm, setBulkConfirm]   = useState(false)
@@ -607,6 +630,28 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
   const refreshRows = useCallback(() => {
     qc.invalidateQueries({ queryKey: ['variant-rows', pipelineId, phase] })
   }, [qc, pipelineId, phase])
+
+  const handleExportCSV = useCallback(async () => {
+    setIsExporting(true)
+    try {
+      const allData = await getRows({ phase, pipeline_id: pipelineId, limit: 500, offset: 0, q, sort_by: 'variant', sort_dir: 'asc', col_filters: debouncedFilters })
+      const sorted = [...allData.rows].sort((a, b) => {
+        let va = a[sortBy], vb = b[sortBy]
+        if (va == null && vb == null) return 0
+        if (va == null) return 1
+        if (vb == null) return -1
+        if (typeof va === 'number' && typeof vb === 'number') return sortDir === 'asc' ? va - vb : vb - va
+        va = String(va).toLowerCase(); vb = String(vb).toLowerCase()
+        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+      })
+      const visibleCols = colDefs.filter(c => c.isBase || !hiddenCols.has(c.key))
+      const csv = rowsToCSV(sorted, visibleCols)
+      const timestamp = new Date().toISOString().split('T')[0]
+      downloadCSV(csv, `${projectName}_${phase}_${timestamp}.csv`)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [phase, pipelineId, projectName, q, sortBy, sortDir, debouncedFilters, colDefs, hiddenCols])
 
   const setFilter = useCallback((key, value) => {
     setColFilters(prev => {
@@ -884,6 +929,14 @@ function PhaseTable({ phase, pipelineId, refetchIntervalMs = 60_000 }) {
           className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 w-44"
         />
         <span className="text-xs text-gray-400 flex-1">{total} variantes</span>
+        <button
+          onClick={handleExportCSV}
+          disabled={isExporting}
+          title="Descargar como CSV"
+          className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+        >
+          {isExporting ? <Spinner /> : '↓'} CSV
+        </button>
         <button
           onClick={() => syncMut.mutate()}
           disabled={syncMut.isPending}
@@ -1185,7 +1238,7 @@ export default function Variants() {
           without clipping absolutely-positioned overlays (the column menu) */}
       <div className="flex-1 min-h-0">
         {activePhase && pipelineId ? (
-          <PhaseTable key={`${pipelineId}:${activePhase}`} phase={activePhase} pipelineId={pipelineId} refetchIntervalMs={tableRefreshMs} />
+          <PhaseTable key={`${pipelineId}:${activePhase}`} phase={activePhase} pipelineId={pipelineId} projectName={projects.find(p => p.id === pipelineId)?.label || 'pipeline'} refetchIntervalMs={tableRefreshMs} />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-gray-400">
             {pipelineId ? 'Selecciona una fase' : 'Selecciona un pipeline-project'}

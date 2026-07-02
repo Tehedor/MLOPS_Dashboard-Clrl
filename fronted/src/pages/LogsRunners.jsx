@@ -12,6 +12,7 @@ const STATUS_LABELS = { all: 'Todos', queued: 'Esperando', in_progress: 'Ejecuta
 // Caché a nivel de módulo: sobrevive al desmontaje del componente (cambio de tab/página)
 const _ghLogsCache  = {}
 const _ghLoadingSet = new Set()
+const _runsCache = { data: null, timestamp: 0 }
 
 function _mapLocalStatus(s) {
   return { running: 'in_progress', failed: 'failure', canceled: 'cancelled' }[s] ?? s
@@ -101,13 +102,24 @@ export default function LogsRunners() {
   }
 
   useEffect(() => {
-    fetchRuns()
-      .then((data) => {
-        setRuns(data)
-        if (data.length) setSelectedRun(prev => prev ?? data[0])
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    const now = Date.now()
+    const cacheAge = now - _runsCache.timestamp
+    const useCached = _runsCache.data && cacheAge < 30000
+
+    if (useCached) {
+      setRuns(_runsCache.data)
+      setLoading(false)
+    } else {
+      fetchRuns()
+        .then((data) => {
+          _runsCache.data = data
+          _runsCache.timestamp = Date.now()
+          setRuns(data)
+          if (data.length) setSelectedRun(prev => prev ?? data[0])
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false))
+    }
 
     const channel = subscribeRuns((payload) => {
       const updated = payload.new
@@ -116,6 +128,7 @@ export default function LogsRunners() {
         if (idx === -1) return [updated, ...prev]
         const next = [...prev]
         next[idx] = updated
+        _runsCache.data = next
         return next
       })
       setSelectedRun((prev) => prev?.run_id === updated.run_id ? updated : prev)
@@ -132,7 +145,6 @@ export default function LogsRunners() {
         .then(data => {
           const shaped = data.map(_toRunShape)
           setLocalRuns(shaped)
-          // Select first run on initial load if nothing is selected yet
           setSelectedRun(prev => prev ?? shaped[0] ?? null)
         })
         .catch(console.error)

@@ -27,32 +27,25 @@ if (!paramsFile) {
 paramsFile = paramsFile ?? 'external/repo_actions/scripts/traceability_schema.yaml'
 
 export default defineConfig({
+  root: __dirname,
   plugins: [react(), yamlPlugin()],
   resolve: {
     alias: {
-      '@appConfig':    resolve(ROOT, 'config/config.yaml'),
-      '@pipelinesConfig': resolve(ROOT, 'config/pipelines.yaml'),
-      '@paramsSchema': resolve(ROOT, paramsFile),
-      '@phasesRunner': resolve(ROOT, appConfig.phases_runner),
+      '@appConfig':    resolve(__dirname, '../config/config.yaml'),
+      '@pipelinesConfig': resolve(__dirname, '../config/pipelines.yaml'),
+      '@paramsSchema': resolve(__dirname, '../' + paramsFile),
+      '@phasesRunner': resolve(__dirname, '../' + appConfig.phases_runner),
     },
   },
   server: {
     fs: { allow: ['..'] },
-    watch: {
-      ignored: [
-        '**/.git/**',
-        '**/.venv/**',
-        '**/node_modules/**',
-        '**/external/**',
-        '**/repos_backup/**',
-        '**/executions/**',
-        '**/.dvc/**',
-      ],
-    },
     proxy: {
       '/api': 'http://localhost:8000',
       '/executions': 'http://localhost:8000',
       '/ws': { target: 'ws://localhost:8000', ws: true },
+    },
+    watch: {
+      ignored: ['**/node_modules/**', '**/.git/**', '../../analisis/**', '../../supabase/**', '../../.git/**'],
     },
   },
 })
