@@ -83,13 +83,13 @@ function NavDropdown({ label, urlFn }) {
 }
 
 const VIEWS = [
-  { to: '/vista1', label: 'Dashboard' },
-  { to: '/vista2', label: 'Ejecuciones' },
-  { to: '/vista3', label: 'GH Actions' },
-  { to: '/vista4', label: 'Runners' },
-  { to: '/linaje', label: 'Linaje' },
-  { to: '/variants', label: 'Variantes' },
-  { to: '/services', label: 'Servicios' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/executions', label: 'Executions' },
+  { to: '/github-actions', label: 'GitHub Actions' },
+  { to: '/runners', label: 'Runners' },
+  { to: '/lineage', label: 'Lineage' },
+  { to: '/variants', label: 'Variants' },
+  { to: '/services', label: 'Services' },
 ]
 
 export default function Shell({ children }) {

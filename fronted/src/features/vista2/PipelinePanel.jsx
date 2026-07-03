@@ -478,7 +478,7 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
                 })()}
                 {ex.gh_run_id && (
                   <button
-                    onClick={e => { e.stopPropagation(); navigate(`/vista3?run_id=${ex.gh_run_id}`) }}
+                    onClick={e => { e.stopPropagation(); navigate(`/github-actions?run_id=${ex.gh_run_id}`) }}
                     className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded px-2 py-1 transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
                   >
                     Logs →

@@ -10,22 +10,23 @@ import Services from './pages/Services'
 
 function AppContent() {
   const location = useLocation()
-  const isVista4 = location.pathname === '/vista4'
+  const isRunners = location.pathname === '/runners'
 
   return (
     <Shell>
-      {/* Vista4 stays mounted to preserve terminal sessions across navigation */}
-      <div style={{ display: isVista4 ? 'block' : 'none', height: '100%' }}>
+      {/* Runners stays mounted to preserve terminal sessions across navigation */}
+      <div style={{ display: isRunners ? 'block' : 'none', height: '100%' }}>
         <Vista4 />
       </div>
 
-      {!isVista4 && (
+      {!isRunners && (
         <Routes>
-          <Route path="/" element={<Navigate to="/vista1" replace />} />
-          <Route path="/vista1" element={<Vista1 />} />
-          <Route path="/vista2" element={<Vista2 />} />
-          <Route path="/vista3" element={<LogsRunners />} />
-          <Route path="/linaje" element={<Linaje />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Vista1 />} />
+          <Route path="/executions" element={<Vista2 />} />
+          <Route path="/github-actions" element={<LogsRunners />} />
+          <Route path="/runners" element={<Vista4 />} />
+          <Route path="/lineage" element={<Linaje />} />
           <Route path="/variants" element={<Variants />} />
           <Route path="/services" element={<Services />} />
         </Routes>
