@@ -64,12 +64,12 @@ Copiar la plantilla y rellenar con valores reales:
 ```bash
 cp .env.example .env
 ```
-Ejemplo:   [.env.example]
 
+**📖 Guía completa de tokens de GitHub:** [doc/github_tokens_setup.md](doc/github_tokens_setup.md) (cómo generarlos, tipos, permisos y troubleshooting)
 
 | Variable | Requerida | Descripción |
 |---|---|---|
-| `GITHUB_TOKEN` | Sí | Token por defecto para GitHub API (dispatch + polling). Permisos: `repo`, `actions:read` |
+| `GITHUB_TOKEN` | Sí | Token por defecto para GitHub API (dispatch + polling). Token Classic con scope `repo`, o Fine-grained con `Contents: read-write` |
 | `GITHUB_TOKEN_EDGE` | No | Token específico para pipelines `mlops4rtedge` y `mlops4rtedgeI`. Si no existe, usa `GITHUB_TOKEN` |
 | `GITHUB_TOKEN_EDGE_TS` | No | Token específico para pipeline `mlops4rtedgeTSI` |
 | `GITHUB_TOKEN_EDGE_UNI` | No | Token específico para pipeline `mlops4rtedgeUniI` |
