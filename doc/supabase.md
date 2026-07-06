@@ -5,12 +5,11 @@
     - [3. Credenciales y Claves de Acceso](#3-credenciales-y-claves-de-acceso)
   - [4. URL de supabase](#4-url-de-supabase)
   - [4.5. Access Token (Docker / CI)](#45-access-token-docker--ci)
-  - [5. Crear tabla y estructura de los datos](#5-crear-tabla-y-estructura-de-los-datos)
-  - [6. Políticas de RLS (Row Level Security).](#6-políticas-de-rls-row-level-security)
-  - [7. Configurar el Webhook en GitHub](#7-configurar-el-webhook-en-github)
-    - [6.1. Configuración de Seguridad y Mantenimiento (Supabase)](#61-configuración-de-seguridad-y-mantenimiento-supabase)
-      - [6.1. Políticas de Row Level Security (RLS)](#61-políticas-de-row-level-security-rls)
-      - [6.2. Automatización de Limpieza de Logs (Trigger)](#62-automatización-de-limpieza-de-logs-trigger)
+  - [5. Políticas de RLS (Row Level Security).](#5-políticas-de-rls-row-level-security)
+    - [5.1. Configuración de Seguridad y Mantenimiento (Supabase)](#51-configuración-de-seguridad-y-mantenimiento-supabase)
+      - [5.2. Políticas de Row Level Security (RLS)](#52-políticas-de-row-level-security-rls)
+      - [5.3. Automatización de Limpieza de Logs (Trigger)](#53-automatización-de-limpieza-de-logs-trigger)
+  - [6. Configurar el Webhook en GitHub](#6-configurar-el-webhook-en-github)
 
 # Supabase
 [url](https://supabase.com/)
@@ -103,23 +102,19 @@ Con esta variable definida, `make dev` (o `make supabase-deploy`) desplegará la
 
 ---
 
-## 5. Crear tabla y estructura de los datos
+## 5. Políticas de RLS (Row Level Security).
 
-Ver modelo de datos en `.agent/30_Servicio3_logsRunners.md`.
-
-## 6. Políticas de RLS (Row Level Security).
-
-### 6.1. Configuración de Seguridad y Mantenimiento (Supabase)
+### 5.1. Configuración de Seguridad y Mantenimiento (Supabase)
 
 Para finalizar la configuración de la base de datos, es necesario establecer las políticas de acceso público de lectura (RLS) y automatizar la limpieza de registros para no exceder el límite de almacenamiento de la capa gratuita (500 MB).
 
 Dirigirse a **SQL Editor** en el panel de Supabase y ejecutar los siguientes scripts:
 
-#### 6.1. Políticas de Row Level Security (RLS)
+#### 5.2. Políticas de Row Level Security (RLS)
 Habilita la lectura de datos para las aplicaciones cliente que utilizan la `Publishable key` (anon), manteniendo bloqueada la escritura pública.
 
 
-#### 6.2. Automatización de Limpieza de Logs (Trigger)
+#### 5.3. Automatización de Limpieza de Logs (Trigger)
 Implementa una rutina automática que elimina los registros con más de 7 días de antigüedad cada vez que se inserta un nuevo log.
 
 > **Nota:** El intervalo `'7 days'` puede ajustarse según el volumen de operaciones y los requisitos de auditoría del proyecto.
@@ -237,7 +232,7 @@ FOR EACH STATEMENT EXECUTE FUNCTION clean_old_logs();
 
 ---
 
-## 7. Configurar el Webhook en GitHub
+## 6. Configurar el Webhook en GitHub
 > Repositorio MLOps_actions_v2 → Settings → Webhooks → Add webhook
 
 Una vez desplegada la Edge Function (`make supabase-deploy`), hay que decirle a GitHub que envíe los eventos de workflow a esa URL.

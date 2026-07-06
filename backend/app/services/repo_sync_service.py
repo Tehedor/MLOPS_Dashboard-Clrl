@@ -10,6 +10,30 @@ import httpx
 from app.core.config import PROJECT_ROOT, load_app_config, load_pipelines_config, get_pipeline_project, get_pipeline_token, settings
 
 log = logging.getLogger(__name__)
+git_log = logging.getLogger("git_sync")
+
+_git_log_initialized = False
+
+def _init_git_logger():
+    """Initialize git logger with file handler (only once)."""
+    global _git_log_initialized
+    if _git_log_initialized:
+        return
+    _git_log_initialized = True
+
+    git_log.setLevel(logging.DEBUG)
+    log_dir = Path(PROJECT_ROOT) / ".pids"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "git-clone.log"
+
+    handler = logging.FileHandler(log_file, encoding="utf-8")
+    handler.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    git_log.addHandler(handler)
 
 _states: dict[str, dict] = {}  # keyed by pipeline_id
 _callbacks: list = []
@@ -121,19 +145,25 @@ def _get_remote_name(local_path: Path) -> str:
 
 
 def _clone(local_path: Path, url: str, branch: str, token: str = "") -> None:
+    _init_git_logger()
     local_path.parent.mkdir(parents=True, exist_ok=True)
+    git_log.info("🔄 Cloning %s (branch: %s) → %s", url, branch, local_path)
     result = subprocess.run(
         ["git", "clone", "--branch", branch, "--single-branch", _authed_url(url, token), str(local_path)],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
+        error_msg = result.stderr or result.stdout
+        log.error("❌ Clone failed: %s", error_msg)
+        git_log.error("❌ Clone failed: %s", error_msg)
         raise subprocess.CalledProcessError(
             result.returncode,
             "git clone",
             output=result.stdout,
             stderr=result.stderr,
         )
+    git_log.info("✅ Cloned successfully: %s", local_path)
     log.info("repo cloned url=%s branch=%s path=%s", url, branch, local_path)
 
 
@@ -181,6 +211,7 @@ async def _latest_sha(owner: str, repo: str, branch: str, token: str = "") -> st
 
 
 def _pull(local_path: Path, branch: str) -> None:
+    _init_git_logger()
     remote = _get_remote_name(local_path)
     subprocess.run(
         ["git", "-C", str(local_path), "remote", "prune", remote],
@@ -189,14 +220,24 @@ def _pull(local_path: Path, branch: str) -> None:
     lock_file = local_path / ".git" / "index.lock"
     if lock_file.exists():
         lock_file.unlink(missing_ok=True)
-    subprocess.run(
+
+    git_log.debug("  → Fetching %s/%s", remote, branch)
+    result = subprocess.run(
         ["git", "-C", str(local_path), "fetch", remote, branch],
-        check=True, capture_output=True,
+        capture_output=True, text=True
     )
-    subprocess.run(
+    if result.returncode != 0:
+        git_log.error("  ❌ Fetch failed: %s", result.stderr or result.stdout)
+        raise subprocess.CalledProcessError(result.returncode, "git fetch", stderr=result.stderr, stdout=result.stdout)
+
+    git_log.debug("  → Resetting to %s/%s", remote, branch)
+    result = subprocess.run(
         ["git", "-C", str(local_path), "reset", "--hard", f"{remote}/{branch}"],
-        check=True, capture_output=True,
+        capture_output=True, text=True
     )
+    if result.returncode != 0:
+        git_log.error("  ❌ Reset failed: %s", result.stderr or result.stdout)
+        raise subprocess.CalledProcessError(result.returncode, "git reset", stderr=result.stderr, stdout=result.stdout)
 
 
 async def check_and_pull(pipeline_id: str) -> dict:
@@ -216,55 +257,89 @@ async def check_and_pull(pipeline_id: str) -> dict:
     return {"sha": sha, "pulled": pulled, "updated_at": state["updated_at"]}
 
 
-async def force_pull(pipeline_id: str | None = None) -> None:
-    """Pull immediately. If pipeline_id is None, pulls all registered projects."""
+async def force_pull(pipeline_id: str | None = None) -> dict[str, bool]:
+    """Pull immediately. If pipeline_id is None, pulls all registered projects.
+    Returns dict mapping pipeline_id -> success status."""
+    _init_git_logger()
     projects = load_pipelines_config()
     targets = [pipeline_id] if pipeline_id else list(projects.keys())
-    for pid in targets:
-        lock = _pull_locks.get(pid)
-        if lock is None:
-            lock = asyncio.Lock()
-            _pull_locks[pid] = lock
-        if lock.locked():
-            continue
-        async with lock:
-            await _force_pull_one(pid)
+    results = {}
+
+    if not targets:
+        log.warning("No pipelines configured to pull")
+        return results
+
+    if not pipeline_id:
+        git_log.info("=" * 60)
+        git_log.info("📥 Downloading %d pipeline(s)...", len(targets))
+        git_log.info("=" * 60)
+
+    for idx, pid in enumerate(targets, 1):
+        try:
+            lock = _pull_locks.get(pid)
+            if lock is None:
+                lock = asyncio.Lock()
+                _pull_locks[pid] = lock
+            if lock.locked():
+                git_log.debug("Skipping %s: already locked", pid)
+                continue
+            git_log.debug("Starting pull for %s (%d/%d)", pid, idx, len(targets))
+            async with lock:
+                success = await _force_pull_one(pid)
+                results[pid] = success
+        except Exception as e:
+            git_log.error("Exception in force_pull for %s: %s", pid, e, exc_info=True)
+            results[pid] = False
+
+    if not pipeline_id:
+        git_log.info("=" * 60)
+        git_log.info("✅ All pipelines initialized")
+        git_log.info("=" * 60)
+
+    return results
 
 
-async def _force_pull_one(pipeline_id: str) -> None:
+async def _force_pull_one(pipeline_id: str) -> bool:
+    """Pull one pipeline. Returns True if successful, False otherwise."""
+    _init_git_logger()
     state = _get_state(pipeline_id)
     try:
         owner, name, branch, local_path, clone_url = _project_config(pipeline_id)
     except ValueError as exc:
         log.warning("force_pull: %s", exc)
-        return
+        return False
     token = get_pipeline_token(pipeline_id)
     loop = asyncio.get_running_loop()
+
+    git_log.info("[%s] Processing %s/%s@%s", pipeline_id, owner, name, branch)
     await loop.run_in_executor(None, _ensure_cloned, local_path, clone_url, branch, token)
     try:
         await loop.run_in_executor(None, _pull, local_path, branch)
         sha = await _latest_sha(owner, name, branch, token)
         state.update(sha=sha, updated_at=datetime.now(timezone.utc).isoformat(), error=None)
-        log.info("force_pull [%s] done sha=%s", pipeline_id, sha[:8])
+        git_log.info("[%s] ✅ Ready (sha: %s)", pipeline_id, sha[:8])
+        for cb in _callbacks:
+            try:
+                await cb(pipeline_id)
+            except Exception as exc:
+                log.warning("force_pull callback error [%s]: %s", pipeline_id, exc)
+        return True
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr or b""
         detail = (stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else str(stderr)).strip() or str(exc)
         detail = sanitize_error_detail(detail)
         state["error"] = detail
         if "Remote branch" in detail and "not found" in detail:
-            log.debug("force_pull skip [%s]: branch not yet initialized", pipeline_id)
+            git_log.debug("force_pull skip [%s]: branch not yet initialized", pipeline_id)
         else:
-            log.warning("force_pull [%s] error: %s", pipeline_id, detail)
-        return
+            log.warning("❌ Pipeline [%s] error: %s", pipeline_id, detail)
+            git_log.error("[%s] ❌ Error: %s", pipeline_id, detail)
+        return False
     except Exception as exc:
         state["error"] = str(exc)
-        log.warning("force_pull [%s] error: %s", pipeline_id, exc)
-        return
-    for cb in _callbacks:
-        try:
-            await cb(pipeline_id)
-        except Exception as exc:
-            log.warning("force_pull callback error [%s]: %s", pipeline_id, exc)
+        log.warning("❌ Pipeline [%s] error: %s", pipeline_id, exc)
+        git_log.error("[%s] ❌ Error: %s", pipeline_id, exc)
+        return False
 
 
 async def polling_loop() -> None:

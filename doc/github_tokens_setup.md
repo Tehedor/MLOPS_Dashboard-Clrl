@@ -184,25 +184,31 @@ curl http://localhost:8000/docs  # Swagger UI
 
 ### Dispatch (lanzar workflows desde dashboard)
 
-Necesita permisos de **escritura en Actions**:
+Necesita permisos de **escritura en Actions y contenido**:
 
 **Classic:**
 - Scope `repo` (acceso completo)
 
-**Fine-grained:**
-- Repository: `Contents: Read and write`
-- Repository: `Workflows: Read and write` (si quieres ser explícito)
+**Fine-grained (recomendado):**
+- Repository: `Contents: Read and write` (para escribir dispatch)
+- Repository: `Actions: Read and write` (para crear runs)
+- Repository: `Metadata: Read-only` (automático, requerido)
 
-### Polling (monitorizar ejecuciones)
+### Polling (monitorizar ejecuciones — **CRÍTICO para gh_run_id**)
+
+⚠️ **Este es el permiso que faltaba.** Sin él, el backend no puede buscar los workflow runs.
 
 Necesita permisos de **lectura en Actions**:
 
 **Classic:**
 - Scope `repo` (acceso completo)
-- O simplemente `actions:read` si es repo público
 
-**Fine-grained:**
-- Repository: `Contents: Read` (suficiente para leer estado)
+**Fine-grained (RECOMENDADO para seguridad):**
+- Repository: `Actions: Read-only` ← **CRÍTICO: necesario para `_find_run_after()`**
+- Repository: `Contents: Read` (para verificar rama)
+- Repository: `Metadata: Read-only` (automático, requerido)
+
+> **Si falta `Actions: Read-only`, el backend no puede encontrar los workflow runs y `gh_run_id` quedará vacío.**
 
 ### Clonado de repos privados
 
@@ -213,6 +219,15 @@ Necesita permisos de **lectura de contenido**:
 
 **Fine-grained:**
 - Repository: `Contents: Read`
+
+### Tabla resumen de permisos por feature
+
+| Feature | Classic | Fine-grained |
+|---------|---------|------|
+| **Dispatch** (mandar ejecución) | `repo` | `Contents: R+W`, `Actions: R+W`, `Metadata: R` |
+| **Polling** (buscar runs) | `repo` | `Actions: R`, `Contents: R`, `Metadata: R` |
+| **Clone repos** | `repo` | `Contents: R` |
+| **Combinado (recomendado)** | `repo` | `Actions: R+W`, `Contents: R+W`, `Metadata: R` |
 
 ---
 

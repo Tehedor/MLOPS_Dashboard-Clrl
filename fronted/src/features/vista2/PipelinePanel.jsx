@@ -447,7 +447,7 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
 
           {selectedId === ex.id && (
             <div className="mt-2 pt-2 border-t border-gray-300 dark:border-gray-700 flex flex-col gap-2">
-              {ex.gh_run_id && (
+              {ex.gh_run_id ? (
                 <a
                   href={`https://github.com/${pipelineProjects[ex.pipeline_id]?.repo ?? ''}/actions/runs/${ex.gh_run_id}`}
                   target="_blank" rel="noreferrer"
@@ -456,7 +456,12 @@ export default function PipelinePanel({ executions, filterVariant, filterFase, f
                 >
                   run #{ex.gh_run_id}
                 </a>
-              )}
+              ) : ex.status === 'running' ? (
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono self-start flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                  finding run ID…
+                </span>
+              ) : null}
               <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
                 {(() => {
                   const isCancelling = cancel.isPending && cancel.variables === ex.id

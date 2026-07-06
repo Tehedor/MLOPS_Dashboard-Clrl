@@ -13,6 +13,7 @@ Permite lanzar, monitorizar y trazar variantes de modelos a lo largo de 8 fases 
   - [Guía de despliegue](#guía-de-despliegue)
     - [Paso 1 — Variables de entorno](#paso-1--variables-de-entorno)
     - [Paso 2 — Configuración de pipelines](#paso-2--configuración-de-pipelines)
+      - [Paso 2.1 — Configurar el workflow automático de Pull Requests](#paso-21--configurar-el-workflow-automático-de-pull-requests)
     - [Paso 3 — Arrancar la aplicación](#paso-3--arrancar-la-aplicación)
     - [Paso 4 — Supabase (opcional)](#paso-4--supabase-opcional)
       - [Configuración paso a paso](#configuración-paso-a-paso)
@@ -52,6 +53,7 @@ Permite lanzar, monitorizar y trazar variantes de modelos a lo largo de 8 fases 
 | Docker + Docker Compose | 24+ / v2 | Despliegue containerizado (opcional) |
 | Git | 2.x | Clonación de repos de pipeline |
 | Make | 4.x | Automatización de tareas |
+| [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) | Última estable | Despliegue de la Edge Function y configuración de secretos (opcional; `make supabase-deploy` la instala automáticamente si no está disponible) |
 
 ---
 
@@ -69,7 +71,7 @@ cp .env.example .env
 
 | Variable | Requerida | Descripción |
 |---|---|---|
-| `GITHUB_TOKEN` | Sí | Token por defecto para GitHub API (dispatch + polling). Token Classic con scope `repo`, o Fine-grained con `Contents: read-write` |
+| `GITHUB_TOKEN` | Sí | Token por defecto para GitHub API (dispatch + polling). Token Classic con scope `repo`, o Fine-grained con `Contents: read-write`, mejor hacerlo por repo |
 | `GITHUB_TOKEN_EDGE` | No | Token específico para pipelines `mlops4rtedge` y `mlops4rtedgeI`. Si no existe, usa `GITHUB_TOKEN` |
 | `GITHUB_TOKEN_EDGE_TS` | No | Token específico para pipeline `mlops4rtedgeTSI` |
 | `GITHUB_TOKEN_EDGE_UNI` | No | Token específico para pipeline `mlops4rtedgeUniI` |
@@ -106,6 +108,17 @@ Los ficheros de configuración por pipeline se ubican en `config/<pipeline_id>/`
 - `local_workflows.yaml` — steps del runner local
 - `services_external_ctrl.yaml` — servicios externos controlados
 
+#### Paso 2.1 — Configurar el workflow automático de Pull Requests
+
+Para que los workflows puedan crear y fusionar Pull Requests automáticamente:
+
+1. Habilitar permisos de lectura y escritura para GitHub Actions en la organización y en cada repositorio.
+2. Permitir que GitHub Actions cree y apruebe Pull Requests.
+3. Revisar las reglas de protección de la rama base para que no bloqueen el merge automático.
+4. Verificar que los workflows declaren los permisos `contents: write` y `pull-requests: write`.
+
+Consulta las rutas exactas de configuración, las alternativas de protección de ramas y el checklist por repositorio en la **[guía del workflow automático de Pull Requests](doc/github_actions_autoPR.md)**.
+
 ### Paso 3 — Arrancar la aplicación
 
 ```bash
@@ -118,230 +131,29 @@ make dev        # arrancar backend (8000) + frontend (5173)
 **Supabase es opcional.** Sin configurar, el dashboard funciona normalmente usando polling directo a la API de GitHub para detectar completions, con unos segundos más de latencia. Con Supabase, recibe notificaciones push en tiempo real.
 
 **¿Por qué Supabase?**
+- GitHub solo admite una URL de webhook por evento. Como la app es self-hosted, Supabase actúa como broker Pub/Sub centralizando eventos.
+- Escrituras ilimitadas desde GitHub Actions, push real en el cliente vía WebSocket, free tier sostenible con rotación de logs.
 
-GitHub solo admite una URL de webhook por evento. Como la app es self-hosted (cada usuario tiene su instancia), Supabase actúa como **broker Pub/Sub** centralizando eventos de GitHub y distribuyéndolos a todas las instancias.
-
-**Supabase es elegida por:**
-1. Escrituras ilimitadas desde GitHub Actions (REST sin límite de peticiones)
-2. Push real en el cliente (Realtime WebSocket, no polling)
-3. Un solo servicio, SDK oficial para React/JS
-4. Free tier sostenible con política de rotación de logs
-5. Alineación con el patrón SSE/push ya establecido en el stack
-
-El único cuello de botella es el almacenamiento (500 MB free tier), gestionable con rotación agresiva (7 días para logs, 30 días para runs).
-
-**Arquitectura multi-repo**
-
-El dashboard opera con múltiples repos de pipeline simultáneamente. Cada repo necesita su propio webhook apuntando a la misma Edge Function de Supabase.
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  GitHub Actions                                                     │
-│                                                                     │
-│  TeheORG/mlops4rtedge       (ramas: test, mlops4rtedge_ines)       │
-│  TeheORG/mlops4rtedgeUni    (rama:  mlops4rtedgeUni_ines)          │
-│  TeheORG/mlops4rtedgeTS     (rama:  mlops4rtedgeTS_ines)           │
-│                                                                     │
-│  Cada repo tiene un webhook configurado ─────────────────────┐     │
-└──────────────────────────────────────────────────────────────┼─────┘
-                                                               │
-                                                               ▼
-                              ┌─────────────────────────┐
-                              │       SUPABASE          │
-                              │  Edge Function          │
-                              │    (github-webhook)     │
-                              │        ↓                │
-                              │  PostgreSQL             │
-                              │    workflow_runs        │
-                              │    workflow_logs         │
-                              │        ↓                │
-                              │  Realtime WS (push)     │
-                              └────────────┬────────────┘
-                                           │  WebSocket (anon key)
-                          ┌────────────────┼────────────────┐
-                          ▼                ▼                ▼
-                   instancia A      instancia B      instancia C
-                   (self-hosted)   (self-hosted)   (self-hosted)
-```
-
-**Flujo de datos:**
-
-1. Un workflow completa en cualquiera de los 3 repos
-2. GitHub envía un evento `workflow_run` al webhook de la Edge Function
-3. La Edge Function extrae `repo`, `branch`, `fase` (prefijo `f0N`), `variant` y `conclusion`
-4. Escribe/actualiza el registro en `workflow_runs` y los logs en `workflow_logs`
-5. Supabase Realtime notifica a todas las instancias suscritas
-6. El backend resuelve el `pipeline_id` desde `repo+branch` y ejecuta `force_pull` solo para ese pipeline
-7. El frontend muestra el cambio de estado en tiempo real
-
-**Inferencia dinámica de fase**
-
-La Edge Function extrae el **número de fase** del nombre del job o workflow:
-- Job del orquestador: `trigger-fase5` → `5` → `f05`
-- Workflow reusable: `"Reusable: Fase 5 (Modeling)"` → `5` → `f05`
-
-Almacena solo el prefijo `f0N` en Supabase. El backend y frontend resuelven el nombre completo (`f05` → `f05_modeling`) desde sus YAMLs de configuración. Esto elimina la necesidad de mantener una lista de fases sincronizada.
-
-#### Configuración paso a paso
-
-**1. Crear proyecto en Supabase**
-
-1. Ir a [supabase.com](https://supabase.com) y crear un proyecto. Dentro de este proyecto:
-2. Anotar:
-   - **Project URL**: `https://xxxxx.supabase.co`  
-    (Project Settings → General |> General Settings | project id)
-    {.env - SUPABASE_URL=https://xxxxx.supabase.co}
-   - **Publishable key** (pública): `sb_publishable_XXXXX`  
-     (Project Settings → API keys |> Publishable and secret API keys→ Publishable key)
-    {.env - SUPABASE_PUBLISHABLE_KEY=sb_publishable_XXXXX}
-   - **Secret keys** (privada): `sb_secret_XXXX`  
-     (Project Settings → API keys |> Publishable and secret API keys→ Secret keys)
-     {.env - SERVICE_ROLE_KEY=XXXXX}
-   - **acess token** : `sb_secret_XXXX`
-    (Avatar -> Account -> Acess Tokens)
-    {.env -> } 
-
-**2. Crear tablas**
-
-Ejecutar en el SQL Editor de Supabase:
-
-```sql
-create table workflow_runs (
-  run_id        bigint primary key,
-  repo          text not null,
-  branch        text,
-  workflow_name text,
-  fase          text,
-  variant       text,
-  status        text not null default 'queued',
-  conclusion    text,
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
-);
-
-create table workflow_logs (
-  id        uuid primary key default gen_random_uuid(),
-  run_id    bigint not null references workflow_runs(run_id) on delete cascade,
-  step_name text,
-  line_no   int,
-  content   text,
-  ts        timestamptz default now()
-);
-
-create index on workflow_logs(run_id, line_no);
-```
-
-**3. Habilitar Realtime**
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE workflow_runs;
-ALTER PUBLICATION supabase_realtime ADD TABLE workflow_logs;
-```
-
-**4. Row Level Security**
-
-```sql
-alter table workflow_runs enable row level security;
-create policy "anon read" on workflow_runs for select using (true);
-
-alter table workflow_logs enable row level security;
-create policy "anon read" on workflow_logs for select using (true);
-
--- RLS y los permisos SQL son capas independientes. Sin estos GRANT,
--- PostgREST y la Edge Function responden "permission denied for table".
-grant usage on schema public to anon, service_role;
-
-grant select
-on table public.workflow_runs, public.workflow_logs
-to anon;
-
-grant select, insert, update, delete
-on table public.workflow_runs, public.workflow_logs
-to service_role;
-```
-
-La clave privada `sb_secret_...` usa el rol `service_role` y salta RLS,
-pero sigue necesitando los permisos SQL anteriores sobre las tablas.
-
-**5. Rotación automática (trigger)**
-
-```sql
-create or replace function purge_old_logs()
-returns trigger language plpgsql as $$
-begin
-  delete from workflow_logs where ts < now() - interval '7 days';
-  delete from workflow_runs
-    where updated_at < now() - interval '30 days'
-      and conclusion is not null;
-  return null;
-end;
-$$;
-
-create trigger trg_purge_old_logs
-after insert on workflow_logs
-for each statement execute function purge_old_logs();
-```
-
-Con la rotación a 7 días el almacenamiento se estabiliza en ~9 MB.
-
-**6. Desplegar la Edge Function**
-
-```bash
-cd supabase/
-supabase functions deploy github-webhook
-```
-
-Configurar secrets de la Edge Function:
-
-```bash
-supabase secrets set GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-supabase secrets set WEBHOOK_SECRET=un_secreto_aleatorio
-```
-
-La Edge Function infiere la fase dinámicamente desde el nombre del job/workflow — no necesita configuración adicional.
-
-**7. Configurar webhooks en GitHub**
-
-En **cada uno** de los 3 repos, ir a Settings → Webhooks → Add webhook:
-
-| Campo | Valor |
-|---|---|
-| **Payload URL** | `https://<proyecto>.supabase.co/functions/v1/github-webhook` |
-| **Content type** | `application/json` |
-| **Secret** | El mismo valor configurado en `WEBHOOK_SECRET` |
-| **Events** | Let me select individual events: **Workflow runs** |
-| **SSL Verification** | Enabled|
-
-Repos que necesitan webhook:
-- `TeheORG/mlops4rtedge`
-- `TeheORG/mlops4rtedgeUni`
-- `TeheORG/mlops4rtedgeTS`
-
-**8. Configurar variables en el dashboard**
-
-En el `.env` del proyecto (raíz):
+**Variables de entorno (en `.env`):**
 
 ```bash
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_***
 ```
 
-**Límites Free Tier**
+**Guía de configuración completa:** [doc/supabase.md](doc/supabase.md)
 
-| recurso              | límite free | uso estimado (50 jobs/día, 500 líneas/job) |
-|---|---|---|
-| Almacenamiento BD    | 500 MB      | ~25 KB/job × 50 = 1.25 MB/día → 400 días   |
-| Ancho de banda       | 5 GB/mes    | marginal (payloads pequeños)                |
-| Conexiones Realtime  | 200         | 1 por instancia self-hosted activa          |
-| Edge Functions       | 500K inv/mes | ~150/día × 30 = 4.500/mes                  |
+Incluye paso a paso:
+1. Crear proyecto en Supabase
+2. Crear tablas y configurar RLS
+3. Habilitar Realtime y rotación de logs
+4. Desplegar Edge Function (`make supabase-deploy`)
+5. Configurar webhooks en GitHub
 
-**Sin Supabase (modo por defecto)**
-
-Cuando `SUPABASE_URL` y `SUPABASE_PUBLISHABLE_KEY` están vacíos:
-
-- **Backend**: El servicio `supabase_sync_service` se desactiva silenciosamente. El polling de `execution_service._poll_gh_running()` detecta completions cada `POLL_GH_SECS` consultando directamente la API de GitHub
-- **Frontend**: `isConfigured()` devuelve `false`, las queries de Supabase devuelven `[]`, la vista LogsRunners queda sin datos de GHA
-- **Funcionalidad intacta**: ejecuciones locales, dispatch, colas, variantes, lineaje, terminal — todo funciona normalmente sin Supabase
+**Sin Supabase (modo por defecto):**
+Cuando estas variables están vacías:
+- Backend: El polling de `execution_service` detecta completions consultando directamente la API de GitHub
+- Frontend: La vista de GHA no recibe datos, pero el resto de funcionalidades (ejecuciones locales, dispatch, colas, variantes, lineaje) sigue intacta
 
 ---
 

@@ -16,6 +16,38 @@ async def _sync_lineage_registry(pipeline_id: str) -> None:
     await loop.run_in_executor(None, lineage_registry_service.sync, pipeline_id)
 
 
+async def _init_pipelines_task() -> None:
+    """Background task to initialize pipelines after server is ready."""
+    import logging
+    from app.core.config import load_pipelines_config
+    import httpx
+
+    log = logging.getLogger("startup")
+
+    # Wait for server to be fully ready
+    max_retries = 30
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=2) as client:
+                await client.get("http://localhost:8000/docs", follow_redirects=False)
+            break
+        except Exception:
+            if attempt == max_retries - 1:
+                log.warning("Server health check timeout, starting pipelines anyway")
+                break
+            await asyncio.sleep(0.5)
+
+    log.info("🚀 Initializing pipelines...")
+    results = await repo_sync_service.force_pull()
+    if results:
+        pipelines_config = load_pipelines_config()
+        for idx, (pid, success) in enumerate(results.items(), 1):
+            label = pipelines_config.get(pid, {}).get("label", pid)
+            status = "✅" if success else "❌"
+            log.info("  [%d/%d] %s %s", idx, len(results), label, status)
+    log.info("✅ All pipelines ready")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -33,6 +65,9 @@ async def lifespan(app: FastAPI):
     poll_task = start_gh_poll()
     dvc_worker = variants_service.start_worker()
 
+    # Start pipeline initialization as background task (non-blocking, after server is ready)
+    init_task = asyncio.create_task(_init_pipelines_task())
+
     await variants_service.sync_all()
     yield
 
@@ -40,6 +75,7 @@ async def lifespan(app: FastAPI):
     realtime_task.cancel()
     poll_task.cancel()
     dvc_worker.cancel()
+    init_task.cancel()
 
 
 app = FastAPI(title="MLOps Control Dashboard", lifespan=lifespan)

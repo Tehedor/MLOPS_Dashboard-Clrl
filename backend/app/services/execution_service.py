@@ -17,7 +17,7 @@ POLL_WAITING_SECS = 30   # re-check waiting_runner / waiting_parent every N seco
 from app.core.config import phases_runner_path, fase_runners_path, load_app_config, PROJECT_ROOT, get_pipeline_project, get_pipeline_token
 from app.core.db import connect
 from app.schemas.execution import Execution, ExecutionCreate, ExecutionStatus
-from app.services.github import dispatch_phase
+from app.services.github import dispatch_phase, _find_run_after
 from app.services import execution_event_service
 
 
@@ -735,21 +735,46 @@ async def _poll_gh_running() -> None:
                 ) as cursor:
                     rows = await cursor.fetchall()
                 async with db.execute(
+                    """SELECT id, pipeline_id, fase, variant, created_at FROM executions
+                       WHERE status='running' AND gh_run_id IS NULL
+                       AND updated_at < datetime('now', '-2 minutes')"""
+                ) as cursor:
+                    orphans_recent = await cursor.fetchall()
+                async with db.execute(
                     """SELECT id FROM executions
                        WHERE status='running' AND gh_run_id IS NULL
                        AND updated_at < datetime('now', '-30 minutes')"""
                 ) as cursor:
-                    orphans = await cursor.fetchall()
+                    orphans_stale = await cursor.fetchall()
             if rows:
                 await asyncio.gather(*(_check_run(r[0], r[1]) for r in rows))
-            if orphans:
+
+            # Try to find gh_run_id for recently-orphaned running executions
+            if orphans_recent:
+                for eid, pid, fase, variant, created_at in orphans_recent:
+                    try:
+                        proj = get_pipeline_project(pid)
+                        repo = proj["repo"]
+                        # Try to find the run created after this execution was dispatched
+                        run_id = await _find_run_after(repo, created_at, token=get_pipeline_token(pid))
+                        if run_id:
+                            svc_instance = ExecutionService()
+                            await svc_instance._set_gh_run_id(eid, run_id)
+                            log.info("poll_gh_running: found missing gh_run_id for %s → %s", eid, run_id)
+                        else:
+                            log.debug("poll_gh_running: could not find gh_run_id for %s after %s", eid, created_at)
+                    except Exception as exc:
+                        log.debug("poll_gh_running: failed to search for run_id %s: %s", eid, exc)
+
+            # Mark stale orphans as failed
+            if orphans_stale:
                 now = datetime.now(timezone.utc).isoformat()
-                for (eid,) in orphans:
+                for (eid,) in orphans_stale:
                     log.warning("poll_gh_running: execution %s sin run_id tras 30 min → INTERRUPTED", eid)
                 async with connect() as db:
                     await db.executemany(
                         "UPDATE executions SET status='failed', error_code='INTERRUPTED', updated_at=? WHERE id=?",
-                        [(now, eid) for (eid,) in orphans],
+                        [(now, eid) for (eid,) in orphans_stale],
                     )
                     await db.commit()
 

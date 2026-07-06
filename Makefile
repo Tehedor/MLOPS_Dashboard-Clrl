@@ -36,6 +36,7 @@ BACKEND_PID  := $(PID_DIR)/backend.pid
 FRONTEND_PID := $(PID_DIR)/frontend.pid
 BACKEND_LOG  := $(PID_DIR)/backend.log
 FRONTEND_LOG := $(PID_DIR)/frontend.log
+GIT_LOG      := $(PID_DIR)/git-clone.log
 
 CYAN  := \033[36m
 GREEN := \033[32m
@@ -94,7 +95,8 @@ dev: dev-backend wait-backend dev-frontend ## Arranca backend + frontend en back
 	@printf "  Backend:  $(CYAN)http://localhost:8000$(RESET)\n"
 	@printf "  Frontend: $(CYAN)http://localhost:5173$(RESET)\n"
 	@printf "  API docs: $(CYAN)http://localhost:8000/docs$(RESET)\n"
-	@printf "  Logs:     make logs\n\n"
+	@printf "  Logs:     make logs\n"
+	@printf "  Git logs: make logs-git (clonación y fetch de repositorios)\n\n"
 
 dev-backend: ## Arranca el backend (uvicorn --reload) en background
 	@mkdir -p $(PID_DIR); \
@@ -207,7 +209,7 @@ restart-frontend: stop-frontend dev-frontend ## Reinicia solo el frontend
 
 # ── Status & Logs ─────────────────────────────────────────────────────────────
 
-.PHONY: status logs logs-backend logs-frontend logs-localRunner
+.PHONY: status logs logs-backend logs-frontend logs-git logs-localRunner
 status: ## Estado de los procesos locales
 	@B_STATUS="STOPPED"; F_STATUS="STOPPED"; \
 	[ -f $(BACKEND_PID) ]  && kill -0 $$(cat $(BACKEND_PID))  2>/dev/null \
@@ -234,6 +236,11 @@ logs-backend: ## Sigue los logs del backend
 
 logs-frontend: ## Sigue los logs del frontend
 	@tail -f $(FRONTEND_LOG)
+
+logs-git: ## Sigue los logs de git (clonación y fetch de repositorios)
+	@[ -f $(GIT_LOG) ] \
+		|| (echo "$(CYAN)No hay logs de git todavía. Los verás cuando el backend se inicie.$(RESET)" && exit 1)
+	@tail -f $(GIT_LOG)
 
 logs-localRunner: ## Logs del runner local en tiempo real (EXEC=<id_prefix> para uno específico)
 	@$(PYTHON_CMD) scripts/local_runner_logs.py $(EXEC)
@@ -321,7 +328,7 @@ open-gh: ## Abre la organización de repositorios GitHub
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 
-.PHONY: clean clean-pids clean-frontend
+.PHONY: clean clean-pids clean-frontend clean-external
 clean: stop clean-pids clean-frontend ## Para servicios y limpia artefactos generados
 
 clean-pids: ## Elimina PIDs y logs de procesos locales
@@ -330,3 +337,6 @@ clean-pids: ## Elimina PIDs y logs de procesos locales
 clean-frontend: ## Elimina node_modules y dist del frontend
 	@rm -rf $(FRONTEND_DIR)/node_modules $(FRONTEND_DIR)/dist \
 		&& echo "node_modules y dist eliminados"
+
+clean-external: ## Elimina todos los repositorios clonados en external/
+	@rm -rf external && echo "Carpeta external/ eliminada"
